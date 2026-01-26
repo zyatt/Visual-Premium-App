@@ -110,10 +110,17 @@ class OrcamentosApiRepository {
   }
 
   /// Baixa o PDF do orçamento
-  Future<Uint8List> downloadOrcamentoPdf(int id) async {
+  Future<Uint8List> downloadOrcamentoPdf(int id, {bool regenerate = false}) async {
     try {
-      final url = Uri.parse('$baseUrl/pdf/orcamento/$id');
-      final response = await http.get(url);
+      final queryParams = regenerate ? '?regenerate=true' : '';
+      final url = Uri.parse('$baseUrl/pdf/orcamento/$id$queryParams');
+      
+      final response = await http.get(
+        url,
+        headers: {
+          'Accept': 'application/pdf',
+        },
+      );
 
       if (response.statusCode == 200) {
         return response.bodyBytes;
@@ -121,7 +128,7 @@ class OrcamentosApiRepository {
         throw Exception('Erro ao baixar PDF: ${response.statusCode}');
       }
     } catch (e) {
-      rethrow;
+      throw Exception('Erro ao baixar PDF: $e');
     }
   }
 

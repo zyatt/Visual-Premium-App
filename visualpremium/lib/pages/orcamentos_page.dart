@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_file/open_file.dart';
 import 'package:visualpremium/data/orcamentos_repository.dart';
 import 'package:visualpremium/models/orcamento_item.dart';
 import '../theme.dart';
@@ -19,6 +22,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
   bool _loading = true;
   List<OrcamentoItem> _items = const [];
   String _searchQuery = '';
+  int? _downloadingId;
 
   @override
   void initState() {
@@ -112,6 +116,141 @@ class _BudgetsPageState extends State<BudgetsPage> {
       setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao deletar orçamento: $e')),
+      );
+    }
+  }
+
+  Future<void> _downloadPdf(OrcamentoItem item) async {
+    setState(() => _downloadingId = item.id);
+    try {
+      final directory = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
+      final fileName = 'orcamento_${item.numero}_${item.cliente.replaceAll(' ', '_')}.pdf';
+      final filePath = '${directory.path}/$fileName';
+      final file = File(filePath);
+      
+      // Verifica se o arquivo já existe
+      if (await file.exists()) {
+        // Abre o arquivo existente sem baixar novamente
+        if (!mounted) return;
+        setState(() => _downloadingId = null);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Abrindo PDF existente...'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.white,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            action: SnackBarAction(
+              label: 'Fechar',
+              textColor: Theme.of(context).colorScheme.primary,
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              },
+            ),
+          ),
+        );
+        
+        await OpenFile.open(filePath);
+        return;
+      }
+      
+      // Baixa o PDF se não existir
+      final pdfBytes = await _api.downloadOrcamentoPdf(item.id);
+      await file.writeAsBytes(pdfBytes);
+      
+      if (!mounted) return;
+      setState(() => _downloadingId = null);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('PDF salvo em: $filePath'),
+          backgroundColor: Colors.white,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.2),
+            ),
+          ),
+          duration: const Duration(seconds: 3),
+          action: SnackBarAction(
+            label: 'Abrir',
+            textColor: Theme.of(context).colorScheme.primary,
+            onPressed: () => OpenFile.open(filePath),
+          ),
+        ),
+      );
+      
+      await OpenFile.open(filePath);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _downloadingId = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao baixar PDF: $e'),
+          duration: const Duration(seconds: 3),
+          backgroundColor: Theme.of(context).colorScheme.errorContainer,
+        ),
+      );
+    }
+  }
+
+  Future<void> _regeneratePdf(OrcamentoItem item) async {
+    setState(() => _downloadingId = item.id);
+    try {
+      // Remove arquivo existente
+      final directory = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
+      final fileName = 'orcamento_${item.numero}_${item.cliente.replaceAll(' ', '_')}.pdf';
+      final filePath = '${directory.path}/$fileName';
+      final file = File(filePath);
+      
+      if (await file.exists()) {
+        await file.delete();
+      }
+      
+      // Baixa novamente
+      final pdfBytes = await _api.downloadOrcamentoPdf(item.id);
+      await file.writeAsBytes(pdfBytes);
+      
+      if (!mounted) return;
+      setState(() => _downloadingId = null);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('PDF regenerado com sucesso!'),
+          backgroundColor: Colors.white,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.2),
+            ),
+          ),
+          duration: const Duration(seconds: 3),
+          action: SnackBarAction(
+            label: 'Abrir',
+            textColor: Theme.of(context).colorScheme.primary,
+            onPressed: () => OpenFile.open(filePath),
+          ),
+        ),
+      );
+      
+      await OpenFile.open(filePath);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _downloadingId = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao regenerar PDF: $e'),
+          duration: const Duration(seconds: 3),
+          backgroundColor: Theme.of(context).colorScheme.errorContainer,
+        ),
       );
     }
   }
@@ -292,6 +431,9 @@ class _BudgetsPageState extends State<BudgetsPage> {
                       if (ok == true) await _delete(item);
                     },
                     onStatusChange: (newStatus) => _updateStatus(item, newStatus),
+                    onDownloadPdf: () => _downloadPdf(item),
+                    onRegeneratePdf: () => _regeneratePdf(item),
+                    isDownloading: _downloadingId == item.id,
                   );
                 },
               ),
@@ -371,6 +513,9 @@ class _OrcamentoCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onDelete;
   final Function(String) onStatusChange;
+  final VoidCallback onDownloadPdf;
+  final VoidCallback onRegeneratePdf;
+  final bool isDownloading;
 
   const _OrcamentoCard({
     required this.item,
@@ -378,6 +523,9 @@ class _OrcamentoCard extends StatelessWidget {
     required this.onTap,
     required this.onDelete,
     required this.onStatusChange,
+    required this.onDownloadPdf,
+    required this.onRegeneratePdf,
+    required this.isDownloading,
   });
 
   Color _getStatusColor(String status) {
@@ -494,6 +642,23 @@ class _OrcamentoCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 16),
+            IconButton(
+              onPressed: isDownloading ? null : onDownloadPdf,
+              icon: isDownloading
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: theme.colorScheme.primary,
+                      ),
+                    )
+                  : Icon(
+                      Icons.picture_as_pdf,
+                      color: theme.colorScheme.primary,
+                    ),
+              tooltip: 'Baixar PDF',
+            ),
             PopupMenuButton<String>(
               icon: Icon(Icons.more_vert, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
               onSelected: (value) {
@@ -505,6 +670,8 @@ class _OrcamentoCard extends StatelessWidget {
                   onStatusChange('Não Aprovado');
                 } else if (value == 'pending') {
                   onStatusChange('Pendente');
+                } else if (value == 'regenerate_pdf') {
+                  onRegeneratePdf();
                 }
               },
               itemBuilder: (context) => [
@@ -541,6 +708,17 @@ class _OrcamentoCard extends StatelessWidget {
                       ],
                     ),
                   ),
+                const PopupMenuDivider(),
+                const PopupMenuItem(
+                  value: 'regenerate_pdf',
+                  child: Row(
+                    children: [
+                      Icon(Icons.refresh, size: 20),
+                      SizedBox(width: 8),
+                      Text('Regenerar PDF'),
+                    ],
+                  ),
+                ),
                 const PopupMenuDivider(),
                 const PopupMenuItem(
                   value: 'delete',
@@ -641,7 +819,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     double total = 0.0;
     for (final mat in _selectedProduto!.materiais) {
       final qtyStr = _quantities[mat.materialId] ?? '0';
-      final qty = double.tryParse(qtyStr) ?? 0.0;
+      final qty = double.tryParse(qtyStr.replaceAll(',', '.')) ?? 0.0;
       total += mat.materialCusto * qty;
     }
     return total;
@@ -682,32 +860,31 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
 
     final materiais = <OrcamentoMaterialItem>[];
     for (final mat in _selectedProduto!.materiais) {
-    final qtyStr = _quantities[mat.materialId] ?? '0';
-    if (qtyStr.isNotEmpty && qtyStr != '0') {
-      // Valida se é um número válido
-      final qtyTest = double.tryParse(qtyStr.replaceAll(',', '.'));
-      if (qtyTest != null && qtyTest > 0) {
-        materiais.add(OrcamentoMaterialItem(
-          id: widget.initial?.materiais
-                  .firstWhere((m) => m.materialId == mat.materialId,
-                      orElse: () => const OrcamentoMaterialItem(
-                          id: 0,
-                          materialId: 0,
-                          materialNome: '',
-                          materialUnidade: '',
-                          materialCusto: 0,
-                          quantidade: '0'))
-                  .id ??
-              0,
-          materialId: mat.materialId,
-          materialNome: mat.materialNome,
-          materialUnidade: mat.materialUnidade,
-          materialCusto: mat.materialCusto,
-          quantidade: qtyStr.replaceAll(',', '.'), // Normaliza vírgula para ponto
-        ));
+      final qtyStr = _quantities[mat.materialId] ?? '0';
+      if (qtyStr.isNotEmpty && qtyStr != '0') {
+        final qtyTest = double.tryParse(qtyStr.replaceAll(',', '.'));
+        if (qtyTest != null && qtyTest > 0) {
+          materiais.add(OrcamentoMaterialItem(
+            id: widget.initial?.materiais
+                    .firstWhere((m) => m.materialId == mat.materialId,
+                        orElse: () => const OrcamentoMaterialItem(
+                            id: 0,
+                            materialId: 0,
+                            materialNome: '',
+                            materialUnidade: '',
+                            materialCusto: 0,
+                            quantidade: '0'))
+                    .id ??
+                0,
+            materialId: mat.materialId,
+            materialNome: mat.materialNome,
+            materialUnidade: mat.materialUnidade,
+            materialCusto: mat.materialCusto,
+            quantidade: qtyStr.replaceAll(',', '.'),
+          ));
+        }
       }
     }
-  }
 
     if (materiais.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(

@@ -3,223 +3,260 @@ const fs = require('fs');
 const path = require('path');
 
 class PdfService {
-  /**
-   * Gera PDF de orçamento ou pedido
-   * @param {Object} data - Dados do documento
-   * @param {string} type - Tipo do documento ('orcamento' ou 'pedido')
-   * @returns {PDFDocument} Stream do PDF
-   */
   gerarDocumento(data, type = 'orcamento') {
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const doc = new PDFDocument({ margin: 40, size: 'A4' });
 
-    // Configurações
-    const logoPath = path.join(__dirname, '../../assets/image/logo preta.png');
+    const logoPath = path.join(__dirname, '../../../assets/images/logo preta.png');
     const titulo = type === 'orcamento' ? 'Orçamento' : 'Pedido';
     
-    // Header
-    this._desenharHeader(doc, logoPath, data.numero, titulo, data.createdAt);
-    
-    // Informações do cliente e produto
-    this._desenharInfoCliente(doc, data.cliente, data.produtoNome);
-    
-    // Tabela de materiais
+    this._desenharHeader(doc, logoPath, data.numero, titulo);
+    this._desenharInfoPrincipal(doc, data.cliente, data.produtoNome);
     this._desenharTabelaMateriais(doc, data.materiais);
-    
-    // Total
-    this._desenharTotal(doc, data.total);
-    
-    // Footer
+    this._desenharResumo(doc, data.total);
     this._desenharFooter(doc);
     
     doc.end();
     return doc;
   }
 
-  _desenharHeader(doc, logoPath, numero, titulo, data) {
-    const pageWidth = doc.page.width;
+  _desenharHeader(doc, logoPath, numero, titulo) {
     const margin = doc.page.margins.left;
+    const pageWidth = doc.page.width;
     
-    // Logo à esquerda
+    // Logo à esquerda - Verificação e debug
+    console.log('Tentando carregar logo de:', logoPath);
+    console.log('Logo existe?', fs.existsSync(logoPath));
+    
     if (fs.existsSync(logoPath)) {
-      doc.image(logoPath, margin, 50, { width: 120 });
+      try {
+        doc.image(logoPath, margin, 40, { width: 120, height: 60 });
+        console.log('Logo carregada com sucesso');
+      } catch (error) {
+        console.error('Erro ao carregar logo:', error);
+      }
+    } else {
+      console.warn('Logo não encontrada no caminho:', logoPath);
     }
     
-    // Informações à direita
-    const rightX = pageWidth - margin - 200;
+    // Título e número centralizados
+    doc.fontSize(11)
+       .font('Helvetica')
+       .fillColor('#666666')
+       .text(titulo, 0, 50, { width: pageWidth, align: 'center' });
     
-    // Número grande
     doc.fontSize(32)
        .font('Helvetica-Bold')
        .fillColor('#1a1a1a')
-       .text(`#${numero}`, rightX, 50, { width: 200, align: 'right' });
+       .text(numero.toString(), 0, 68, { width: pageWidth, align: 'center' });
     
-    // Texto do tipo de documento
-    doc.fontSize(16)
-       .font('Helvetica')
-       .fillColor('#666666')
-       .text(titulo, rightX, 90, { width: 200, align: 'right' });
-    
-    // Data com ícones (usando caracteres Unicode)
-    const dataFormatada = this._formatarDataHora(data);
-    doc.fontSize(10)
-       .fillColor('#888888')
-       .text(`📅 ${dataFormatada.data}`, rightX, 115, { width: 200, align: 'right' })
-       .text(`🕐 ${dataFormatada.hora}`, rightX, 130, { width: 200, align: 'right' });
-    
-    // Linha separadora
-    doc.moveTo(margin, 170)
-       .lineTo(pageWidth - margin, 170)
+    // Linha divisória
+    doc.moveTo(margin, 130)
+       .lineTo(pageWidth - margin, 130)
        .strokeColor('#e0e0e0')
        .lineWidth(1)
        .stroke();
   }
 
-  _desenharInfoCliente(doc, cliente, produto) {
+  _desenharInfoPrincipal(doc, cliente, produto) {
     const margin = doc.page.margins.left;
-    let y = 190;
+    const pageWidth = doc.page.width;
+    let y = 150;
+    
+    // Card com informações do cliente e produto
+    const cardHeight = 90;
+    const cardY = y;
+    
+    doc.roundedRect(margin, cardY, pageWidth - 2 * margin, cardHeight, 8)
+       .fillColor('#f8f9fa')
+       .fill();
+    
+    // Borda lateral colorida
+    doc.rect(margin, cardY, 4, cardHeight)
+       .fillColor('#1a1a1a')
+       .fill();
     
     // Cliente
-    doc.fontSize(10)
+    doc.fontSize(9)
        .font('Helvetica-Bold')
-       .fillColor('#666666')
-       .text('CLIENTE', margin, y);
+       .fillColor('#6b7280')
+       .text('CLIENTE', margin + 20, cardY + 20);
     
-    doc.fontSize(14)
+    doc.fontSize(16)
        .font('Helvetica-Bold')
        .fillColor('#1a1a1a')
-       .text(cliente, margin, y + 15);
-    
-    y += 50;
+       .text(cliente, margin + 20, cardY + 35, { width: pageWidth - 2 * margin - 40 });
     
     // Produto
-    doc.fontSize(10)
+    doc.fontSize(9)
        .font('Helvetica-Bold')
-       .fillColor('#666666')
-       .text('PRODUTO', margin, y);
+       .fillColor('#6b7280')
+       .text('PRODUTO', margin + 20, cardY + 60);
     
-    doc.fontSize(14)
+    doc.fontSize(12)
        .font('Helvetica')
-       .fillColor('#1a1a1a')
-       .text(produto, margin, y + 15);
+       .fillColor('#374151')
+       .text(produto, margin + 20, cardY + 75, { width: pageWidth - 2 * margin - 40 });
   }
 
   _desenharTabelaMateriais(doc, materiais) {
     const margin = doc.page.margins.left;
     const pageWidth = doc.page.width;
-    let y = 310;
+    let y = 260;
     
-    // Cabeçalho da tabela
+    // Título da seção
+    doc.fontSize(11)
+       .font('Helvetica-Bold')
+       .fillColor('#1a1a1a')
+       .text('MATERIAIS', margin, y);
+    
+    y += 25;
+    
+    const tableWidth = pageWidth - 2 * margin;
     const colWidths = {
-      material: 220,
-      unidade: 80,
-      quantidade: 80,
-      valorUnit: 90,
-      total: 90
+      material: tableWidth * 0.48,
+      unidade: tableWidth * 0.10,
+      quantidade: tableWidth * 0.14,
+      valorUnit: tableWidth * 0.14,
+      total: tableWidth * 0.14
     };
     
-    const headerY = y;
-    
-    // Fundo do cabeçalho
-    doc.rect(margin, headerY, pageWidth - 2 * margin, 25)
-       .fillColor('#f5f5f5')
+    // Header da tabela
+    doc.roundedRect(margin, y, tableWidth, 30, 6)
+       .fillColor('#1a1a1a')
        .fill();
     
-    // Textos do cabeçalho
-    doc.fontSize(9)
+    doc.fontSize(8)
        .font('Helvetica-Bold')
-       .fillColor('#333333');
+       .fillColor('#ffffff');
     
-    let x = margin + 10;
-    doc.text('MATERIAL', x, headerY + 8);
+    let x = margin + 15;
+    doc.text('MATERIAL', x, y + 10, { width: colWidths.material - 20, align: 'left' });
+    
     x += colWidths.material;
-    doc.text('UNIDADE', x, headerY + 8);
+    doc.text('UN', x - 10, y + 10, { width: colWidths.unidade, align: 'center' });
+    
     x += colWidths.unidade;
-    doc.text('QTDE', x, headerY + 8);
+    doc.text('QUANTIDADE', x - 10, y + 10, { width: colWidths.quantidade, align: 'center' });
+    
     x += colWidths.quantidade;
-    doc.text('VALOR UNIT.', x, headerY + 8);
+    doc.text('VL. UNITÁRIO', x - 10, y + 10, { width: colWidths.valorUnit, align: 'right' });
+    
     x += colWidths.valorUnit;
-    doc.text('TOTAL', x, headerY + 8);
+    doc.text('TOTAL', x - 10, y + 10, { width: colWidths.total - 15, align: 'right' });
     
-    y += 35;
+    y += 40;
     
-    // Linhas de materiais
-    doc.fontSize(10)
+    // Linhas dos materiais
+    doc.fontSize(9)
        .font('Helvetica')
-       .fillColor('#1a1a1a');
+       .fillColor('#1f2937');
     
     materiais.forEach((material, index) => {
-      // Verifica se precisa de nova página
-      if (y > doc.page.height - 150) {
+      if (y > doc.page.height - 180) {
         doc.addPage();
-        y = 50;
+        y = 60;
       }
+      
+      const rowHeight = 35;
       
       // Fundo alternado
       if (index % 2 === 0) {
-        doc.rect(margin, y - 5, pageWidth - 2 * margin, 30)
-           .fillColor('#fafafa')
+        doc.rect(margin, y, tableWidth, rowHeight)
+           .fillColor('#f9fafb')
            .fill();
       }
       
-      x = margin + 10;
+      // Linha divisória sutil
+      doc.moveTo(margin, y + rowHeight)
+         .lineTo(pageWidth - margin, y + rowHeight)
+         .strokeColor('#e5e7eb')
+         .lineWidth(0.5)
+         .stroke();
+      
+      x = margin + 15;
+      const textY = y + 12;
       
       // Material
-      doc.fillColor('#1a1a1a')
-         .text(material.materialNome, x, y, { width: colWidths.material - 10 });
+      doc.fillColor('#1f2937')
+         .font('Helvetica')
+         .fontSize(9)
+         .text(material.materialNome, x, textY, { 
+           width: colWidths.material - 20, 
+           align: 'left',
+           lineBreak: false,
+           ellipsis: true
+         });
+      
+      x += colWidths.material;
       
       // Unidade
-      x += colWidths.material;
-      doc.text(material.materialUnidade, x, y);
+      doc.fillColor('#6b7280')
+         .fontSize(8)
+         .text(material.materialUnidade, x - 10, textY, { width: colWidths.unidade, align: 'center' });
+      
+      x += colWidths.unidade;
       
       // Quantidade
-      x += colWidths.unidade;
       const quantidade = this._formatarQuantidade(material.quantidade, material.materialUnidade);
-      doc.text(quantidade, x, y);
+      doc.fillColor('#1f2937')
+         .font('Helvetica-Bold')
+         .fontSize(9)
+         .text(quantidade, x - 10, textY, { width: colWidths.quantidade, align: 'center' });
+      
+      x += colWidths.quantidade;
       
       // Valor unitário
-      x += colWidths.quantidade;
-      doc.text(this._formatarMoeda(material.materialCusto), x, y);
+      doc.fillColor('#6b7280')
+         .font('Helvetica')
+         .fontSize(8)
+         .text(this._formatarMoeda(material.materialCusto), x - 10, textY, { width: colWidths.valorUnit, align: 'right' });
       
-      // Total
       x += colWidths.valorUnit;
+      
+      // Total do item
       const totalItem = this._calcularTotalItem(material.quantidade, material.materialCusto);
-      doc.font('Helvetica-Bold')
-         .text(this._formatarMoeda(totalItem), x, y);
+      doc.fillColor('#1f2937')
+         .font('Helvetica-Bold')
+         .fontSize(9)
+         .text(this._formatarMoeda(totalItem), x - 10, textY, { width: colWidths.total - 15, align: 'right' });
       
-      doc.font('Helvetica');
-      
-      y += 30;
+      y += rowHeight;
     });
     
     return y;
   }
 
-  _desenharTotal(doc, total) {
+  _desenharResumo(doc, total) {
     const margin = doc.page.margins.left;
     const pageWidth = doc.page.width;
-    const y = doc.y + 20;
+    const y = doc.y + 30;
     
-    // Linha separadora
-    doc.moveTo(pageWidth - margin - 200, y)
-       .lineTo(pageWidth - margin, y)
-       .strokeColor('#e0e0e0')
-       .lineWidth(1)
-       .stroke();
+    const boxWidth = 250;
+    const boxHeight = 70;
+    const boxX = pageWidth - margin - boxWidth;
     
-    // Texto e valor do total
-    const totalY = y + 15;
+    // Box do total com sombra
+    doc.rect(boxX + 2, y + 2, boxWidth, boxHeight)
+       .fillColor('#000000')
+       .opacity(0.05)
+       .fill();
     
-    doc.fontSize(14)
+    doc.opacity(1);
+    doc.roundedRect(boxX, y, boxWidth, boxHeight, 8)
+       .fillColor('#1a1a1a')
+       .fill();
+    
+    // Label TOTAL
+    doc.fontSize(10)
        .font('Helvetica-Bold')
-       .fillColor('#333333')
-       .text('TOTAL', pageWidth - margin - 200, totalY);
+       .fillColor('#ffffff')
+       .text('VALOR TOTAL', boxX + 20, y + 18, { width: boxWidth - 40, align: 'left' });
     
-    doc.fontSize(18)
-       .fillColor('#2563eb')
-       .text(this._formatarMoeda(total), pageWidth - margin - 200, totalY, { 
-         width: 200, 
-         align: 'right' 
-       });
+    // Valor do total
+    doc.fontSize(22)
+       .font('Helvetica-Bold')
+       .fillColor('#ffffff')
+       .text(this._formatarMoeda(total), boxX + 20, y + 35, { width: boxWidth - 40, align: 'left' });
   }
 
   _desenharFooter(doc) {
@@ -227,47 +264,23 @@ class PdfService {
     const pageWidth = doc.page.width;
     const pageHeight = doc.page.height;
     
-    // Linha separadora
-    doc.moveTo(margin, pageHeight - 80)
-       .lineTo(pageWidth - margin, pageHeight - 80)
-       .strokeColor('#e0e0e0')
+    // Linha decorativa
+    doc.moveTo(margin, pageHeight - 50)
+       .lineTo(pageWidth - margin, pageHeight - 50)
+       .strokeColor('#e5e7eb')
        .lineWidth(1)
        .stroke();
     
     // Texto do footer
-    doc.fontSize(8)
+    doc.fontSize(7)
        .font('Helvetica')
-       .fillColor('#888888')
+       .fillColor('#9ca3af')
        .text(
-         'Este documento foi gerado automaticamente pelo sistema Visual Premium',
-         margin,
-         pageHeight - 65,
+         'Documento gerado automaticamente pelo sistema Visual Premium', 
+         margin, 
+         pageHeight - 35, 
          { width: pageWidth - 2 * margin, align: 'center' }
        );
-    
-    doc.text(
-      `Gerado em ${this._formatarDataHora(new Date()).dataCompleta}`,
-      margin,
-      pageHeight - 50,
-      { width: pageWidth - 2 * margin, align: 'center' }
-    );
-  }
-
-  _formatarDataHora(data) {
-    const d = new Date(data);
-    
-    const dia = String(d.getDate()).padStart(2, '0');
-    const mes = String(d.getMonth() + 1).padStart(2, '0');
-    const ano = d.getFullYear();
-    
-    const hora = String(d.getHours()).padStart(2, '0');
-    const minuto = String(d.getMinutes()).padStart(2, '0');
-    
-    return {
-      data: `${dia}/${mes}/${ano}`,
-      hora: `${hora}:${minuto}`,
-      dataCompleta: `${dia}/${mes}/${ano} às ${hora}:${minuto}`
-    };
   }
 
   _formatarMoeda(valor) {
