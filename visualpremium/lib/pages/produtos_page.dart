@@ -36,6 +36,7 @@ class _ProductsPageState extends State<ProductsPage> {
             child: ProductEditorSheet(
               initial: initial,
               availableMaterials: _availableMaterials,
+              existingProducts: _items,
             ),
           ),
         );
@@ -393,11 +394,13 @@ class _EmptyProductsState extends StatelessWidget {
 class ProductEditorSheet extends StatefulWidget {
   final ProductItem? initial;
   final List<MaterialItem> availableMaterials;
+  final List<ProductItem> existingProducts;
 
   const ProductEditorSheet({
     super.key,
     required this.initial,
     required this.availableMaterials,
+    required this.existingProducts,
   });
 
   @override
@@ -479,6 +482,23 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
     return result ?? false;
   }
 
+  String? _validateProductName(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Informe o nome';
+    }
+    
+    final trimmedName = value.trim();
+    final isDuplicate = widget.existingProducts.any((product) =>
+        product.name.toLowerCase() == trimmedName.toLowerCase() &&
+        product.id != widget.initial?.id);
+    
+    if (isDuplicate) {
+      return 'Já existe um produto com este nome';
+    }
+    
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -533,7 +553,7 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
                       controller: _nameCtrl,
                       textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(labelText: 'Nome do produto'),
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe o nome' : null,
+                      validator: _validateProductName,
                     ),
                     const SizedBox(height: 24),
                     Row(
@@ -578,6 +598,10 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
                           return _MaterialSelectionRow(
                             selection: _selectedMaterials[index],
                             availableMaterials: widget.availableMaterials,
+                            selectedMaterialIds: _selectedMaterials
+                                .where((m) => m.materialId != null)
+                                .map((m) => m.materialId!)
+                                .toList(),
                             onChanged: (updated) {
                               setState(() {
                                 _selectedMaterials[index] = updated;
@@ -674,12 +698,14 @@ class _MaterialSelection {
 class _MaterialSelectionRow extends StatefulWidget {
   final _MaterialSelection selection;
   final List<MaterialItem> availableMaterials;
+  final List<int> selectedMaterialIds;
   final ValueChanged<_MaterialSelection> onChanged;
   final VoidCallback onRemove;
 
   const _MaterialSelectionRow({
     required this.selection,
     required this.availableMaterials,
+    required this.selectedMaterialIds,
     required this.onChanged,
     required this.onRemove,
   });
@@ -704,7 +730,7 @@ class _MaterialSelectionRowState extends State<_MaterialSelectionRow> {
         children: [
           Expanded(
             child: DropdownButtonFormField<int>(
-              value: widget.selection.materialId,
+              initialValue: widget.selection.materialId,
               isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Material',
@@ -713,10 +739,23 @@ class _MaterialSelectionRowState extends State<_MaterialSelectionRow> {
               ),
               items: widget.availableMaterials
                   .map(
-                    (m) => DropdownMenuItem(
-                      value: int.parse(m.id),
-                      child: Text(m.name, overflow: TextOverflow.ellipsis),
-                    ),
+                    (m) {
+                      final materialId = int.parse(m.id);
+                      final isAlreadySelected = widget.selectedMaterialIds.contains(materialId) &&
+                          widget.selection.materialId != materialId;
+                      
+                      return DropdownMenuItem(
+                        value: materialId,
+                        enabled: !isAlreadySelected,
+                        child: Text(
+                          m.name,
+                          overflow: TextOverflow.ellipsis,
+                          style: isAlreadySelected
+                              ? TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.3))
+                              : null,
+                        ),
+                      );
+                    },
                   )
                   .toList(),
               onChanged: (value) {

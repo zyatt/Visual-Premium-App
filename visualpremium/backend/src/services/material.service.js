@@ -5,70 +5,103 @@ class MaterialService {
     return prisma.material.findMany();
   }
 
-  criar(data) {
-    // Valida e converte quantidade para string
+  async criar(data) {
+    // Valida campos obrigatórios
     const { nome, custo, unidade, quantidade } = data;
     
     if (!nome || !custo || !unidade || !quantidade) {
       throw new Error('Todos os campos são obrigatórios');
     }
 
-    // Valida quantidade baseado na unidade
-    let quantidadeStr;
+    // Validar nome duplicado
+    const nomeNormalizado = nome.trim().toLowerCase();
+    const existente = await prisma.material.findFirst({
+      where: {
+        nome: {
+          mode: 'insensitive',
+          equals: nome.trim(),
+        },
+      },
+    });
+
+    if (existente) {
+      throw new Error('Já existe um material com este nome');
+    }
+
+    // Valida e converte quantidade baseado na unidade
+    let quantidadeNum;
     if (unidade === 'Kg') {
       // Permite decimal
-      const qty = parseFloat(quantidade);
-      if (isNaN(qty) || qty < 0) {
+      quantidadeNum = parseFloat(quantidade);
+      if (isNaN(quantidadeNum) || quantidadeNum < 0) {
         throw new Error('Quantidade inválida para Kg');
       }
-      quantidadeStr = qty.toString();
     } else {
       // Apenas inteiros
       const qty = parseInt(quantidade);
       if (isNaN(qty) || qty < 0) {
         throw new Error('Quantidade deve ser um número inteiro');
       }
-      quantidadeStr = qty.toString();
+      quantidadeNum = qty;
     }
 
     return prisma.material.create({
       data: {
-        nome,
+        nome: nome.trim(),
         custo: parseFloat(custo),
         unidade,
-        quantidade: quantidadeStr,
+        quantidade: quantidadeNum,
       },
     });
   }
 
-  atualizar(id, data) {
+  async atualizar(id, data) {
     const { nome, custo, unidade, quantidade } = data;
 
-    // Valida quantidade baseado na unidade se fornecida
-    let quantidadeStr;
+    // Validar nome duplicado (exceto o próprio material)
+    if (nome) {
+      const nomeNormalizado = nome.trim().toLowerCase();
+      const existente = await prisma.material.findFirst({
+        where: {
+          nome: {
+            mode: 'insensitive',
+            equals: nome.trim(),
+          },
+          NOT: {
+            id: id,
+          },
+        },
+      });
+
+      if (existente) {
+        throw new Error('Já existe um material com este nome');
+      }
+    }
+
+    // Valida e converte quantidade baseado na unidade se fornecida
+    let quantidadeNum;
     if (quantidade !== undefined) {
       if (unidade === 'Kg') {
-        const qty = parseFloat(quantidade);
-        if (isNaN(qty) || qty < 0) {
+        quantidadeNum = parseFloat(quantidade);
+        if (isNaN(quantidadeNum) || quantidadeNum < 0) {
           throw new Error('Quantidade inválida para Kg');
         }
-        quantidadeStr = qty.toString();
       } else {
         const qty = parseInt(quantidade);
         if (isNaN(qty) || qty < 0) {
           throw new Error('Quantidade deve ser um número inteiro');
         }
-        quantidadeStr = qty.toString();
+        quantidadeNum = qty;
       }
     }
 
     return prisma.material.update({
       where: { id },
       data: {
-        nome,
+        nome: nome ? nome.trim() : undefined,
         custo: custo ? parseFloat(custo) : undefined,
         unidade,
-        quantidade: quantidadeStr,
+        quantidade: quantidadeNum,
       },
     });
   }

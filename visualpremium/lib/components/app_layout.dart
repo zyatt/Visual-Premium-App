@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../routes.dart';
+import '../config/settings_dialog.dart';
 
 class AppLayout extends StatelessWidget {
   final Widget child;
@@ -56,20 +56,20 @@ class _Sidebar extends StatelessWidget {
               children: [
                 Image.asset(
                   'assets/images/logo.png',
-                  width: 28, // Reduzido de 32 para 28
+                  width: 28,
                   height: 28,
                   fit: BoxFit.contain,
                 ),
-                const SizedBox(width: 10), // Reduzido de 12 para 10
-                Flexible( // Adicionado Flexible
+                const SizedBox(width: 10),
+                Flexible(
                   child: Text(
                     'Visual Premium',
                     style: GoogleFonts.poppins(
-                      fontSize: 18, // Reduzido de 20 para 18
+                      fontSize: 18,
                       fontWeight: FontWeight.w600,
                       color: colorScheme.onSurface,
                     ),
-                    overflow: TextOverflow.ellipsis, // Previne overflow
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -86,22 +86,22 @@ class _Sidebar extends StatelessWidget {
                 _NavItem(
                   icon: Icons.dashboard_outlined,
                   label: 'Início',
-                  route: AppRoutes.home,
+                  route: '/',
                 ),
                 _NavItem(
                   icon: Icons.attach_money_rounded,
                   label: 'Orçamentos',
-                  route: AppRoutes.budgets,
+                  route: '/orcamentos',
                 ),
                 _NavItem(
                   icon: Icons.inventory_2_outlined,
                   label: 'Produtos',
-                  route: AppRoutes.products,
+                  route: '/produtos',
                 ),
                 _NavItem(
                   icon: Icons.construction_outlined,
                   label: 'Materiais',
-                  route: AppRoutes.materials,
+                  route: '/materiais',
                 ),
               ],
             ),
@@ -110,39 +110,43 @@ class _Sidebar extends StatelessWidget {
           // User Profile / Bottom Actions
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 16,
-                    backgroundColor: colorScheme.primary,
-                    child: Text('U', style: TextStyle(color: colorScheme.onPrimary)),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Usuário',
-                          style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                        Text(
-                          'Admin',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.7),
-                          ),
-                        ),
-                      ],
+            child: InkWell(
+              onTap: () => SettingsDialog.show(context),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor: colorScheme.primary,
+                      child: Text('U', style: TextStyle(color: colorScheme.onPrimary)),
                     ),
-                  ),
-                  Icon(Icons.settings, size: 18, color: theme.iconTheme.color?.withValues(alpha: 0.7)),
-                ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Usuário',
+                            style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          Text(
+                            'Admin',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.settings, size: 18, color: theme.iconTheme.color?.withValues(alpha: 0.7)),
+                  ],
+                ),
               ),
             ),
           ),

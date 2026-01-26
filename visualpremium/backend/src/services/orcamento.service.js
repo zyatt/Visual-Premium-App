@@ -86,25 +86,25 @@ class OrcamentoService {
         }
 
         const unidade = material.material.unidade;
-        let quantidadeStr;
+        let quantidadeNum;
 
+        // Converte quantidade para número (o Prisma espera Float)
         if (unidade === 'Kg') {
+          quantidadeNum = parseFloat(m.quantidade);
+          if (isNaN(quantidadeNum) || quantidadeNum < 0) {
+            throw new Error(`Quantidade inválida para material ${material.material.nome}`);
+          }
+        } else {
           const qty = parseFloat(m.quantidade);
           if (isNaN(qty) || qty < 0) {
             throw new Error(`Quantidade inválida para material ${material.material.nome}`);
           }
-          quantidadeStr = qty.toString();
-        } else {
-          const qty = parseInt(m.quantidade);
-          if (isNaN(qty) || qty < 0) {
-            throw new Error(`Quantidade deve ser inteira para material ${material.material.nome}`);
-          }
-          quantidadeStr = qty.toString();
+          quantidadeNum = qty;
         }
 
         materiaisValidados.push({
           materialId: m.materialId,
-          quantidade: quantidadeStr
+          quantidade: quantidadeNum
         });
       }
     }
@@ -194,39 +194,45 @@ class OrcamentoService {
         }
 
         const unidade = material.material.unidade;
-        let quantidadeStr;
+        let quantidadeNum;
 
+        // Converte quantidade para número (o Prisma espera Float)
         if (unidade === 'Kg') {
+          quantidadeNum = parseFloat(m.quantidade);
+          if (isNaN(quantidadeNum) || quantidadeNum < 0) {
+            throw new Error(`Quantidade inválida para material ${material.material.nome}`);
+          }
+        } else {
           const qty = parseFloat(m.quantidade);
           if (isNaN(qty) || qty < 0) {
             throw new Error(`Quantidade inválida para material ${material.material.nome}`);
           }
-          quantidadeStr = qty.toString();
-        } else {
-          const qty = parseInt(m.quantidade);
-          if (isNaN(qty) || qty < 0) {
-            throw new Error(`Quantidade deve ser inteira para material ${material.material.nome}`);
-          }
-          quantidadeStr = qty.toString();
+          quantidadeNum = qty;
         }
 
         materiaisValidados.push({
           materialId: m.materialId,
-          quantidade: quantidadeStr
+          quantidade: quantidadeNum
         });
       }
+    }
+
+    // Remove materiais antigos antes de atualizar
+    if (materiaisValidados) {
+      await prisma.orcamentoMaterial.deleteMany({
+        where: { orcamentoId: id }
+      });
     }
 
     // Atualiza o orçamento
     const orcamento = await prisma.orcamento.update({
       where: { id },
       data: {
-        cliente,
-        numero,
-        status,
-        produtoId,
+        cliente: cliente || undefined,
+        numero: numero || undefined,
+        status: status || undefined,
+        produtoId: produtoId || undefined,
         materiais: materiaisValidados ? {
-          deleteMany: {},
           create: materiaisValidados
         } : undefined
       },

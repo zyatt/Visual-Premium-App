@@ -1,6 +1,6 @@
 class AppRoutes {
-  static const String home = '/';
-  static const String budgets = '/budgets';
-  static const String products = '/products';
-  static const String materials = '/materials';
+  static const String inicio = '/';
+  static const String orcamentos = '/orcamentos';
+  static const String produtos = '/produtos';
+  static const String materiais = '/materiais';
 }

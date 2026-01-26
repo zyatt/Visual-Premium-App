@@ -31,7 +31,10 @@ class _MaterialsPageState extends State<MaterialsPage> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 760),
-            child: MaterialEditorSheet(initial: initial),
+            child: MaterialEditorSheet(
+              initial: initial,
+              existingMaterials: _items,
+            ),
           ),
         );
       },
@@ -106,9 +109,12 @@ class _MaterialsPageState extends State<MaterialsPage> {
         _items = next;
         _loading = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao salvar material: $e')),
+      );
     }
   }
 
@@ -502,8 +508,13 @@ class _EmptyMaterialsState extends StatelessWidget {
 
 class MaterialEditorSheet extends StatefulWidget {
   final MaterialItem? initial;
+  final List<MaterialItem> existingMaterials;
 
-  const MaterialEditorSheet({super.key, required this.initial});
+  const MaterialEditorSheet({
+    super.key,
+    required this.initial,
+    required this.existingMaterials,
+  });
 
   @override
   State<MaterialEditorSheet> createState() => _MaterialEditorSheetState();
@@ -574,6 +585,23 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
       if (value == null || value < 0) return null;
       return value.toString();
     }
+  }
+
+  String? _validateMaterialName(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Informe o nome';
+    }
+    
+    final trimmedName = value.trim();
+    final isDuplicate = widget.existingMaterials.any((material) =>
+        material.name.toLowerCase() == trimmedName.toLowerCase() &&
+        material.id != widget.initial?.id);
+    
+    if (isDuplicate) {
+      return 'Já existe um material com este nome';
+    }
+    
+    return null;
   }
 
   Future<bool> _onWillPop() async {
@@ -653,7 +681,7 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
                       controller: _nameCtrl,
                       textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(labelText: 'Nome do material'),
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe o nome' : null,
+                      validator: _validateMaterialName,
                     ),
                     const SizedBox(height: 12),
                     Row(

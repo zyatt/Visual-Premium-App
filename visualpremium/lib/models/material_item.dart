@@ -32,13 +32,15 @@ class MaterialItem {
         createdAt: createdAt,
       );
 
+  // material_item.dart - Ajuste no toMap
   Map<String, Object?> toMap() => {
         'nome': name,
         'unidade': unit,
         'custo': costCents / 100.0,
-        'quantidade': quantity, // Envia como string
+        'quantidade': double.tryParse(quantity) ?? 0, // Converte string para número
       };
 
+  // material_item.dart - Ajuste no tryFromMap
   static MaterialItem? tryFromMap(Map<String, Object?> map) {
     try {
       final id = map['id'];
@@ -60,8 +62,10 @@ class MaterialItem {
           (custo is int) ? custo.toDouble() : (custo is double ? custo : 0.0);
       final costCents = (custoDouble * 100).round();
 
-      // Converte quantidade para string
-      final quantidadeStr = quantidade.toString();
+      // Converte quantidade para string (aceita tanto int quanto double do backend)
+      final quantidadeStr = quantidade is num 
+          ? quantidade.toString() 
+          : quantidade.toString();
 
       final cleanedName = nome.trim();
       final cleanedUnit = unidade.trim();
