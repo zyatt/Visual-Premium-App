@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Orcamento {
+  id        Int                 @id @default(autoincrement())
+  cliente   String
+  numero    Int
+  status    String
+  produtoId Int
+  produto   Produto             @relation(fields: [produtoId], references: [id])
+  materiais OrcamentoMaterial[]
+  pedido    Pedido? // relação opcional 1:1 com pedido gerado
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+}
+
+model Pedido {
+  id          Int              @id @default(autoincrement())
+  cliente     String
+  numero      Int
+  produtoId   Int
+  produto     Produto          @relation(fields: [produtoId], references: [id])
+  materiais   PedidoMaterial[]
+  orcamentoId Int?             @unique // ligação opcional ao orçamento que gerou o pedido, 1:1 exige unique
+  orcamento   Orcamento?       @relation(fields: [orcamentoId], references: [id])
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model Produto {
+  id         Int               @id @default(autoincrement())
+  nome       String
+  materiais  ProdutoMaterial[]
+  orcamentos Orcamento[]
+  pedidos    Pedido[]
+}
+
+model Material {
+  id                 Int                 @id @default(autoincrement())
+  nome               String
+  custo              Float
+  unidade            String
+  quantidade         Float
+  produtos           ProdutoMaterial[]
+  orcamentoMaterials OrcamentoMaterial[] // relação inversa para OrcamentoMaterial
+  pedidoMaterials    PedidoMaterial[] // relação inversa para PedidoMaterial
+}
+
+model ProdutoMaterial {
+  id         Int      @id @default(autoincrement())
+  produtoId  Int
+  materialId Int
+
+  produto    Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([produtoId, materialId])
+}
+
+model OrcamentoMaterial {
+  id          Int       @id @default(autoincrement())
+  orcamentoId Int
+  materialId  Int
+  quantidade  Float
+  orcamento   Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
+  material    Material  @relation(fields: [materialId], references: [id], onDelete: Cascade)
+}
+
+model PedidoMaterial {
+  id         Int      @id @default(autoincrement())
+  pedidoId   Int
+  materialId Int
+  quantidade Float
+  pedido     Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+}
