@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -64,32 +63,12 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                 children: [
                   // Logo que muda de acordo com o tema
                   Image.asset(
-                    isDark ? 'assets/logo branca.png' : 'assets/logo preta.png',
-                    width: MediaQuery.of(context).size.width * 0.35,
-                    height: MediaQuery.of(context).size.height * 0.35,
+                    isDark ? 'assets/images/logo branca.png' : 'assets/images/logo preta.png',
+                    width: MediaQuery.of(context).size.width * 0.70,
+                    height: MediaQuery.of(context).size.height * 0.70,
                     fit: BoxFit.contain,
                   ),
                   const SizedBox(height: 48),
-                  // Mensagem de boas-vindas
-                  Text(
-                    'Bem-vindo ao',
-                    style: GoogleFonts.inter(
-                      fontSize: 18,
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Visual Premium',
-                    style: GoogleFonts.poppins(
-                      fontSize: 36,
-                      fontWeight: FontWeight.w700,
-                      color: theme.colorScheme.primary,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-
                 ],
               ),
             ),

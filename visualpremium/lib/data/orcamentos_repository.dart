@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:visualpremium/models/orcamento_item.dart';
 import 'package:visualpremium/data/config.dart';
@@ -105,6 +106,38 @@ class OrcamentosApiRepository {
       return;
     } else {
       throw Exception('Erro ao deletar orçamento: ${response.statusCode}');
+    }
+  }
+
+  /// Baixa o PDF do orçamento
+  Future<Uint8List> downloadOrcamentoPdf(int id) async {
+    try {
+      final url = Uri.parse('$baseUrl/pdf/orcamento/$id');
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        return response.bodyBytes;
+      } else {
+        throw Exception('Erro ao baixar PDF: ${response.statusCode}');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Baixa o PDF do pedido (para implementação futura)
+  Future<Uint8List> downloadPedidoPdf(int id) async {
+    try {
+      final url = Uri.parse('$baseUrl/pdf/pedido/$id');
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        return response.bodyBytes;
+      } else {
+        throw Exception('Erro ao baixar PDF: ${response.statusCode}');
+      }
+    } catch (e) {
+      rethrow;
     }
   }
 }
