@@ -1,24 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'theme.dart';
 import 'theme_provider.dart';
 import 'nav.dart';
 
-/// Main entry point for the application
-///
-/// This sets up:
-/// - Provider state management (ThemeProvider)
-/// - go_router navigation
-/// - Material 3 theming with light/dark modes
 void main() {
-  if (kDebugMode && defaultTargetPlatform == TargetPlatform.windows) {
-    FlutterError.onError = (FlutterErrorDetails details) {
-      if (!details.exception.toString().contains('accessibility')) {
-        FlutterError.presentError(details);
-      }
-    };
-  }
+  
+  
   runApp(const MyApp());
 }
 

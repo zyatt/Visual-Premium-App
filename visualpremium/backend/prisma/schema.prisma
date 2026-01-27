@@ -7,16 +7,39 @@ datasource db {
 }
 
 model Orcamento {
-  id        Int                 @id @default(autoincrement())
-  cliente   String
-  numero    Int
-  status    String
-  produtoId Int
-  produto   Produto             @relation(fields: [produtoId], references: [id])
-  materiais OrcamentoMaterial[]
-  pedido    Pedido? // relação opcional 1:1 com pedido gerado
-  createdAt DateTime            @default(now())
-  updatedAt DateTime            @updatedAt
+  id                     Int                    @id @default(autoincrement())
+  cliente                String
+  numero                 Int
+  status                 String
+  produtoId              Int
+
+  frete                  Boolean                @default(false)
+  freteDesc              String?
+  freteValor             Float?
+
+  caminhaoMunck          Boolean                @default(false)
+  caminhaoMunckHoras     Float?
+  caminhaoMunckValorHora Float?
+  
+  produto                Produto                @relation(fields: [produtoId], references: [id])
+  materiais              OrcamentoMaterial[]
+  despesasAdicionais     DespesaAdicional[]
+  pedido                 Pedido?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  @@map("orcamentos")
+}
+
+model DespesaAdicional {
+  id          Int       @id @default(autoincrement())
+  orcamentoId Int
+  descricao   String
+  valor       Float
+  orcamento   Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@map("despesas_adicionais")
 }
 
 model Pedido {
@@ -26,7 +49,7 @@ model Pedido {
   produtoId   Int
   produto     Produto          @relation(fields: [produtoId], references: [id])
   materiais   PedidoMaterial[]
-  orcamentoId Int?             @unique // ligação opcional ao orçamento que gerou o pedido, 1:1 exige unique
+  orcamentoId Int?             @unique
   orcamento   Orcamento?       @relation(fields: [orcamentoId], references: [id])
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
@@ -47,15 +70,14 @@ model Material {
   unidade            String
   quantidade         Float
   produtos           ProdutoMaterial[]
-  orcamentoMaterials OrcamentoMaterial[] // relação inversa para OrcamentoMaterial
-  pedidoMaterials    PedidoMaterial[] // relação inversa para PedidoMaterial
+  orcamentoMaterials OrcamentoMaterial[]
+  pedidoMaterials    PedidoMaterial[]
 }
 
 model ProdutoMaterial {
   id         Int      @id @default(autoincrement())
   produtoId  Int
   materialId Int
-
   produto    Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
   material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
 

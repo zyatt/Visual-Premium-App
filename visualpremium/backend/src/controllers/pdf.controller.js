@@ -16,11 +16,26 @@ class PdfController {
         return res.status(404).json({ error: 'Orçamento não encontrado' });
       }
       
-      // Calcula o total
-      const total = orcamento.materiais.reduce((sum, mat) => {
+      // Calcula o total dos materiais
+      const totalMateriais = orcamento.materiais.reduce((sum, mat) => {
         const qty = parseFloat(mat.quantidade.toString().replace(',', '.'));
         return sum + (qty * mat.material.custo);
       }, 0);
+      
+      // Calcula o total geral
+      let totalGeral = totalMateriais;
+      
+      if (orcamento.despesaAdicional && orcamento.despesaAdicionalValor) {
+        totalGeral += orcamento.despesaAdicionalValor;
+      }
+      
+      if (orcamento.frete && orcamento.freteValor) {
+        totalGeral += orcamento.freteValor;
+      }
+      
+      if (orcamento.caminhaoMunck && orcamento.caminhaoMunckHoras && orcamento.caminhaoMunckValorHora) {
+        totalGeral += orcamento.caminhaoMunckHoras * orcamento.caminhaoMunckValorHora;
+      }
       
       // Prepara os dados para o PDF
       const dadosPdf = {
@@ -33,8 +48,21 @@ class PdfController {
           materialCusto: m.material.custo,
           quantidade: m.quantidade
         })),
-        total,
-        createdAt: orcamento.createdAt
+        total: totalGeral,
+        createdAt: orcamento.createdAt,
+        
+        // Informações adicionais
+        despesaAdicional: orcamento.despesaAdicional || false,
+        despesaAdicionalDesc: orcamento.despesaAdicionalDesc,
+        despesaAdicionalValor: orcamento.despesaAdicionalValor,
+        
+        frete: orcamento.frete || false,
+        freteDesc: orcamento.freteDesc,
+        freteValor: orcamento.freteValor,
+        
+        caminhaoMunck: orcamento.caminhaoMunck || false,
+        caminhaoMunckHoras: orcamento.caminhaoMunckHoras,
+        caminhaoMunckValorHora: orcamento.caminhaoMunckValorHora
       };
       
       // Gera o PDF

@@ -1,12 +1,62 @@
 import 'dart:convert';
 
+class DespesaAdicionalItem {
+  final int id;
+  final String descricao;
+  final double valor;
+
+  const DespesaAdicionalItem({
+    required this.id,
+    required this.descricao,
+    required this.valor,
+  });
+
+  DespesaAdicionalItem copyWith({
+    int? id,
+    String? descricao,
+    double? valor,
+  }) =>
+      DespesaAdicionalItem(
+        id: id ?? this.id,
+        descricao: descricao ?? this.descricao,
+        valor: valor ?? this.valor,
+      );
+
+  Map<String, Object?> toMap() => {
+        'descricao': descricao,
+        'valor': valor,
+      };
+
+  static DespesaAdicionalItem? tryFromMap(Map<String, Object?> map) {
+    try {
+      final id = map['id'];
+      final descricao = map['descricao'];
+      final valor = map['valor'];
+
+      if (id == null || descricao is! String || valor == null) {
+        return null;
+      }
+
+      final valorDouble = (valor is int) ? valor.toDouble() : (valor is double ? valor : 0.0);
+
+      return DespesaAdicionalItem(
+        id: int.parse(id.toString()),
+        descricao: descricao.trim(),
+        valor: valorDouble,
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+}
+
 class OrcamentoMaterialItem {
   final int id;
   final int materialId;
   final String materialNome;
   final String materialUnidade;
   final double materialCusto;
-  final String quantidade; // Mudado de double para String
+  final String quantidade;
 
   const OrcamentoMaterialItem({
     required this.id,
@@ -18,7 +68,6 @@ class OrcamentoMaterialItem {
   });
 
   double get total {
-    // Parse da string para calcular o total
     final qty = double.tryParse(quantidade) ?? 0.0;
     return materialCusto * qty;
   }
@@ -42,7 +91,7 @@ class OrcamentoMaterialItem {
 
   Map<String, Object?> toMap() => {
         'materialId': materialId,
-        'quantidade': quantidade, // Envia como string
+        'quantidade': quantidade,
       };
 
   static OrcamentoMaterialItem? tryFromMap(Map<String, Object?> map) {
@@ -66,8 +115,6 @@ class OrcamentoMaterialItem {
       }
 
       final custoDouble = (custo is int) ? custo.toDouble() : (custo is double ? custo : 0.0);
-      
-      // Converte quantidade para string
       final quantidadeStr = quantidade.toString();
 
       return OrcamentoMaterialItem(
@@ -176,6 +223,13 @@ class OrcamentoItem {
   final int produtoId;
   final String produtoNome;
   final List<OrcamentoMaterialItem> materiais;
+  final List<DespesaAdicionalItem> despesasAdicionais;
+  final bool frete;
+  final String? freteDesc;
+  final double? freteValor;
+  final bool caminhaoMunck;
+  final double? caminhaoMunckHoras;
+  final double? caminhaoMunckValorHora;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -187,12 +241,39 @@ class OrcamentoItem {
     required this.produtoId,
     required this.produtoNome,
     required this.materiais,
+    this.despesasAdicionais = const [],
+    this.frete = false,
+    this.freteDesc,
+    this.freteValor,
+    this.caminhaoMunck = false,
+    this.caminhaoMunckHoras,
+    this.caminhaoMunckValorHora,
     required this.createdAt,
     required this.updatedAt,
   });
 
-  double get total {
+  double get totalMateriais {
     return materiais.fold(0.0, (sum, item) => sum + item.total);
+  }
+
+  double get totalDespesasAdicionais {
+    return despesasAdicionais.fold(0.0, (sum, item) => sum + item.valor);
+  }
+
+  double get total {
+    double t = totalMateriais;
+    
+    t += totalDespesasAdicionais;
+    
+    if (frete && freteValor != null) {
+      t += freteValor!;
+    }
+    
+    if (caminhaoMunck && caminhaoMunckHoras != null && caminhaoMunckValorHora != null) {
+      t += caminhaoMunckHoras! * caminhaoMunckValorHora!;
+    }
+    
+    return t;
   }
 
   OrcamentoItem copyWith({
@@ -203,6 +284,13 @@ class OrcamentoItem {
     int? produtoId,
     String? produtoNome,
     List<OrcamentoMaterialItem>? materiais,
+    List<DespesaAdicionalItem>? despesasAdicionais,
+    bool? frete,
+    String? freteDesc,
+    double? freteValor,
+    bool? caminhaoMunck,
+    double? caminhaoMunckHoras,
+    double? caminhaoMunckValorHora,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) =>
@@ -214,6 +302,13 @@ class OrcamentoItem {
         produtoId: produtoId ?? this.produtoId,
         produtoNome: produtoNome ?? this.produtoNome,
         materiais: materiais ?? this.materiais,
+        despesasAdicionais: despesasAdicionais ?? this.despesasAdicionais,
+        frete: frete ?? this.frete,
+        freteDesc: freteDesc ?? this.freteDesc,
+        freteValor: freteValor ?? this.freteValor,
+        caminhaoMunck: caminhaoMunck ?? this.caminhaoMunck,
+        caminhaoMunckHoras: caminhaoMunckHoras ?? this.caminhaoMunckHoras,
+        caminhaoMunckValorHora: caminhaoMunckValorHora ?? this.caminhaoMunckValorHora,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
       );
@@ -224,6 +319,13 @@ class OrcamentoItem {
         'status': status,
         'produtoId': produtoId,
         'materiais': materiais.map((e) => e.toMap()).toList(),
+        'despesasAdicionais': despesasAdicionais.map((e) => e.toMap()).toList(),
+        'frete': frete,
+        'freteDesc': frete ? freteDesc : null,
+        'freteValor': frete ? freteValor : null,
+        'caminhaoMunck': caminhaoMunck,
+        'caminhaoMunckHoras': caminhaoMunck ? caminhaoMunckHoras : null,
+        'caminhaoMunckValorHora': caminhaoMunck ? caminhaoMunckValorHora : null,
       };
 
   static OrcamentoItem? tryFromMap(Map<String, Object?> map) {
@@ -235,8 +337,16 @@ class OrcamentoItem {
       final produtoId = map['produtoId'];
       final produtoData = map['produto'];
       final materiaisData = map['materiais'];
+      final despesasData = map['despesasAdicionais'];
       final createdAt = map['createdAt'];
       final updatedAt = map['updatedAt'];
+      
+      final frete = map['frete'] as bool? ?? false;
+      final freteDesc = map['freteDesc'] as String?;
+      final freteValor = map['freteValor'];
+      final caminhaoMunck = map['caminhaoMunck'] as bool? ?? false;
+      final caminhaoMunckHoras = map['caminhaoMunckHoras'];
+      final caminhaoMunckValorHora = map['caminhaoMunckValorHora'];
 
       if (id == null || cliente is! String || numero == null || status is! String || produtoId == null || produtoData == null) {
         return null;
@@ -257,6 +367,16 @@ class OrcamentoItem {
         }
       }
 
+      final despesasAdicionais = <DespesaAdicionalItem>[];
+      if (despesasData is List) {
+        for (final d in despesasData) {
+          if (d is Map) {
+            final item = DespesaAdicionalItem.tryFromMap(d.map((k, v) => MapEntry(k.toString(), v)));
+            if (item != null) despesasAdicionais.add(item);
+          }
+        }
+      }
+
       return OrcamentoItem(
         id: int.parse(id.toString()),
         cliente: cliente.trim(),
@@ -265,6 +385,19 @@ class OrcamentoItem {
         produtoId: int.parse(produtoId.toString()),
         produtoNome: produtoNome.trim(),
         materiais: materiais,
+        despesasAdicionais: despesasAdicionais,
+        frete: frete,
+        freteDesc: freteDesc,
+        freteValor: freteValor != null 
+            ? (freteValor is int ? freteValor.toDouble() : freteValor as double)
+            : null,
+        caminhaoMunck: caminhaoMunck,
+        caminhaoMunckHoras: caminhaoMunckHoras != null 
+            ? (caminhaoMunckHoras is int ? caminhaoMunckHoras.toDouble() : caminhaoMunckHoras as double)
+            : null,
+        caminhaoMunckValorHora: caminhaoMunckValorHora != null 
+            ? (caminhaoMunckValorHora is int ? caminhaoMunckValorHora.toDouble() : caminhaoMunckValorHora as double)
+            : null,
         createdAt: createdAt != null ? DateTime.parse(createdAt.toString()) : DateTime.now(),
         updatedAt: updatedAt != null ? DateTime.parse(updatedAt.toString()) : DateTime.now(),
       );

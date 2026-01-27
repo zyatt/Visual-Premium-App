@@ -20,22 +20,13 @@ class _MaterialsPageState extends State<MaterialsPage> {
   String _searchQuery = '';
 
   Future<void> _showMaterialEditor(MaterialItem? initial) async {
-    final theme = Theme.of(context);
     final result = await showDialog<MaterialItem>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          backgroundColor: theme.colorScheme.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: MaterialEditorSheet(
-              initial: initial,
-              existingMaterials: _items,
-            ),
-          ),
+        return MaterialEditorSheet(
+          initial: initial,
+          existingMaterials: _items,
         );
       },
     );
@@ -633,150 +624,182 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
     final theme = Theme.of(context);
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
-        final shouldPop = await _onWillPop();
-        if (shouldPop && context.mounted) {
-          context.pop();
+    return KeyboardListener(
+      focusNode: FocusNode()..requestFocus(),
+      onKeyEvent: (event) {
+        if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
+          _onWillPop().then((shouldPop) {
+            if (shouldPop && mounted && context.mounted) {
+              Navigator.of(context).pop();
+            }
+          });
         }
       },
-      child: AnimatedPadding(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: EdgeInsets.only(bottom: bottomInset),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.initial == null ? 'Novo material' : 'Editar material',
-                      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () async {
-                      final shouldClose = await _onWillPop();
-                      if (shouldClose && context.mounted) {
-                        context.pop();
-                      }
-                    },
-                    icon: const Icon(Icons.close),
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _nameCtrl,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(labelText: 'Nome do material'),
-                      validator: _validateMaterialName,
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
+      child: GestureDetector(
+        onTap: () async {
+          final shouldPop = await _onWillPop();
+          if (shouldPop && mounted && context.mounted) {
+            Navigator.of(context).pop();
+          }
+        },
+        child: Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          backgroundColor: theme.colorScheme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: GestureDetector(
+              onTap: () {},
+              child: PopScope(
+                canPop: false,
+                onPopInvokedWithResult: (didPop, result) async {
+                  if (didPop) return;
+                  final shouldPop = await _onWillPop();
+                  if (shouldPop && context.mounted) {
+                    context.pop();
+                  }
+                },
+                child: AnimatedPadding(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  padding: EdgeInsets.only(bottom: bottomInset),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            initialValue: _selectedUnit,
-                            isExpanded: true,
-                            decoration: const InputDecoration(labelText: 'Unidade de medida'),
-                            items: _unitOptions
-                                .map(
-                                  (u) => DropdownMenuItem(
-                                    value: u,
-                                    child: Text(u, overflow: TextOverflow.ellipsis),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                widget.initial == null ? 'Novo material' : 'Editar material',
+                                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () async {
+                                final shouldClose = await _onWillPop();
+                                if (shouldClose && context.mounted) {
+                                  context.pop();
+                                }
+                              },
+                              icon: const Icon(Icons.close),
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                              tooltip: 'Fechar (Esc)',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Form(
+                          key: _formKey,
+                          child: Column(
+                            children: [
+                              TextFormField(
+                                controller: _nameCtrl,
+                                textInputAction: TextInputAction.next,
+                                decoration: const InputDecoration(labelText: 'Nome do material'),
+                                validator: _validateMaterialName,
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: DropdownButtonFormField<String>(
+                                      initialValue: _selectedUnit,
+                                      isExpanded: true,
+                                      decoration: const InputDecoration(labelText: 'Unidade de medida'),
+                                      items: _unitOptions
+                                          .map(
+                                            (u) => DropdownMenuItem(
+                                              value: u,
+                                              child: Text(u, overflow: TextOverflow.ellipsis),
+                                            ),
+                                          )
+                                          .toList(growable: false),
+                                      onChanged: (v) {
+                                        setState(() {
+                                          _selectedUnit = v;
+                                          _markChanged();
+                                        });
+                                      },
+                                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe a unidade' : null,
+                                    ),
                                   ),
-                                )
-                                .toList(growable: false),
-                            onChanged: (v) {
-                              setState(() {
-                                _selectedUnit = v;
-                                _markChanged();
-                              });
-                            },
-                            validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe a unidade' : null,
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _quantityCtrl,
+                                      keyboardType: TextInputType.numberWithOptions(decimal: _selectedUnit == 'Kg'),
+                                      inputFormatters: [
+                                        if (_selectedUnit == 'Kg')
+                                          FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                        else
+                                          FilteringTextInputFormatter.digitsOnly
+                                      ],
+                                      textInputAction: TextInputAction.next,
+                                      decoration: const InputDecoration(labelText: 'Quantidade'),
+                                      validator: (v) => _parseQuantity(v ?? '') == null ? 'Informe uma quantidade válida' : null,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _costCtrl,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9R\$\s\.,]'))],
+                                decoration: const InputDecoration(labelText: 'Custo (R\$)'),
+                                validator: (v) => _parseCostToCents(v ?? '') == null ? 'Informe um custo válido' : null,
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextFormField(
-                            controller: _quantityCtrl,
-                            keyboardType: TextInputType.numberWithOptions(decimal: _selectedUnit == 'Kg'),
-                            inputFormatters: [
-                              if (_selectedUnit == 'Kg')
-                                FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                              else
-                                FilteringTextInputFormatter.digitsOnly
-                            ],
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(labelText: 'Quantidade'),
-                            validator: (v) => _parseQuantity(v ?? '') == null ? 'Informe uma quantidade válida' : null,
-                          ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () async {
+                                  final shouldClose = await _onWillPop();
+                                  if (shouldClose && context.mounted) {
+                                    context.pop();
+                                  }
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                                  side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
+                                  foregroundColor: theme.colorScheme.onSurface,
+                                ),
+                                child: const Text('Cancelar'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  if (!_formKey.currentState!.validate()) return;
+                                  final cents = _parseCostToCents(_costCtrl.text) ?? 0;
+                                  final quantity = _parseQuantity(_quantityCtrl.text) ?? '0';
+                                  final now = DateTime.now();
+                                  final unit = (_selectedUnit ?? '').trim();
+                                  final item = (widget.initial ??
+                                          MaterialItem(id: now.microsecondsSinceEpoch.toString(), name: '', unit: '', costCents: 0, quantity: '0', createdAt: now))
+                                      .copyWith(name: _nameCtrl.text.trim(), unit: unit, quantity: quantity, costCents: cents);
+                                  context.pop(item);
+                                },
+                                child: Text(widget.initial == null ? 'Cadastrar' : 'Salvar'),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _costCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9R\$\s\.,]'))],
-                      decoration: const InputDecoration(labelText: 'Custo (R\$)'),
-                      validator: (v) => _parseCostToCents(v ?? '') == null ? 'Informe um custo válido' : null,
-                    ),
-                  ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () async {
-                        final shouldClose = await _onWillPop();
-                        if (shouldClose && context.mounted) {
-                          context.pop();
-                        }
-                      },
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
-                        side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
-                        foregroundColor: theme.colorScheme.onSurface,
-                      ),
-                      child: const Text('Cancelar'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        if (!_formKey.currentState!.validate()) return;
-                        final cents = _parseCostToCents(_costCtrl.text) ?? 0;
-                        final quantity = _parseQuantity(_quantityCtrl.text) ?? '0';
-                        final now = DateTime.now();
-                        final unit = (_selectedUnit ?? '').trim();
-                        final item = (widget.initial ??
-                                MaterialItem(id: now.microsecondsSinceEpoch.toString(), name: '', unit: '', costCents: 0, quantity: '0', createdAt: now))
-                            .copyWith(name: _nameCtrl.text.trim(), unit: unit, quantity: quantity, costCents: cents);
-                        context.pop(item);
-                      },
-                      child: Text(widget.initial == null ? 'Cadastrar' : 'Salvar'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ),

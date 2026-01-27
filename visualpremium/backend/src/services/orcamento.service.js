@@ -17,7 +17,8 @@ class OrcamentoService {
           include: {
             material: true
           }
-        }
+        },
+        despesasAdicionais: true
       },
       orderBy: {
         createdAt: 'desc'
@@ -42,7 +43,8 @@ class OrcamentoService {
           include: {
             material: true
           }
-        }
+        },
+        despesasAdicionais: true
       }
     });
 
@@ -54,7 +56,19 @@ class OrcamentoService {
   }
 
   async criar(data) {
-    const { cliente, numero, produtoId, materiais } = data;
+    const { 
+      cliente, 
+      numero, 
+      produtoId, 
+      materiais,
+      despesasAdicionais,
+      frete,
+      freteDesc,
+      freteValor,
+      caminhaoMunck,
+      caminhaoMunckHoras,
+      caminhaoMunckValorHora
+    } = data;
 
     if (!cliente || !numero || !produtoId) {
       throw new Error('Cliente, número e produto são obrigatórios');
@@ -76,6 +90,47 @@ class OrcamentoService {
       throw new Error('Produto não encontrado');
     }
 
+    // Converte strings booleanas para boolean
+    const freteBool = frete === true || frete === 'true';
+    const caminhaoMunckBool = caminhaoMunck === true || caminhaoMunck === 'true';
+
+    // Valida frete
+    if (freteBool) {
+      if (!freteDesc || freteDesc.trim() === '') {
+        throw new Error('Descrição do frete é obrigatória');
+      }
+      if (!freteValor || freteValor <= 0) {
+        throw new Error('Valor do frete deve ser maior que zero');
+      }
+    }
+
+    // Valida caminhão munck
+    if (caminhaoMunckBool) {
+      if (!caminhaoMunckHoras || caminhaoMunckHoras <= 0) {
+        throw new Error('Quantidade de horas do caminhão munck deve ser maior que zero');
+      }
+      if (!caminhaoMunckValorHora || caminhaoMunckValorHora <= 0) {
+        throw new Error('Valor por hora do caminhão munck deve ser maior que zero');
+      }
+    }
+
+    // Valida despesas adicionais
+    const despesasValidadas = [];
+    if (despesasAdicionais && Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
+      for (const despesa of despesasAdicionais) {
+        if (!despesa.descricao || despesa.descricao.trim() === '') {
+          throw new Error('Descrição da despesa adicional é obrigatória');
+        }
+        if (!despesa.valor || despesa.valor <= 0) {
+          throw new Error('Valor da despesa adicional deve ser maior que zero');
+        }
+        despesasValidadas.push({
+          descricao: despesa.descricao.trim(),
+          valor: parseFloat(despesa.valor)
+        });
+      }
+    }
+
     // Valida e converte quantidades dos materiais
     const materiaisValidados = [];
     if (materiais && materiais.length > 0) {
@@ -88,7 +143,6 @@ class OrcamentoService {
         const unidade = material.material.unidade;
         let quantidadeNum;
 
-        // Converte quantidade para número (o Prisma espera Float)
         if (unidade === 'Kg') {
           quantidadeNum = parseFloat(m.quantidade);
           if (isNaN(quantidadeNum) || quantidadeNum < 0) {
@@ -116,8 +170,17 @@ class OrcamentoService {
         numero,
         status: 'Pendente',
         produtoId,
+        frete: freteBool,
+        freteDesc: freteBool ? freteDesc : null,
+        freteValor: freteBool ? parseFloat(freteValor) : null,
+        caminhaoMunck: caminhaoMunckBool,
+        caminhaoMunckHoras: caminhaoMunckBool ? parseFloat(caminhaoMunckHoras) : null,
+        caminhaoMunckValorHora: caminhaoMunckBool ? parseFloat(caminhaoMunckValorHora) : null,
         materiais: {
           create: materiaisValidados
+        },
+        despesasAdicionais: {
+          create: despesasValidadas
         }
       },
       include: {
@@ -134,7 +197,8 @@ class OrcamentoService {
           include: {
             material: true
           }
-        }
+        },
+        despesasAdicionais: true
       }
     });
 
@@ -142,7 +206,20 @@ class OrcamentoService {
   }
 
   async atualizar(id, data) {
-    const { cliente, numero, produtoId, materiais, status } = data;
+    const { 
+      cliente, 
+      numero, 
+      produtoId, 
+      materiais, 
+      status,
+      despesasAdicionais,
+      frete,
+      freteDesc,
+      freteValor,
+      caminhaoMunck,
+      caminhaoMunckHoras,
+      caminhaoMunckValorHora
+    } = data;
 
     // Verifica se o orçamento existe
     const orcamentoExistente = await prisma.orcamento.findUnique({
@@ -151,6 +228,50 @@ class OrcamentoService {
 
     if (!orcamentoExistente) {
       throw new Error('Orçamento não encontrado');
+    }
+
+    // Converte strings booleanas para boolean
+    const freteBool = frete === true || frete === 'true';
+    const caminhaoMunckBool = caminhaoMunck === true || caminhaoMunck === 'true';
+
+    // Valida frete
+    if (freteBool) {
+      if (!freteDesc || freteDesc.trim() === '') {
+        throw new Error('Descrição do frete é obrigatória');
+      }
+      if (!freteValor || freteValor <= 0) {
+        throw new Error('Valor do frete deve ser maior que zero');
+      }
+    }
+
+    // Valida caminhão munck
+    if (caminhaoMunckBool) {
+      if (!caminhaoMunckHoras || caminhaoMunckHoras <= 0) {
+        throw new Error('Quantidade de horas do caminhão munck deve ser maior que zero');
+      }
+      if (!caminhaoMunckValorHora || caminhaoMunckValorHora <= 0) {
+        throw new Error('Valor por hora do caminhão munck deve ser maior que zero');
+      }
+    }
+
+    // Valida despesas adicionais
+    let despesasValidadas;
+    if (despesasAdicionais !== undefined) {
+      despesasValidadas = [];
+      if (Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
+        for (const despesa of despesasAdicionais) {
+          if (!despesa.descricao || despesa.descricao.trim() === '') {
+            throw new Error('Descrição da despesa adicional é obrigatória');
+          }
+          if (!despesa.valor || despesa.valor <= 0) {
+            throw new Error('Valor da despesa adicional deve ser maior que zero');
+          }
+          despesasValidadas.push({
+            descricao: despesa.descricao.trim(),
+            valor: parseFloat(despesa.valor)
+          });
+        }
+      }
     }
 
     // Se mudou o produto, verifica se existe
@@ -196,7 +317,6 @@ class OrcamentoService {
         const unidade = material.material.unidade;
         let quantidadeNum;
 
-        // Converte quantidade para número (o Prisma espera Float)
         if (unidade === 'Kg') {
           quantidadeNum = parseFloat(m.quantidade);
           if (isNaN(quantidadeNum) || quantidadeNum < 0) {
@@ -224,6 +344,13 @@ class OrcamentoService {
       });
     }
 
+    // Remove despesas antigas antes de atualizar
+    if (despesasValidadas !== undefined) {
+      await prisma.despesaAdicional.deleteMany({
+        where: { orcamentoId: id }
+      });
+    }
+
     // Atualiza o orçamento
     const orcamento = await prisma.orcamento.update({
       where: { id },
@@ -232,8 +359,17 @@ class OrcamentoService {
         numero: numero || undefined,
         status: status || undefined,
         produtoId: produtoId || undefined,
+        frete: frete !== undefined ? freteBool : undefined,
+        freteDesc: freteBool ? freteDesc : null,
+        freteValor: freteBool ? parseFloat(freteValor) : null,
+        caminhaoMunck: caminhaoMunck !== undefined ? caminhaoMunckBool : undefined,
+        caminhaoMunckHoras: caminhaoMunckBool ? parseFloat(caminhaoMunckHoras) : null,
+        caminhaoMunckValorHora: caminhaoMunckBool ? parseFloat(caminhaoMunckValorHora) : null,
         materiais: materiaisValidados ? {
           create: materiaisValidados
+        } : undefined,
+        despesasAdicionais: despesasValidadas !== undefined ? {
+          create: despesasValidadas
         } : undefined
       },
       include: {
@@ -250,7 +386,8 @@ class OrcamentoService {
           include: {
             material: true
           }
-        }
+        },
+        despesasAdicionais: true
       }
     });
 
@@ -287,7 +424,8 @@ class OrcamentoService {
           include: {
             material: true
           }
-        }
+        },
+        despesasAdicionais: true
       }
     });
   }
@@ -302,6 +440,10 @@ class OrcamentoService {
     }
 
     await prisma.orcamentoMaterial.deleteMany({
+      where: { orcamentoId: id }
+    });
+
+    await prisma.despesaAdicional.deleteMany({
       where: { orcamentoId: id }
     });
 

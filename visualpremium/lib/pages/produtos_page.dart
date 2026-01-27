@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:visualpremium/data/products_repository.dart';
 import 'package:visualpremium/data/materials_repository.dart';
@@ -22,23 +23,14 @@ class _ProductsPageState extends State<ProductsPage> {
   String _searchQuery = '';
 
   Future<void> _showProductEditor(ProductItem? initial) async {
-    final theme = Theme.of(context);
     final result = await showDialog<ProductItem>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          backgroundColor: theme.colorScheme.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 860),
-            child: ProductEditorSheet(
-              initial: initial,
-              availableMaterials: _availableMaterials,
-              existingProducts: _items,
-            ),
-          ),
+        return ProductEditorSheet(
+          initial: initial,
+          availableMaterials: _availableMaterials,
+          existingProducts: _items,
         );
       },
     );
@@ -504,171 +496,203 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
     final theme = Theme.of(context);
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
-        final shouldPop = await _onWillPop();
-        if (shouldPop && context.mounted) {
-          context.pop();
+    return KeyboardListener(
+      focusNode: FocusNode()..requestFocus(),
+      onKeyEvent: (event) {
+        if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
+          _onWillPop().then((shouldPop) {
+            if (shouldPop && mounted && context.mounted) {
+              Navigator.of(context).pop();
+            }
+          });
         }
       },
-      child: AnimatedPadding(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: EdgeInsets.only(bottom: bottomInset),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.initial == null ? 'Novo produto' : 'Editar produto',
-                      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () async {
-                      final shouldClose = await _onWillPop();
-                      if (shouldClose && context.mounted) {
-                        context.pop();
-                      }
-                    },
-                    icon: const Icon(Icons.close),
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextFormField(
-                      controller: _nameCtrl,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(labelText: 'Nome do produto'),
-                      validator: _validateProductName,
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: GestureDetector(
+        onTap: () async {
+          final shouldPop = await _onWillPop();
+          if (shouldPop && mounted && context.mounted) {
+            Navigator.of(context).pop();
+          }
+        },
+        child: Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          backgroundColor: theme.colorScheme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 860),
+            child: GestureDetector(
+              onTap: () {},
+              child: PopScope(
+                canPop: false,
+                onPopInvokedWithResult: (didPop, result) async {
+                  if (didPop) return;
+                  final shouldPop = await _onWillPop();
+                  if (shouldPop && context.mounted) {
+                    context.pop();
+                  }
+                },
+                child: AnimatedPadding(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  padding: EdgeInsets.only(bottom: bottomInset),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Materiais',
-                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                widget.initial == null ? 'Novo produto' : 'Editar produto',
+                                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () async {
+                                final shouldClose = await _onWillPop();
+                                if (shouldClose && context.mounted) {
+                                  context.pop();
+                                }
+                              },
+                              icon: const Icon(Icons.close),
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                              tooltip: 'Fechar (Esc)',
+                            ),
+                          ],
                         ),
-                        TextButton.icon(
-                          onPressed: _addMaterial,
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text('Adicionar material'),
+                        const SizedBox(height: 12),
+                        Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              TextFormField(
+                                controller: _nameCtrl,
+                                textInputAction: TextInputAction.next,
+                                decoration: const InputDecoration(labelText: 'Nome do produto'),
+                                validator: _validateProductName,
+                              ),
+                              const SizedBox(height: 24),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Materiais',
+                                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                                  ),
+                                  TextButton.icon(
+                                    onPressed: _addMaterial,
+                                    icon: const Icon(Icons.add, size: 18),
+                                    label: const Text('Adicionar material'),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              if (_selectedMaterials.isEmpty)
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Nenhum material adicionado',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              else
+                                ListView.separated(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: _selectedMaterials.length,
+                                  separatorBuilder: (context, index) => const SizedBox(height: 12),
+                                  itemBuilder: (context, index) {
+                                    return _MaterialSelectionRow(
+                                      selection: _selectedMaterials[index],
+                                      availableMaterials: widget.availableMaterials,
+                                      selectedMaterialIds: _selectedMaterials
+                                          .where((m) => m.materialId != null)
+                                          .map((m) => m.materialId!)
+                                          .toList(),
+                                      onChanged: (updated) {
+                                        setState(() {
+                                          _selectedMaterials[index] = updated;
+                                          _markChanged();
+                                        });
+                                      },
+                                      onRemove: () => _removeMaterial(index),
+                                    );
+                                  },
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () async {
+                                  final shouldClose = await _onWillPop();
+                                  if (shouldClose && context.mounted) {
+                                    context.pop();
+                                  }
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                                  side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
+                                  foregroundColor: theme.colorScheme.onSurface,
+                                ),
+                                child: const Text('Cancelar'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  if (!_formKey.currentState!.validate()) return;
+                                  
+                                  final validMaterials = _selectedMaterials
+                                      .where((m) => m.materialId != null)
+                                      .map((m) => ProductMaterial(
+                                            materialId: m.materialId!,
+                                            materialNome: m.materialName,
+                                          ))
+                                      .toList();
+
+                                  final now = DateTime.now();
+                                  final item = (widget.initial ??
+                                          ProductItem(
+                                            id: now.microsecondsSinceEpoch.toString(),
+                                            name: '',
+                                            materials: const [],
+                                            createdAt: now,
+                                          ))
+                                      .copyWith(
+                                    name: _nameCtrl.text.trim(),
+                                    materials: validMaterials,
+                                  );
+                                  context.pop(item);
+                                },
+                                child: Text(widget.initial == null ? 'Cadastrar' : 'Salvar'),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    if (_selectedMaterials.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-                        ),
-                        child: Center(
-                          child: Text(
-                            'Nenhum material adicionado',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                            ),
-                          ),
-                        ),
-                      )
-                    else
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _selectedMaterials.length,
-                        separatorBuilder: (context, index) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          return _MaterialSelectionRow(
-                            selection: _selectedMaterials[index],
-                            availableMaterials: widget.availableMaterials,
-                            selectedMaterialIds: _selectedMaterials
-                                .where((m) => m.materialId != null)
-                                .map((m) => m.materialId!)
-                                .toList(),
-                            onChanged: (updated) {
-                              setState(() {
-                                _selectedMaterials[index] = updated;
-                                _markChanged();
-                              });
-                            },
-                            onRemove: () => _removeMaterial(index),
-                          );
-                        },
-                      ),
-                  ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () async {
-                        final shouldClose = await _onWillPop();
-                        if (shouldClose && context.mounted) {
-                          context.pop();
-                        }
-                      },
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
-                        side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
-                        foregroundColor: theme.colorScheme.onSurface,
-                      ),
-                      child: const Text('Cancelar'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        if (!_formKey.currentState!.validate()) return;
-                        
-                        final validMaterials = _selectedMaterials
-                            .where((m) => m.materialId != null)
-                            .map((m) => ProductMaterial(
-                                  materialId: m.materialId!,
-                                  materialNome: m.materialName,
-                                ))
-                            .toList();
-
-                        final now = DateTime.now();
-                        final item = (widget.initial ??
-                                ProductItem(
-                                  id: now.microsecondsSinceEpoch.toString(),
-                                  name: '',
-                                  materials: const [],
-                                  createdAt: now,
-                                ))
-                            .copyWith(
-                          name: _nameCtrl.text.trim(),
-                          materials: validMaterials,
-                        );
-                        context.pop(item);
-                      },
-                      child: Text(widget.initial == null ? 'Cadastrar' : 'Salvar'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ),

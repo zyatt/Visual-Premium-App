@@ -12,7 +12,12 @@ class PdfService {
     this._desenharHeader(doc, logoPath, data.numero, titulo);
     this._desenharInfoPrincipal(doc, data.cliente, data.produtoNome);
     this._desenharTabelaMateriais(doc, data.materiais);
-    this._desenharResumo(doc, data.total);
+    
+    if (data.despesasAdicionais?.length > 0 || data.frete || data.caminhaoMunck) {
+      this._desenharItensAdicionais(doc, data);
+    }
+    
+    this._desenharResumo(doc, data);
     this._desenharFooter(doc);
     
     doc.end();
@@ -23,7 +28,6 @@ class PdfService {
     const margin = doc.page.margins.left;
     const pageWidth = doc.page.width;
     
-    // Logo à esquerda - Verificação e debug
     console.log('Tentando carregar logo de:', logoPath);
     console.log('Logo existe?', fs.existsSync(logoPath));
     
@@ -38,18 +42,34 @@ class PdfService {
       console.warn('Logo não encontrada no caminho:', logoPath);
     }
     
-    // Título e número centralizados
+    const numeroStr = numero.toString();
+    const numeroFontSize = 32;
+    doc.fontSize(numeroFontSize).font('Helvetica-Bold');
+    const numeroWidth = doc.widthOfString(numeroStr);
+    
+    const areaDireitaStart = pageWidth / 2;
+    const areaDireitaWidth = (pageWidth - margin) - areaDireitaStart;
+    const numeroX = areaDireitaStart + (areaDireitaWidth - numeroWidth) / 2;
+    
     doc.fontSize(11)
        .font('Helvetica')
        .fillColor('#666666')
-       .text(titulo, 0, 50, { width: pageWidth, align: 'center' });
+       .text(titulo, numeroX - 30, 50, { width: numeroWidth + 60, align: 'center' });
     
     doc.fontSize(32)
        .font('Helvetica-Bold')
        .fillColor('#1a1a1a')
-       .text(numero.toString(), 0, 68, { width: pageWidth, align: 'center' });
+       .text(numeroStr, numeroX, 68);
     
-    // Linha divisória
+    const now = new Date();
+    const dataFormatada = now.toLocaleDateString('pt-BR');
+    const horaFormatada = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    
+    doc.fontSize(9)
+       .font('Helvetica')
+       .fillColor('#666666')
+       .text(`${dataFormatada} às ${horaFormatada}`, numeroX - 30, 108, { width: numeroWidth + 60, align: 'center' });
+    
     doc.moveTo(margin, 130)
        .lineTo(pageWidth - margin, 130)
        .strokeColor('#e0e0e0')
@@ -62,7 +82,6 @@ class PdfService {
     const pageWidth = doc.page.width;
     let y = 150;
     
-    // Card com informações do cliente e produto
     const cardHeight = 90;
     const cardY = y;
     
@@ -70,12 +89,10 @@ class PdfService {
        .fillColor('#f8f9fa')
        .fill();
     
-    // Borda lateral colorida
     doc.rect(margin, cardY, 4, cardHeight)
        .fillColor('#1a1a1a')
        .fill();
     
-    // Cliente
     doc.fontSize(9)
        .font('Helvetica-Bold')
        .fillColor('#6b7280')
@@ -86,7 +103,6 @@ class PdfService {
        .fillColor('#1a1a1a')
        .text(cliente, margin + 20, cardY + 35, { width: pageWidth - 2 * margin - 40 });
     
-    // Produto
     doc.fontSize(9)
        .font('Helvetica-Bold')
        .fillColor('#6b7280')
@@ -103,7 +119,6 @@ class PdfService {
     const pageWidth = doc.page.width;
     let y = 260;
     
-    // Título da seção
     doc.fontSize(11)
        .font('Helvetica-Bold')
        .fillColor('#1a1a1a')
@@ -120,7 +135,6 @@ class PdfService {
       total: tableWidth * 0.14
     };
     
-    // Header da tabela
     doc.roundedRect(margin, y, tableWidth, 30, 6)
        .fillColor('#1a1a1a')
        .fill();
@@ -146,7 +160,6 @@ class PdfService {
     
     y += 40;
     
-    // Linhas dos materiais
     doc.fontSize(9)
        .font('Helvetica')
        .fillColor('#1f2937');
@@ -159,14 +172,12 @@ class PdfService {
       
       const rowHeight = 35;
       
-      // Fundo alternado
       if (index % 2 === 0) {
         doc.rect(margin, y, tableWidth, rowHeight)
            .fillColor('#f9fafb')
            .fill();
       }
       
-      // Linha divisória sutil
       doc.moveTo(margin, y + rowHeight)
          .lineTo(pageWidth - margin, y + rowHeight)
          .strokeColor('#e5e7eb')
@@ -176,7 +187,6 @@ class PdfService {
       x = margin + 15;
       const textY = y + 12;
       
-      // Material
       doc.fillColor('#1f2937')
          .font('Helvetica')
          .fontSize(9)
@@ -189,14 +199,12 @@ class PdfService {
       
       x += colWidths.material;
       
-      // Unidade
       doc.fillColor('#6b7280')
          .fontSize(8)
          .text(material.materialUnidade, x - 10, textY, { width: colWidths.unidade, align: 'center' });
       
       x += colWidths.unidade;
       
-      // Quantidade
       const quantidade = this._formatarQuantidade(material.quantidade, material.materialUnidade);
       doc.fillColor('#1f2937')
          .font('Helvetica-Bold')
@@ -205,7 +213,6 @@ class PdfService {
       
       x += colWidths.quantidade;
       
-      // Valor unitário
       doc.fillColor('#6b7280')
          .font('Helvetica')
          .fontSize(8)
@@ -213,7 +220,6 @@ class PdfService {
       
       x += colWidths.valorUnit;
       
-      // Total do item
       const totalItem = this._calcularTotalItem(material.quantidade, material.materialCusto);
       doc.fillColor('#1f2937')
          .font('Helvetica-Bold')
@@ -226,37 +232,242 @@ class PdfService {
     return y;
   }
 
-  _desenharResumo(doc, total) {
+  _desenharItensAdicionais(doc, data) {
     const margin = doc.page.margins.left;
     const pageWidth = doc.page.width;
-    const y = doc.y + 30;
+    let y = doc.y + 30;
+    
+    if (y > doc.page.height - 200) {
+      doc.addPage();
+      y = 60;
+    }
+    
+    doc.fontSize(11)
+       .font('Helvetica-Bold')
+       .fillColor('#1a1a1a')
+       .text('INFORMAÇÕES ADICIONAIS', margin, y);
+    
+    y += 20;
+    
+    const boxWidth = pageWidth - 2 * margin;
+    
+    if (data.despesasAdicionais && data.despesasAdicionais.length > 0) {
+      for (const despesa of data.despesasAdicionais) {
+        if (y > doc.page.height - 100) {
+          doc.addPage();
+          y = 60;
+        }
+        
+        doc.roundedRect(margin, y, boxWidth, 45, 6)
+           .fillColor('#f0f9ff')
+           .fill();
+        
+        doc.rect(margin, y, 4, 45)
+           .fillColor('#3b82f6')
+           .fill();
+        
+        doc.fontSize(8)
+           .font('Helvetica-Bold')
+           .fillColor('#6b7280')
+           .text('DESPESA ADICIONAL', margin + 15, y + 12);
+        
+        doc.fontSize(10)
+           .font('Helvetica')
+           .fillColor('#1f2937')
+           .text(despesa.descricao, margin + 15, y + 27, { width: boxWidth - 180 });
+        
+        doc.fontSize(12)
+           .font('Helvetica-Bold')
+           .fillColor('#3b82f6')
+           .text(this._formatarMoeda(despesa.valor), pageWidth - margin - 130, y + 20, { 
+             width: 120, 
+             align: 'right' 
+           });
+        
+        y += 55;
+      }
+    }
+    
+    if (data.frete && data.freteDesc && data.freteValor) {
+      if (y > doc.page.height - 100) {
+        doc.addPage();
+        y = 60;
+      }
+      
+      doc.roundedRect(margin, y, boxWidth, 45, 6)
+         .fillColor('#f0fdf4')
+         .fill();
+      
+      doc.rect(margin, y, 4, 45)
+         .fillColor('#22c55e')
+         .fill();
+      
+      doc.fontSize(8)
+         .font('Helvetica-Bold')
+         .fillColor('#6b7280')
+         .text('FRETE', margin + 15, y + 12);
+      
+      doc.fontSize(10)
+         .font('Helvetica')
+         .fillColor('#1f2937')
+         .text(data.freteDesc, margin + 15, y + 27, { width: boxWidth - 180 });
+      
+      doc.fontSize(12)
+         .font('Helvetica-Bold')
+         .fillColor('#22c55e')
+         .text(this._formatarMoeda(data.freteValor), pageWidth - margin - 130, y + 20, { 
+           width: 120, 
+           align: 'right' 
+         });
+      
+      y += 55;
+    }
+    
+    if (data.caminhaoMunck && data.caminhaoMunckHoras && data.caminhaoMunckValorHora) {
+      if (y > doc.page.height - 100) {
+        doc.addPage();
+        y = 60;
+      }
+      
+      const totalMunck = data.caminhaoMunckHoras * data.caminhaoMunckValorHora;
+      
+      doc.roundedRect(margin, y, boxWidth, 45, 6)
+         .fillColor('#fef3c7')
+         .fill();
+      
+      doc.rect(margin, y, 4, 45)
+         .fillColor('#f59e0b')
+         .fill();
+      
+      doc.fontSize(8)
+         .font('Helvetica-Bold')
+         .fillColor('#6b7280')
+         .text('CAMINHÃO MUNCK', margin + 15, y + 12);
+      
+      doc.fontSize(10)
+         .font('Helvetica')
+         .fillColor('#1f2937')
+         .text(`${this._formatarQuantidade(data.caminhaoMunckHoras, 'h')} horas × ${this._formatarMoeda(data.caminhaoMunckValorHora)}/h`, 
+                margin + 15, y + 27, { width: boxWidth - 180 });
+      
+      doc.fontSize(12)
+         .font('Helvetica-Bold')
+         .fillColor('#f59e0b')
+         .text(this._formatarMoeda(totalMunck), pageWidth - margin - 130, y + 20, { 
+           width: 120, 
+           align: 'right' 
+         });
+      
+      y += 55;
+    }
+  }
+
+  _desenharResumo(doc, data) {
+    const margin = doc.page.margins.left;
+    const pageWidth = doc.page.width;
+    let y = doc.y + 30;
+    
+    if (y > doc.page.height - 150) {
+      doc.addPage();
+      y = 60;
+    }
     
     const boxWidth = 250;
-    const boxHeight = 70;
     const boxX = pageWidth - margin - boxWidth;
     
-    // Box do total com sombra
-    doc.rect(boxX + 2, y + 2, boxWidth, boxHeight)
-       .fillColor('#000000')
-       .opacity(0.05)
-       .fill();
+    let subtotal = 0;
+    data.materiais.forEach(mat => {
+      subtotal += this._calcularTotalItem(mat.quantidade, mat.materialCusto);
+    });
     
-    doc.opacity(1);
-    doc.roundedRect(boxX, y, boxWidth, boxHeight, 8)
-       .fillColor('#1a1a1a')
-       .fill();
+    doc.fontSize(9)
+       .font('Helvetica')
+       .fillColor('#6b7280')
+       .text('Subtotal Materiais', boxX, y, { width: boxWidth - 120, align: 'left' });
     
-    // Label TOTAL
     doc.fontSize(10)
        .font('Helvetica-Bold')
-       .fillColor('#ffffff')
-       .text('VALOR TOTAL', boxX + 20, y + 18, { width: boxWidth - 40, align: 'left' });
+       .fillColor('#374151')
+       .text(this._formatarMoeda(subtotal), boxX + boxWidth - 110, y, { width: 110, align: 'right' });
     
-    // Valor do total
-    doc.fontSize(22)
+    y += 20;
+    
+    if (data.despesasAdicionais && data.despesasAdicionais.length > 0) {
+      for (const despesa of data.despesasAdicionais) {
+        doc.fontSize(9)
+           .font('Helvetica')
+           .fillColor('#6b7280')
+           .text(despesa.descricao, boxX, y, { width: boxWidth - 120, align: 'left', lineBreak: false, ellipsis: true });
+        
+        doc.fontSize(10)
+           .font('Helvetica')
+           .fillColor('#374151')
+           .text(this._formatarMoeda(despesa.valor), boxX + boxWidth - 110, y, { width: 110, align: 'right' });
+        
+        y += 18;
+      }
+    }
+    
+    if (data.frete && data.freteValor) {
+      doc.fontSize(9)
+         .font('Helvetica')
+         .fillColor('#6b7280')
+         .text('Frete', boxX, y, { width: boxWidth - 120, align: 'left' });
+      
+      doc.fontSize(10)
+         .font('Helvetica')
+         .fillColor('#374151')
+         .text(this._formatarMoeda(data.freteValor), boxX + boxWidth - 110, y, { width: 110, align: 'right' });
+      
+      y += 18;
+    }
+    
+    if (data.caminhaoMunck && data.caminhaoMunckHoras && data.caminhaoMunckValorHora) {
+      const totalMunck = data.caminhaoMunckHoras * data.caminhaoMunckValorHora;
+      
+      doc.fontSize(9)
+         .font('Helvetica')
+         .fillColor('#6b7280')
+         .text('Caminhão Munck', boxX, y, { width: boxWidth - 120, align: 'left' });
+      
+      doc.fontSize(10)
+         .font('Helvetica')
+         .fillColor('#374151')
+         .text(this._formatarMoeda(totalMunck), boxX + boxWidth - 110, y, { width: 110, align: 'right' });
+      
+      y += 18;
+    }
+    
+    y += 10;
+    doc.moveTo(boxX, y)
+       .lineTo(pageWidth - margin, y)
+       .strokeColor('#e5e7eb')
+       .lineWidth(1)
+       .stroke();
+    
+    y += 15;
+    
+    let totalGeral = subtotal;
+    
+    if (data.despesasAdicionais && data.despesasAdicionais.length > 0) {
+      totalGeral += data.despesasAdicionais.reduce((sum, d) => sum + d.valor, 0);
+    }
+    
+    if (data.freteValor) totalGeral += data.freteValor;
+    
+    if (data.caminhaoMunckHoras && data.caminhaoMunckValorHora) {
+      totalGeral += data.caminhaoMunckHoras * data.caminhaoMunckValorHora;
+    }
+    
+    doc.fontSize(10)
        .font('Helvetica-Bold')
-       .fillColor('#ffffff')
-       .text(this._formatarMoeda(total), boxX + 20, y + 35, { width: boxWidth - 40, align: 'left' });
+       .fillColor('#6b7280')
+       .text('VALOR TOTAL', boxX, y, { width: boxWidth, align: 'right' });
+    
+    doc.fontSize(24)
+       .font('Helvetica-Bold')
+       .fillColor('#1a1a1a')
+       .text(this._formatarMoeda(totalGeral), boxX, y + 20, { width: boxWidth, align: 'right' });
   }
 
   _desenharFooter(doc) {
@@ -264,23 +475,11 @@ class PdfService {
     const pageWidth = doc.page.width;
     const pageHeight = doc.page.height;
     
-    // Linha decorativa
     doc.moveTo(margin, pageHeight - 50)
        .lineTo(pageWidth - margin, pageHeight - 50)
        .strokeColor('#e5e7eb')
        .lineWidth(1)
        .stroke();
-    
-    // Texto do footer
-    doc.fontSize(7)
-       .font('Helvetica')
-       .fillColor('#9ca3af')
-       .text(
-         'Documento gerado automaticamente pelo sistema Visual Premium', 
-         margin, 
-         pageHeight - 35, 
-         { width: pageWidth - 2 * margin, align: 'center' }
-       );
   }
 
   _formatarMoeda(valor) {
@@ -293,7 +492,7 @@ class PdfService {
   _formatarQuantidade(quantidade, unidade) {
     const num = parseFloat(quantidade.toString().replace(',', '.'));
     
-    if (unidade === 'Kg') {
+    if (unidade === 'Kg' || unidade === 'h') {
       return num.toFixed(2).replace('.', ',');
     }
     
