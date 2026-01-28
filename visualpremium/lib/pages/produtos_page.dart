@@ -7,6 +7,15 @@ import 'package:visualpremium/models/product_item.dart';
 import 'package:visualpremium/models/material_item.dart';
 import 'package:visualpremium/theme.dart';
 
+enum SortOption {
+  newestFirst,
+  oldestFirst,
+  nameAsc,
+  nameDesc,
+  materialsAsc,
+  materialsDesc,
+}
+
 class ProductsPage extends StatefulWidget {
   const ProductsPage({super.key});
 
@@ -21,6 +30,7 @@ class _ProductsPageState extends State<ProductsPage> {
   List<ProductItem> _items = const [];
   List<MaterialItem> _availableMaterials = const [];
   String _searchQuery = '';
+  SortOption _sortOption = SortOption.newestFirst;
 
   Future<void> _showProductEditor(ProductItem? initial) async {
     final result = await showDialog<ProductItem>(
@@ -134,95 +144,348 @@ class _ProductsPageState extends State<ProductsPage> {
     }
   }
 
-  List<ProductItem> get _filteredItems {
-    if (_searchQuery.isEmpty) return _items;
-    final query = _searchQuery.toLowerCase();
-    return _items.where((item) {
-      return item.name.toLowerCase().contains(query) ||
-          item.materials.any((m) => m.materialNome.toLowerCase().contains(query));
-    }).toList();
+  List<ProductItem> get _filteredAndSortedItems {
+    var filtered = _items;
+    
+    if (_searchQuery.isNotEmpty) {
+      final query = _searchQuery.toLowerCase();
+      filtered = filtered.where((item) {
+        return item.name.toLowerCase().contains(query) ||
+            item.materials.any((m) => m.materialNome.toLowerCase().contains(query));
+      }).toList();
+    } else {
+      filtered = List.from(filtered);
+    }
+    
+    switch (_sortOption) {
+      case SortOption.newestFirst:
+        filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        break;
+      case SortOption.oldestFirst:
+        filtered.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        break;
+      case SortOption.nameAsc:
+        filtered.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        break;
+      case SortOption.nameDesc:
+        filtered.sort((a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()));
+        break;
+      case SortOption.materialsAsc:
+        filtered.sort((a, b) => a.materials.length.compareTo(b.materials.length));
+        break;
+      case SortOption.materialsDesc:
+        filtered.sort((a, b) => b.materials.length.compareTo(a.materials.length));
+        break;
+    }
+    
+    return filtered;
+  }
+
+  void _toggleDateSort() {
+    setState(() {
+      if (_sortOption == SortOption.newestFirst) {
+        _sortOption = SortOption.oldestFirst;
+      } else if (_sortOption == SortOption.oldestFirst) {
+        _sortOption = SortOption.newestFirst;
+      } else {
+        _sortOption = SortOption.newestFirst;
+      }
+    });
+  }
+
+  void _toggleNameSort() {
+    setState(() {
+      if (_sortOption == SortOption.nameAsc) {
+        _sortOption = SortOption.nameDesc;
+      } else if (_sortOption == SortOption.nameDesc) {
+        _sortOption = SortOption.nameAsc;
+      } else {
+        _sortOption = SortOption.nameAsc;
+      }
+    });
+  }
+
+  void _toggleMaterialsSort() {
+    setState(() {
+      if (_sortOption == SortOption.materialsAsc) {
+        _sortOption = SortOption.materialsDesc;
+      } else if (_sortOption == SortOption.materialsDesc) {
+        _sortOption = SortOption.materialsAsc;
+      } else {
+        _sortOption = SortOption.materialsDesc;
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final filteredItems = _filteredItems;
+    final filteredItems = _filteredAndSortedItems;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(32.0),
-        child: Column(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Produtos', style: theme.textTheme.headlineMedium),
-                ElevatedButton.icon(
-                  onPressed: () => _showProductEditor(null),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Novo Produto'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.primary,
-                    foregroundColor: theme.colorScheme.onPrimary,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Produtos',
+                        style: theme.textTheme.headlineMedium,
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () => _showProductEditor(null),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Novo Produto'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: theme.colorScheme.onPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: theme.cardTheme.color,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                    ),
+                    child: TextField(
+                      onChanged: (value) => setState(() => _searchQuery = value),
+                      decoration: InputDecoration(
+                        hintText: 'Buscar por nome ou material...',
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        icon: Icon(Icons.search, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  if (_loading)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 48),
+                      child: Center(
+                        child: SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.primary),
+                        ),
+                      ),
+                    )
+                  else if (filteredItems.isEmpty)
+                    _EmptyProductsState(
+                      hasSearch: _searchQuery.isNotEmpty,
+                      onCreate: () => _showProductEditor(null),
+                    )
+                  else
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: filteredItems.length,
+                      separatorBuilder: (context, index) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final item = filteredItems[index];
+                        return _ProductCard(
+                          item: item,
+                          onTap: () => _showProductEditor(item),
+                          onDelete: () async {
+                            final ok = await _showConfirmDelete(item.name);
+                            if (ok == true) await _delete(item);
+                          },
+                        );
+                      },
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 24),
+            _FilterPanel(
+              sortOption: _sortOption,
+              onToggleDateSort: _toggleDateSort,
+              onToggleNameSort: _toggleNameSort,
+              onToggleMaterialsSort: _toggleMaterialsSort,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterPanel extends StatelessWidget {
+  final SortOption sortOption;
+  final VoidCallback onToggleDateSort;
+  final VoidCallback onToggleNameSort;
+  final VoidCallback onToggleMaterialsSort;
+
+  const _FilterPanel({
+    required this.sortOption,
+    required this.onToggleDateSort,
+    required this.onToggleNameSort,
+    required this.onToggleMaterialsSort,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return Container(
+      width: 280,
+      margin: const EdgeInsets.only(top: 67),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.sort,
+                size: 34,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Ordenar por',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _SortOptionWithToggle(
+            label: 'Data',
+            icon: Icons.schedule,
+            isSelected: sortOption == SortOption.newestFirst || sortOption == SortOption.oldestFirst,
+            isAscending: sortOption == SortOption.oldestFirst,
+            ascendingLabel: 'Mais antigo',
+            descendingLabel: 'Mais recente',
+            onTap: onToggleDateSort,
+          ),
+          const SizedBox(height: 8),
+          _SortOptionWithToggle(
+            label: 'Nome',
+            icon: Icons.sort_by_alpha,
+            isSelected: sortOption == SortOption.nameAsc || sortOption == SortOption.nameDesc,
+            isAscending: sortOption == SortOption.nameAsc,
+            ascendingLabel: 'A-Z',
+            descendingLabel: 'Z-A',
+            onTap: onToggleNameSort,
+          ),
+          const SizedBox(height: 8),
+          _SortOptionWithToggle(
+            label: 'Nº de Materiais',
+            icon: Icons.inventory_2_outlined,
+            isSelected: sortOption == SortOption.materialsAsc || sortOption == SortOption.materialsDesc,
+            isAscending: sortOption == SortOption.materialsAsc,
+            ascendingLabel: 'Menor',
+            descendingLabel: 'Maior',
+            onTap: onToggleMaterialsSort,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SortOptionWithToggle extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final bool isAscending;
+  final String ascendingLabel;
+  final String descendingLabel;
+  final VoidCallback onTap;
+
+  const _SortOptionWithToggle({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.isAscending,
+    required this.ascendingLabel,
+    required this.descendingLabel,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.sm),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.colorScheme.primary.withValues(alpha: 0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          border: Border.all(
+            color: isSelected
+                ? theme.colorScheme.primary.withValues(alpha: 0.3)
+                : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: isSelected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: isSelected
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                ),
+              ),
+            ),
+            if (isSelected)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  isAscending ? ascendingLabel : descendingLabel,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 32),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: theme.cardTheme.color,
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-              ),
-              child: TextField(
-                onChanged: (value) => setState(() => _searchQuery = value),
-                decoration: InputDecoration(
-                  hintText: 'Buscar produtos...',
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  icon: Icon(Icons.search, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            if (_loading)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 48),
-                child: Center(
-                  child: SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.primary),
-                  ),
-                ),
-              )
-            else if (filteredItems.isEmpty)
-              _EmptyProductsState(
-                hasSearch: _searchQuery.isNotEmpty,
-                onCreate: () => _showProductEditor(null),
-              )
-            else
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: filteredItems.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final item = filteredItems[index];
-                  return _ProductCard(
-                    item: item,
-                    onTap: () => _showProductEditor(item),
-                    onDelete: () async {
-                      final ok = await _showConfirmDelete(item.name);
-                      if (ok == true) await _delete(item);
-                    },
-                  );
-                },
               ),
           ],
         ),
@@ -273,7 +536,11 @@ class _ProductCard extends StatelessWidget {
                 color: theme.colorScheme.secondary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(Icons.inventory_2_outlined, color: theme.colorScheme.secondary, size: 20),
+              child: Icon(
+                Icons.inventory_2_outlined,
+                color: theme.colorScheme.secondary,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 24),
             Expanded(
@@ -403,13 +670,18 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameCtrl;
   final List<_MaterialSelection> _selectedMaterials = [];
-  bool _hasChanges = false;
+  final FocusNode _dialogFocusNode = FocusNode();
+  final FocusNode _nameFocusNode = FocusNode();
+  bool _isShowingDiscardDialog = false;
+  
+  late final String _initialName;
+  late final List<int> _initialMaterialIds;
 
   @override
   void initState() {
     super.initState();
-    _nameCtrl = TextEditingController(text: widget.initial?.name ?? '');
-    _nameCtrl.addListener(() => _markChanged());
+    _initialName = widget.initial?.name ?? '';
+    _nameCtrl = TextEditingController(text: _initialName);
     
     if (widget.initial != null) {
       for (final pm in widget.initial!.materials) {
@@ -419,17 +691,54 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
         ));
       }
     }
+    
+    _initialMaterialIds = _selectedMaterials
+        .where((m) => m.materialId != null)
+        .map((m) => m.materialId!)
+        .toList();
+    
+    _nameFocusNode.addListener(_onFieldFocusChange);
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _dialogFocusNode.requestFocus();
+    });
   }
 
-  void _markChanged() {
-    if (!_hasChanges) {
-      setState(() => _hasChanges = true);
+  void _onFieldFocusChange() {
+    if (!_nameFocusNode.hasFocus) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted && !_isShowingDiscardDialog) {
+          _dialogFocusNode.requestFocus();
+        }
+      });
     }
+  }
+
+  bool get _hasChanges {
+    if (_nameCtrl.text.trim() != _initialName.trim()) {
+      return true;
+    }
+    
+    final currentMaterialIds = _selectedMaterials
+        .where((m) => m.materialId != null)
+        .map((m) => m.materialId!)
+        .toList();
+    
+    if (currentMaterialIds.length != _initialMaterialIds.length) {
+      return true;
+    }
+    
+    final initialSet = _initialMaterialIds.toSet();
+    final currentSet = currentMaterialIds.toSet();
+    
+    return !initialSet.containsAll(currentSet) || !currentSet.containsAll(initialSet);
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _dialogFocusNode.dispose();
+    _nameFocusNode.dispose();
     super.dispose();
   }
 
@@ -439,37 +748,60 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
         materialId: null,
         materialName: '',
       ));
-      _markChanged();
     });
   }
 
   void _removeMaterial(int index) {
     setState(() {
       _selectedMaterials.removeAt(index);
-      _markChanged();
     });
   }
 
   Future<bool> _onWillPop() async {
     if (!_hasChanges) return true;
     
+    if (_isShowingDiscardDialog) return false;
+    
+    _isShowingDiscardDialog = true;
+    
     final result = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Descartar alterações?'),
-        content: const Text('Você tem alterações não salvas. Deseja descartá-las?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Descartar'),
-          ),
-        ],
+      barrierDismissible: true,
+      builder: (dialogContext) => Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
+            Navigator.of(dialogContext).pop(false);
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: AlertDialog(
+          title: const Text('Descartar alterações?'),
+          content: const Text('Você tem alterações não salvas. Deseja descartá-las?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Descartar'),
+            ),
+          ],
+        ),
       ),
     );
+    
+    _isShowingDiscardDialog = false;
+    
+    if (result == false || result == null) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) {
+          _dialogFocusNode.requestFocus();
+        }
+      });
+    }
     
     return result ?? false;
   }
@@ -496,199 +828,194 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
     final theme = Theme.of(context);
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
 
-    return KeyboardListener(
-      focusNode: FocusNode()..requestFocus(),
-      onKeyEvent: (event) {
-        if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
-          _onWillPop().then((shouldPop) {
-            if (shouldPop && mounted && context.mounted) {
-              Navigator.of(context).pop();
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      backgroundColor: theme.colorScheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+      child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 860),
+        child: PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, result) async {
+            if (didPop) return;
+            final shouldPop = await _onWillPop();
+            if (shouldPop && context.mounted) {
+              context.pop();
             }
-          });
-        }
-      },
-      child: GestureDetector(
-        onTap: () async {
-          final shouldPop = await _onWillPop();
-          if (shouldPop && mounted && context.mounted) {
-            Navigator.of(context).pop();
-          }
-        },
-        child: Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          backgroundColor: theme.colorScheme.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 860),
-            child: GestureDetector(
-              onTap: () {},
-              child: PopScope(
-                canPop: false,
-                onPopInvokedWithResult: (didPop, result) async {
-                  if (didPop) return;
-                  final shouldPop = await _onWillPop();
-                  if (shouldPop && context.mounted) {
-                    context.pop();
-                  }
-                },
-                child: AnimatedPadding(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOut,
-                  padding: EdgeInsets.only(bottom: bottomInset),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                widget.initial == null ? 'Novo produto' : 'Editar produto',
-                                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                              ),
+          },
+          child: GestureDetector(
+            onTap: () {
+              _dialogFocusNode.requestFocus();
+            },
+            child: Focus(
+              focusNode: _dialogFocusNode,
+              onKeyEvent: (node, event) {
+                if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
+                  _onWillPop().then((shouldPop) {
+                    if (shouldPop && mounted && context.mounted) {
+                      Navigator.of(context).pop();
+                    }
+                  });
+                  return KeyEventResult.handled;
+                }
+                return KeyEventResult.ignored;
+              },
+              child: AnimatedPadding(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                padding: EdgeInsets.only(bottom: bottomInset),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              widget.initial == null ? 'Novo produto' : 'Editar produto',
+                              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                             ),
-                            IconButton(
+                          ),
+                          IconButton(
+                            onPressed: () async {
+                              final shouldClose = await _onWillPop();
+                              if (shouldClose && context.mounted) {
+                                context.pop();
+                              }
+                            },
+                            icon: const Icon(Icons.close),
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                            tooltip: 'Fechar (Esc)',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextFormField(
+                              controller: _nameCtrl,
+                              focusNode: _nameFocusNode,
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(labelText: 'Nome do produto'),
+                              validator: _validateProductName,
+                            ),
+                            const SizedBox(height: 24),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Materiais',
+                                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                                ),
+                                TextButton.icon(
+                                  onPressed: _addMaterial,
+                                  icon: const Icon(Icons.add, size: 18),
+                                  label: const Text('Adicionar material'),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (_selectedMaterials.isEmpty)
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    'Nenhum material adicionado',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                    ),
+                                  ),
+                                ),
+                              )
+                            else
+                              ListView.separated(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: _selectedMaterials.length,
+                                separatorBuilder: (context, index) => const SizedBox(height: 12),
+                                itemBuilder: (context, index) {
+                                  return _MaterialSelectionRow(
+                                    selection: _selectedMaterials[index],
+                                    availableMaterials: widget.availableMaterials,
+                                    selectedMaterialIds: _selectedMaterials
+                                        .where((m) => m.materialId != null)
+                                        .map((m) => m.materialId!)
+                                        .toList(),
+                                    onChanged: (updated) {
+                                      setState(() {
+                                        _selectedMaterials[index] = updated;
+                                      });
+                                    },
+                                    onRemove: () => _removeMaterial(index),
+                                  );
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
                               onPressed: () async {
                                 final shouldClose = await _onWillPop();
                                 if (shouldClose && context.mounted) {
                                   context.pop();
                                 }
                               },
-                              icon: const Icon(Icons.close),
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                              tooltip: 'Fechar (Esc)',
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                                side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
+                                foregroundColor: theme.colorScheme.onSurface,
+                              ),
+                              child: const Text('Cancelar'),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              TextFormField(
-                                controller: _nameCtrl,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(labelText: 'Nome do produto'),
-                                validator: _validateProductName,
-                              ),
-                              const SizedBox(height: 24),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Materiais',
-                                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-                                  ),
-                                  TextButton.icon(
-                                    onPressed: _addMaterial,
-                                    icon: const Icon(Icons.add, size: 18),
-                                    label: const Text('Adicionar material'),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              if (_selectedMaterials.isEmpty)
-                                Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      'Nenhum material adicionado',
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              else
-                                ListView.separated(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(),
-                                  itemCount: _selectedMaterials.length,
-                                  separatorBuilder: (context, index) => const SizedBox(height: 12),
-                                  itemBuilder: (context, index) {
-                                    return _MaterialSelectionRow(
-                                      selection: _selectedMaterials[index],
-                                      availableMaterials: widget.availableMaterials,
-                                      selectedMaterialIds: _selectedMaterials
-                                          .where((m) => m.materialId != null)
-                                          .map((m) => m.materialId!)
-                                          .toList(),
-                                      onChanged: (updated) {
-                                        setState(() {
-                                          _selectedMaterials[index] = updated;
-                                          _markChanged();
-                                        });
-                                      },
-                                      onRemove: () => _removeMaterial(index),
-                                    );
-                                  },
-                                ),
-                            ],
                           ),
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () async {
-                                  final shouldClose = await _onWillPop();
-                                  if (shouldClose && context.mounted) {
-                                    context.pop();
-                                  }
-                                },
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
-                                  side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
-                                  foregroundColor: theme.colorScheme.onSurface,
-                                ),
-                                child: const Text('Cancelar'),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  if (!_formKey.currentState!.validate()) return;
-                                  
-                                  final validMaterials = _selectedMaterials
-                                      .where((m) => m.materialId != null)
-                                      .map((m) => ProductMaterial(
-                                            materialId: m.materialId!,
-                                            materialNome: m.materialName,
-                                          ))
-                                      .toList();
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                if (!_formKey.currentState!.validate()) return;
+                                
+                                final validMaterials = _selectedMaterials
+                                    .where((m) => m.materialId != null)
+                                    .map((m) => ProductMaterial(
+                                          materialId: m.materialId!,
+                                          materialNome: m.materialName,
+                                        ))
+                                    .toList();
 
-                                  final now = DateTime.now();
-                                  final item = (widget.initial ??
-                                          ProductItem(
-                                            id: now.microsecondsSinceEpoch.toString(),
-                                            name: '',
-                                            materials: const [],
-                                            createdAt: now,
-                                          ))
-                                      .copyWith(
-                                    name: _nameCtrl.text.trim(),
-                                    materials: validMaterials,
-                                  );
-                                  context.pop(item);
-                                },
-                                child: Text(widget.initial == null ? 'Cadastrar' : 'Salvar'),
-                              ),
+                                final now = DateTime.now();
+                                final item = (widget.initial ??
+                                        ProductItem(
+                                          id: now.microsecondsSinceEpoch.toString(),
+                                          name: '',
+                                          materials: const [],
+                                          createdAt: now,
+                                        ))
+                                    .copyWith(
+                                  name: _nameCtrl.text.trim(),
+                                  materials: validMaterials,
+                                );
+                                context.pop(item);
+                              },
+                              child: Text(widget.initial == null ? 'Cadastrar' : 'Salvar'),
                             ),
-                          ],
-                        ),
-                      ],
-                    ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ),

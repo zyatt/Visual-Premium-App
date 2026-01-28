@@ -6,6 +6,19 @@ import 'package:visualpremium/data/materials_repository.dart';
 import 'package:visualpremium/models/material_item.dart';
 import 'package:visualpremium/theme.dart';
 
+enum SortOption {
+  newestFirst,
+  oldestFirst,
+  nameAsc,
+  nameDesc,
+  unitAsc,
+  unitDesc,
+  quantityAsc,
+  quantityDesc,
+  priceAsc,
+  priceDesc,
+}
+
 class MaterialsPage extends StatefulWidget {
   const MaterialsPage({super.key});
 
@@ -18,6 +31,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
   bool _loading = true;
   List<MaterialItem> _items = const [];
   String _searchQuery = '';
+  SortOption _sortOption = SortOption.newestFirst;
 
   Future<void> _showMaterialEditor(MaterialItem? initial) async {
     final result = await showDialog<MaterialItem>(
@@ -64,7 +78,11 @@ class _MaterialsPageState extends State<MaterialsPage> {
     setState(() => _loading = true);
     try {
       final items = await _api.fetchMaterials();
-      items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      items.sort((a, b) {
+        final dateA = a.updatedAt ?? a.createdAt;
+        final dateB = b.updatedAt ?? b.createdAt;
+        return dateB.compareTo(dateA);
+      });
       if (!mounted) return;
       setState(() {
         _items = items;
@@ -222,100 +240,423 @@ class _MaterialsPageState extends State<MaterialsPage> {
     );
   }
 
-  List<MaterialItem> get _filteredItems {
-    if (_searchQuery.isEmpty) return _items;
-    final query = _searchQuery.toLowerCase();
-    return _items.where((item) {
-      return item.name.toLowerCase().contains(query) ||
-          item.unit.toLowerCase().contains(query);
-    }).toList();
+  List<MaterialItem> get _filteredAndSortedItems {
+    var filtered = _items;
+    
+    if (_searchQuery.isNotEmpty) {
+      final query = _searchQuery.toLowerCase();
+      filtered = filtered.where((item) {
+        return item.name.toLowerCase().contains(query);
+      }).toList();
+    } else {
+      filtered = List.from(filtered);
+    }
+    
+    switch (_sortOption) {
+      case SortOption.newestFirst:
+        filtered.sort((a, b) {
+          final dateA = a.updatedAt ?? a.createdAt;
+          final dateB = b.updatedAt ?? b.createdAt;
+          return dateB.compareTo(dateA);
+        });
+        break;
+      case SortOption.oldestFirst:
+        filtered.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        break;
+      case SortOption.nameAsc:
+        filtered.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        break;
+      case SortOption.nameDesc:
+        filtered.sort((a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()));
+        break;
+      case SortOption.unitAsc:
+        filtered.sort((a, b) => a.unit.compareTo(b.unit));
+        break;
+      case SortOption.unitDesc:
+        filtered.sort((a, b) => b.unit.compareTo(a.unit));
+        break;
+      case SortOption.quantityAsc:
+        filtered.sort((a, b) {
+          final qtyA = double.tryParse(a.quantity) ?? 0;
+          final qtyB = double.tryParse(b.quantity) ?? 0;
+          return qtyA.compareTo(qtyB);
+        });
+        break;
+      case SortOption.quantityDesc:
+        filtered.sort((a, b) {
+          final qtyA = double.tryParse(a.quantity) ?? 0;
+          final qtyB = double.tryParse(b.quantity) ?? 0;
+          return qtyB.compareTo(qtyA);
+        });
+        break;
+      case SortOption.priceAsc:
+        filtered.sort((a, b) => a.costCents.compareTo(b.costCents));
+        break;
+      case SortOption.priceDesc:
+        filtered.sort((a, b) => b.costCents.compareTo(a.costCents));
+        break;
+    }
+    
+    return filtered;
+  }
+
+  void _toggleDateSort() {
+    setState(() {
+      if (_sortOption == SortOption.newestFirst) {
+        _sortOption = SortOption.oldestFirst;
+      } else if (_sortOption == SortOption.oldestFirst) {
+        _sortOption = SortOption.newestFirst;
+      } else {
+        _sortOption = SortOption.newestFirst;
+      }
+    });
+  }
+
+  void _toggleNameSort() {
+    setState(() {
+      if (_sortOption == SortOption.nameAsc) {
+        _sortOption = SortOption.nameDesc;
+      } else if (_sortOption == SortOption.nameDesc) {
+        _sortOption = SortOption.nameAsc;
+      } else {
+        _sortOption = SortOption.nameAsc;
+      }
+    });
+  }
+
+  void _toggleUnitSort() {
+    setState(() {
+      if (_sortOption == SortOption.unitAsc) {
+        _sortOption = SortOption.unitDesc;
+      } else if (_sortOption == SortOption.unitDesc) {
+        _sortOption = SortOption.unitAsc;
+      } else {
+        _sortOption = SortOption.unitAsc;
+      }
+    });
+  }
+
+  void _toggleQuantitySort() {
+    setState(() {
+      if (_sortOption == SortOption.quantityAsc) {
+        _sortOption = SortOption.quantityDesc;
+      } else if (_sortOption == SortOption.quantityDesc) {
+        _sortOption = SortOption.quantityAsc;
+      } else {
+        _sortOption = SortOption.quantityDesc;
+      }
+    });
+  }
+
+  void _togglePriceSort() {
+    setState(() {
+      if (_sortOption == SortOption.priceAsc) {
+        _sortOption = SortOption.priceDesc;
+      } else if (_sortOption == SortOption.priceDesc) {
+        _sortOption = SortOption.priceAsc;
+      } else {
+        _sortOption = SortOption.priceDesc;
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final currency = NumberFormat.simpleCurrency(locale: 'pt_BR');
-    final filteredItems = _filteredItems;
+    final filteredItems = _filteredAndSortedItems;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(32.0),
-        child: Column(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Materiais',
-                  style: theme.textTheme.headlineMedium,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Materiais',
+                        style: theme.textTheme.headlineMedium,
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: () => _showMaterialEditor(null),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Novo Material'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: theme.colorScheme.onPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: theme.cardTheme.color,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                    ),
+                    child: TextField(
+                      onChanged: (value) => setState(() => _searchQuery = value),
+                      decoration: InputDecoration(
+                        hintText: 'Buscar por nome...',
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        icon: Icon(Icons.search, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  if (_loading)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 48),
+                      child: Center(
+                        child: SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.primary),
+                        ),
+                      ),
+                    )
+                  else if (filteredItems.isEmpty)
+                    _EmptyMaterialsState(
+                      hasSearch: _searchQuery.isNotEmpty,
+                      onCreate: () => _showMaterialEditor(null),
+                    )
+                  else
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: filteredItems.length,
+                      separatorBuilder: (context, index) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final item = filteredItems[index];
+                        return _MaterialCard(
+                          item: item,
+                          formattedCost: currency.format(item.costCents / 100.0),
+                          onTap: () => _showMaterialEditor(item),
+                          onDelete: () async {
+                            final ok = await _showConfirmDelete(item.name);
+                            if (ok == true) await _delete(item);
+                          },
+                        );
+                      },
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 24),
+            _FilterPanel(
+              sortOption: _sortOption,
+              onToggleDateSort: _toggleDateSort,
+              onToggleNameSort: _toggleNameSort,
+              onToggleUnitSort: _toggleUnitSort,
+              onToggleQuantitySort: _toggleQuantitySort,
+              onTogglePriceSort: _togglePriceSort,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterPanel extends StatelessWidget {
+  final SortOption sortOption;
+  final VoidCallback onToggleDateSort;
+  final VoidCallback onToggleNameSort;
+  final VoidCallback onToggleUnitSort;
+  final VoidCallback onToggleQuantitySort;
+  final VoidCallback onTogglePriceSort;
+
+  const _FilterPanel({
+    required this.sortOption,
+    required this.onToggleDateSort,
+    required this.onToggleNameSort,
+    required this.onToggleUnitSort,
+    required this.onToggleQuantitySort,
+    required this.onTogglePriceSort,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return Container(
+      width: 280,
+      margin: const EdgeInsets.only(top: 67),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.sort,
+                size: 34,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Ordenar por',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
                 ),
-                ElevatedButton.icon(
-                  onPressed: () => _showMaterialEditor(null),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Novo Material'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.primary,
-                    foregroundColor: theme.colorScheme.onPrimary,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _SortOptionWithToggle(
+            label: 'Data',
+            icon: Icons.schedule,
+            isSelected: sortOption == SortOption.newestFirst || sortOption == SortOption.oldestFirst,
+            isAscending: sortOption == SortOption.oldestFirst,
+            ascendingLabel: 'Mais antigo',
+            descendingLabel: 'Mais recente',
+            onTap: onToggleDateSort,
+          ),
+          const SizedBox(height: 8),
+          _SortOptionWithToggle(
+            label: 'Nome',
+            icon: Icons.sort_by_alpha,
+            isSelected: sortOption == SortOption.nameAsc || sortOption == SortOption.nameDesc,
+            isAscending: sortOption == SortOption.nameAsc,
+            ascendingLabel: 'A-Z',
+            descendingLabel: 'Z-A',
+            onTap: onToggleNameSort,
+          ),
+          const SizedBox(height: 8),
+          _SortOptionWithToggle(
+            label: 'Unidade',
+            icon: Icons.straighten,
+            isSelected: sortOption == SortOption.unitAsc || sortOption == SortOption.unitDesc,
+            isAscending: sortOption == SortOption.unitAsc,
+            ascendingLabel: 'A-Z',
+            descendingLabel: 'Z-A',
+            onTap: onToggleUnitSort,
+          ),
+          const SizedBox(height: 8),
+          _SortOptionWithToggle(
+            label: 'Quantidade',
+            icon: Icons.inventory_2_outlined,
+            isSelected: sortOption == SortOption.quantityAsc || sortOption == SortOption.quantityDesc,
+            isAscending: sortOption == SortOption.quantityAsc,
+            ascendingLabel: 'Menor',
+            descendingLabel: 'Maior',
+            onTap: onToggleQuantitySort,
+          ),
+          const SizedBox(height: 8),
+          _SortOptionWithToggle(
+            label: 'Preço',
+            icon: Icons.attach_money,
+            isSelected: sortOption == SortOption.priceAsc || sortOption == SortOption.priceDesc,
+            isAscending: sortOption == SortOption.priceAsc,
+            ascendingLabel: 'Menor',
+            descendingLabel: 'Maior',
+            onTap: onTogglePriceSort,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SortOptionWithToggle extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final bool isAscending;
+  final String ascendingLabel;
+  final String descendingLabel;
+  final VoidCallback onTap;
+
+  const _SortOptionWithToggle({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.isAscending,
+    required this.ascendingLabel,
+    required this.descendingLabel,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.sm),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.colorScheme.primary.withValues(alpha: 0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          border: Border.all(
+            color: isSelected
+                ? theme.colorScheme.primary.withValues(alpha: 0.3)
+                : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: isSelected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: isSelected
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                ),
+              ),
+            ),
+            if (isSelected)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  isAscending ? ascendingLabel : descendingLabel,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 32),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: theme.cardTheme.color,
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-              ),
-              child: TextField(
-                onChanged: (value) => setState(() => _searchQuery = value),
-                decoration: InputDecoration(
-                  hintText: 'Buscar materiais...',
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  icon: Icon(Icons.search, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            if (_loading)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 48),
-                child: Center(
-                  child: SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.primary),
-                  ),
-                ),
-              )
-            else if (filteredItems.isEmpty)
-              _EmptyMaterialsState(
-                hasSearch: _searchQuery.isNotEmpty,
-                onCreate: () => _showMaterialEditor(null),
-              )
-            else
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: filteredItems.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final item = filteredItems[index];
-                  return _MaterialCard(
-                    item: item,
-                    formattedCost: currency.format(item.costCents / 100.0),
-                    onTap: () => _showMaterialEditor(item),
-                    onDelete: () async {
-                      final ok = await _showConfirmDelete(item.name);
-                      if (ok == true) await _delete(item);
-                    },
-                  );
-                },
               ),
           ],
         ),
@@ -508,7 +849,7 @@ class MaterialEditorSheet extends StatefulWidget {
   });
 
   @override
-  State<MaterialEditorSheet> createState() => _MaterialEditorSheetState();
+  State<MaterialEditorSheet>createState() => _MaterialEditorSheetState();
 }
 
 class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
@@ -516,30 +857,60 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _quantityCtrl;
   late final TextEditingController _costCtrl;
+  final FocusNode _dialogFocusNode = FocusNode();
+  final FocusNode _nameFocusNode = FocusNode();
+  final FocusNode _quantityFocusNode = FocusNode();
+  final FocusNode _costFocusNode = FocusNode();
 
-  static const List<String> _unitOptions = ['Kg', 'm', 'm²', 'Unidade', 'Altura', 'Hora', '%', 'L'];
+  static const List<String> _unitOptions = ['Kg', 'm²', 'm', 'Unidade', 'Altura', 'Hora', '%', 'L'];
   String? _selectedUnit;
-  bool _hasChanges = false;
+  bool _isShowingDiscardDialog = false;
+  
+  late final String _initialName;
+  late final String? _initialUnit;
+  late final String _initialQuantity;
+  late final String _initialCost;
 
   @override
   void initState() {
     super.initState();
     final currency = NumberFormat.simpleCurrency(locale: 'pt_BR');
-    _nameCtrl = TextEditingController(text: widget.initial?.name ?? '');
-    final initialUnit = widget.initial?.unit.trim();
-    _selectedUnit = (initialUnit != null && _unitOptions.contains(initialUnit)) ? initialUnit : null;
-    _quantityCtrl = TextEditingController(text: widget.initial?.quantity ?? '');
-    _costCtrl = TextEditingController(text: widget.initial == null ? '' : currency.format(widget.initial!.costCents / 100.0));
     
-    _nameCtrl.addListener(() => _markChanged());
-    _quantityCtrl.addListener(() => _markChanged());
-    _costCtrl.addListener(() => _markChanged());
+    _initialName = widget.initial?.name ?? '';
+    final initialUnit = widget.initial?.unit.trim();
+    _initialUnit = (initialUnit != null && _unitOptions.contains(initialUnit)) ? initialUnit : null;
+    _initialQuantity = widget.initial?.quantity ?? '';
+    _initialCost = widget.initial == null ? '' : currency.format(widget.initial!.costCents / 100.0);
+    
+    _nameCtrl = TextEditingController(text: _initialName);
+    _selectedUnit = _initialUnit;
+    _quantityCtrl = TextEditingController(text: _initialQuantity);
+    _costCtrl = TextEditingController(text: _initialCost);
+    
+    _nameFocusNode.addListener(_onFieldFocusChange);
+    _quantityFocusNode.addListener(_onFieldFocusChange);
+    _costFocusNode.addListener(_onFieldFocusChange);
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _dialogFocusNode.requestFocus();
+    });
   }
 
-  void _markChanged() {
-    if (!_hasChanges) {
-      setState(() => _hasChanges = true);
+  void _onFieldFocusChange() {
+    if (!_nameFocusNode.hasFocus && !_quantityFocusNode.hasFocus && !_costFocusNode.hasFocus) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted && !_isShowingDiscardDialog) {
+          _dialogFocusNode.requestFocus();
+        }
+      });
     }
+  }
+
+  bool get _hasChanges {
+    return _nameCtrl.text != _initialName ||
+           _selectedUnit != _initialUnit ||
+           _quantityCtrl.text != _initialQuantity ||
+           _costCtrl.text != _initialCost;
   }
 
   @override
@@ -547,6 +918,10 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
     _nameCtrl.dispose();
     _quantityCtrl.dispose();
     _costCtrl.dispose();
+    _dialogFocusNode.dispose();
+    _nameFocusNode.dispose();
+    _quantityFocusNode.dispose();
+    _costFocusNode.dispose();
     super.dispose();
   }
 
@@ -564,14 +939,12 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
     var s = input.trim();
     if (s.isEmpty) return null;
     
-    // Se a unidade for Kg, permite decimal
     if (_selectedUnit == 'Kg') {
       s = s.replaceAll(',', '.');
       final value = double.tryParse(s);
       if (value == null || value.isNaN || value.isInfinite || value < 0) return null;
       return value.toString();
     } else {
-      // Para outras unidades, apenas inteiros
       final value = int.tryParse(s);
       if (value == null || value < 0) return null;
       return value.toString();
@@ -598,23 +971,48 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
   Future<bool> _onWillPop() async {
     if (!_hasChanges) return true;
     
+    if (_isShowingDiscardDialog) return false;
+    
+    _isShowingDiscardDialog = true;
+    
     final result = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Descartar alterações?'),
-        content: const Text('Você tem alterações não salvas. Deseja descartá-las?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Descartar'),
-          ),
-        ],
+      barrierDismissible: true,
+      builder: (dialogContext) => Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
+            Navigator.of(dialogContext).pop(false);
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: AlertDialog(
+          title: const Text('Descartar alterações?'),
+          content: const Text('Você tem alterações não salvas. Deseja descartá-las?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Descartar'),
+            ),
+          ],
+        ),
       ),
     );
+    
+    _isShowingDiscardDialog = false;
+    
+    if (result == false || result == null) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) {
+          _dialogFocusNode.requestFocus();
+        }
+      });
+    }
     
     return result ?? false;
   }
@@ -624,178 +1022,176 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
     final theme = Theme.of(context);
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
 
-    return KeyboardListener(
-      focusNode: FocusNode()..requestFocus(),
-      onKeyEvent: (event) {
-        if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
-          _onWillPop().then((shouldPop) {
-            if (shouldPop && mounted && context.mounted) {
-              Navigator.of(context).pop();
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      backgroundColor: theme.colorScheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, result) async {
+            if (didPop) return;
+            final shouldPop = await _onWillPop();
+            if (shouldPop && context.mounted) {
+              context.pop();
             }
-          });
-        }
-      },
-      child: GestureDetector(
-        onTap: () async {
-          final shouldPop = await _onWillPop();
-          if (shouldPop && mounted && context.mounted) {
-            Navigator.of(context).pop();
-          }
-        },
-        child: Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          backgroundColor: theme.colorScheme.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: GestureDetector(
-              onTap: () {},
-              child: PopScope(
-                canPop: false,
-                onPopInvokedWithResult: (didPop, result) async {
-                  if (didPop) return;
-                  final shouldPop = await _onWillPop();
-                  if (shouldPop && context.mounted) {
-                    context.pop();
-                  }
-                },
-                child: AnimatedPadding(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOut,
-                  padding: EdgeInsets.only(bottom: bottomInset),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                widget.initial == null ? 'Novo material' : 'Editar material',
-                                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                              ),
+          },
+          child: GestureDetector(
+            onTap: () {
+              _dialogFocusNode.requestFocus();
+            },
+            child: Focus(
+              focusNode: _dialogFocusNode,
+              onKeyEvent: (node, event) {
+                if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
+                  _onWillPop().then((shouldPop) {
+                    if (shouldPop && mounted && context.mounted) {
+                      Navigator.of(context).pop();
+                    }
+                  });
+                  return KeyEventResult.handled;
+                }
+                return KeyEventResult.ignored;
+              },
+              child: AnimatedPadding(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                padding: EdgeInsets.only(bottom: bottomInset),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              widget.initial == null ? 'Novo material' : 'Editar material',
+                              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                             ),
-                            IconButton(
+                          ),
+                          IconButton(
+                            onPressed: () async {
+                              final shouldClose = await _onWillPop();
+                              if (shouldClose && context.mounted) {
+                                context.pop();
+                              }
+                            },
+                            icon: const Icon(Icons.close),
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                            tooltip: 'Fechar (Esc)',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            TextFormField(
+                              controller: _nameCtrl,
+                              focusNode: _nameFocusNode,
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(labelText: 'Nome do material'),
+                              validator: _validateMaterialName,
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    initialValue: _selectedUnit,
+                                    isExpanded: true,
+                                    decoration: const InputDecoration(labelText: 'Unidade de medida'),
+                                    items: _unitOptions
+                                        .map(
+                                          (u) => DropdownMenuItem(
+                                            value: u,
+                                            child: Text(u, overflow: TextOverflow.ellipsis),
+                                          ),
+                                        )
+                                        .toList(growable: false),
+                                    onChanged: (v) {
+                                      setState(() {
+                                        _selectedUnit = v;
+                                      });
+                                    },
+                                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe a unidade' : null,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _quantityCtrl,
+                                    focusNode: _quantityFocusNode,
+                                    keyboardType: TextInputType.numberWithOptions(decimal: _selectedUnit == 'Kg'),
+                                    inputFormatters: [
+                                      if (_selectedUnit == 'Kg')
+                                        FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                      else
+                                        FilteringTextInputFormatter.digitsOnly
+                                    ],
+                                    textInputAction: TextInputAction.next,
+                                    decoration: const InputDecoration(labelText: 'Quantidade'),
+                                    validator: (v) => _parseQuantity(v ?? '') == null ? 'Informe uma quantidade válida' : null,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _costCtrl,
+                              focusNode: _costFocusNode,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9R\$\s\.,]'))],
+                              decoration: const InputDecoration(labelText: 'Custo (R\$)'),
+                              validator: (v) => _parseCostToCents(v ?? '') == null ? 'Informe um custo válido' : null,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
                               onPressed: () async {
                                 final shouldClose = await _onWillPop();
                                 if (shouldClose && context.mounted) {
                                   context.pop();
                                 }
                               },
-                              icon: const Icon(Icons.close),
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                              tooltip: 'Fechar (Esc)',
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                                side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
+                                foregroundColor: theme.colorScheme.onSurface,
+                              ),
+                              child: const Text('Cancelar'),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Form(
-                          key: _formKey,
-                          child: Column(
-                            children: [
-                              TextFormField(
-                                controller: _nameCtrl,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(labelText: 'Nome do material'),
-                                validator: _validateMaterialName,
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: DropdownButtonFormField<String>(
-                                      initialValue: _selectedUnit,
-                                      isExpanded: true,
-                                      decoration: const InputDecoration(labelText: 'Unidade de medida'),
-                                      items: _unitOptions
-                                          .map(
-                                            (u) => DropdownMenuItem(
-                                              value: u,
-                                              child: Text(u, overflow: TextOverflow.ellipsis),
-                                            ),
-                                          )
-                                          .toList(growable: false),
-                                      onChanged: (v) {
-                                        setState(() {
-                                          _selectedUnit = v;
-                                          _markChanged();
-                                        });
-                                      },
-                                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe a unidade' : null,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _quantityCtrl,
-                                      keyboardType: TextInputType.numberWithOptions(decimal: _selectedUnit == 'Kg'),
-                                      inputFormatters: [
-                                        if (_selectedUnit == 'Kg')
-                                          FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                        else
-                                          FilteringTextInputFormatter.digitsOnly
-                                      ],
-                                      textInputAction: TextInputAction.next,
-                                      decoration: const InputDecoration(labelText: 'Quantidade'),
-                                      validator: (v) => _parseQuantity(v ?? '') == null ? 'Informe uma quantidade válida' : null,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                controller: _costCtrl,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9R\$\s\.,]'))],
-                                decoration: const InputDecoration(labelText: 'Custo (R\$)'),
-                                validator: (v) => _parseCostToCents(v ?? '') == null ? 'Informe um custo válido' : null,
-                              ),
-                            ],
                           ),
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: () async {
-                                  final shouldClose = await _onWillPop();
-                                  if (shouldClose && context.mounted) {
-                                    context.pop();
-                                  }
-                                },
-                                style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
-                                  side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
-                                  foregroundColor: theme.colorScheme.onSurface,
-                                ),
-                                child: const Text('Cancelar'),
-                              ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                if (!_formKey.currentState!.validate()) return;
+                                final cents = _parseCostToCents(_costCtrl.text) ?? 0;
+                                final quantity = _parseQuantity(_quantityCtrl.text) ?? '0';
+                                final now = DateTime.now();
+                                final unit = (_selectedUnit ?? '').trim();
+                                final item = (widget.initial ??
+                                        MaterialItem(id: now.microsecondsSinceEpoch.toString(), name: '', unit: '', costCents: 0, quantity: '0', createdAt: now))
+                                    .copyWith(name: _nameCtrl.text.trim(), unit: unit, quantity: quantity, costCents: cents);
+                                context.pop(item);
+                              },
+                              child: Text(widget.initial == null ? 'Cadastrar' : 'Salvar'),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  if (!_formKey.currentState!.validate()) return;
-                                  final cents = _parseCostToCents(_costCtrl.text) ?? 0;
-                                  final quantity = _parseQuantity(_quantityCtrl.text) ?? '0';
-                                  final now = DateTime.now();
-                                  final unit = (_selectedUnit ?? '').trim();
-                                  final item = (widget.initial ??
-                                          MaterialItem(id: now.microsecondsSinceEpoch.toString(), name: '', unit: '', costCents: 0, quantity: '0', createdAt: now))
-                                      .copyWith(name: _nameCtrl.text.trim(), unit: unit, quantity: quantity, costCents: cents);
-                                  context.pop(item);
-                                },
-                                child: Text(widget.initial == null ? 'Cadastrar' : 'Salvar'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ),

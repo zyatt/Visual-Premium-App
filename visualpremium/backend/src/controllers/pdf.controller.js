@@ -25,8 +25,9 @@ class PdfController {
       // Calcula o total geral
       let totalGeral = totalMateriais;
       
-      if (orcamento.despesaAdicional && orcamento.despesaAdicionalValor) {
-        totalGeral += orcamento.despesaAdicionalValor;
+      // Adiciona despesas adicionais ao total
+      if (orcamento.despesasAdicionais && orcamento.despesasAdicionais.length > 0) {
+        totalGeral += orcamento.despesasAdicionais.reduce((sum, despesa) => sum + despesa.valor, 0);
       }
       
       if (orcamento.frete && orcamento.freteValor) {
@@ -48,13 +49,14 @@ class PdfController {
           materialCusto: m.material.custo,
           quantidade: m.quantidade
         })),
+        despesasAdicionais: orcamento.despesasAdicionais && orcamento.despesasAdicionais.length > 0
+          ? orcamento.despesasAdicionais.map(d => ({
+              descricao: d.descricao,
+              valor: d.valor
+            }))
+          : [],
         total: totalGeral,
         createdAt: orcamento.createdAt,
-        
-        // Informações adicionais
-        despesaAdicional: orcamento.despesaAdicional || false,
-        despesaAdicionalDesc: orcamento.despesaAdicionalDesc,
-        despesaAdicionalValor: orcamento.despesaAdicionalValor,
         
         frete: orcamento.frete || false,
         freteDesc: orcamento.freteDesc,

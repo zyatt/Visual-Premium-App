@@ -5,8 +5,9 @@ class MaterialItem {
   final String name;
   final String unit;
   final int costCents;
-  final String quantity; // Mudado de double para String
+  final String quantity;
   final DateTime createdAt;
+  final DateTime? updatedAt;
 
   const MaterialItem({
     required this.id,
@@ -15,6 +16,7 @@ class MaterialItem {
     required this.costCents,
     required this.quantity,
     required this.createdAt,
+    this.updatedAt,
   });
 
   MaterialItem copyWith({
@@ -22,6 +24,7 @@ class MaterialItem {
     String? unit,
     int? costCents,
     String? quantity,
+    DateTime? updatedAt,
   }) =>
       MaterialItem(
         id: id,
@@ -30,17 +33,16 @@ class MaterialItem {
         costCents: costCents ?? this.costCents,
         quantity: quantity ?? this.quantity,
         createdAt: createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
       );
 
-  // material_item.dart - Ajuste no toMap
   Map<String, Object?> toMap() => {
         'nome': name,
         'unidade': unit,
         'custo': costCents / 100.0,
-        'quantidade': double.tryParse(quantity) ?? 0, // Converte string para número
+        'quantidade': double.tryParse(quantity) ?? 0,
       };
 
-  // material_item.dart - Ajuste no tryFromMap
   static MaterialItem? tryFromMap(Map<String, Object?> map) {
     try {
       final id = map['id'];
@@ -48,6 +50,20 @@ class MaterialItem {
       final unidade = map['unidade'];
       final custo = map['custo'];
       final quantidade = map['quantidade'];
+      
+      final createdAtRaw = map['created_at'] ?? 
+                          map['createdAt'] ?? 
+                          map['data_criacao'] ?? 
+                          map['dataCriacao'] ??
+                          map['criado_em'] ??
+                          map['criadoEm'];
+                          
+      final updatedAtRaw = map['updated_at'] ?? 
+                          map['updatedAt'] ?? 
+                          map['data_atualizacao'] ?? 
+                          map['dataAtualizacao'] ??
+                          map['atualizado_em'] ??
+                          map['atualizadoEm'];
 
       if (id == null ||
           nome is! String ||
@@ -62,7 +78,6 @@ class MaterialItem {
           (custo is int) ? custo.toDouble() : (custo is double ? custo : 0.0);
       final costCents = (custoDouble * 100).round();
 
-      // Converte quantidade para string (aceita tanto int quanto double do backend)
       final quantidadeStr = quantidade is num 
           ? quantidade.toString() 
           : quantidade.toString();
@@ -72,13 +87,37 @@ class MaterialItem {
       if (cleanedName.isEmpty || cleanedUnit.isEmpty) return null;
       if (costCents < 0) return null;
 
+      DateTime? createdAt;
+      DateTime? updatedAt;
+
+      if (createdAtRaw != null) {
+        if (createdAtRaw is String) {
+          createdAt = DateTime.tryParse(createdAtRaw);
+        } else if (createdAtRaw is int) {
+          createdAt = DateTime.fromMillisecondsSinceEpoch(createdAtRaw);
+        } else if (createdAtRaw is DateTime) {
+          createdAt = createdAtRaw;
+        }
+      }
+      
+      if (updatedAtRaw != null) {
+        if (updatedAtRaw is String) {
+          updatedAt = DateTime.tryParse(updatedAtRaw);
+        } else if (updatedAtRaw is int) {
+          updatedAt = DateTime.fromMillisecondsSinceEpoch(updatedAtRaw);
+        } else if (updatedAtRaw is DateTime) {
+          updatedAt = updatedAtRaw;
+        }
+      }
+
       return MaterialItem(
         id: idStr,
         name: cleanedName,
         unit: cleanedUnit,
         costCents: costCents,
         quantity: quantidadeStr,
-        createdAt: DateTime.now(),
+        createdAt: createdAt ?? DateTime.now(),
+        updatedAt: updatedAt,
       );
     } catch (e) {
       return null;
@@ -86,19 +125,28 @@ class MaterialItem {
   }
 
   static List<MaterialItem> decodeList(String raw) {
-    final decoded = jsonDecode(raw);
-    if (decoded is! List) return const [];
-    final out = <MaterialItem>[];
-    for (final e in decoded) {
-      if (e is Map) {
-        final map = e.map((k, v) => MapEntry(k.toString(), v));
-        final item = tryFromMap(map);
-        if (item != null) out.add(item);
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      final out = <MaterialItem>[];
+      for (final e in decoded) {
+        if (e is Map) {
+          final map = e.map((k, v) => MapEntry(k.toString(), v));
+          final item = tryFromMap(map);
+          if (item != null) out.add(item);
+        }
       }
+      return out;
+    } catch (e) {
+      return const [];
     }
-    return out;
   }
 
   static String encodeList(List<MaterialItem> items) =>
       jsonEncode(items.map((e) => e.toMap()).toList(growable: false));
+
+  @override
+  String toString() {
+    return 'MaterialItem(id: $id, name: $name, createdAt: $createdAt, updatedAt: $updatedAt)';
+  }
 }
