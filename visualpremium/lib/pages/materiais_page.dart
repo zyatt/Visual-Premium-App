@@ -261,7 +261,11 @@ class _MaterialsPageState extends State<MaterialsPage> {
         });
         break;
       case SortOption.oldestFirst:
-        filtered.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        filtered.sort((a, b) {
+          final dateA = a.updatedAt ?? a.createdAt;
+          final dateB = b.updatedAt ?? b.createdAt;
+          return dateA.compareTo(dateB);
+        });
         break;
       case SortOption.nameAsc:
         filtered.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
@@ -368,102 +372,151 @@ class _MaterialsPageState extends State<MaterialsPage> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(32.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(32.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Materiais',
-                        style: theme.textTheme.headlineMedium,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.construction,
+                                size: 32,
+                                color: theme.colorScheme.primary,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Materiais',
+                                style: theme.textTheme.headlineMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              ExcludeFocus(
+                                child: IconButton(
+                                  onPressed: _load,
+                                  icon: const Icon(Icons.refresh),
+                                  tooltip: 'Atualizar',
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              ExcludeFocus(
+                                child: ElevatedButton.icon(
+                                  onPressed: () => _showMaterialEditor(null),
+                                  icon: const Icon(Icons.add),
+                                  label: const Text('Novo Material'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: theme.colorScheme.primary,
+                                    foregroundColor: theme.colorScheme.onPrimary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                      ElevatedButton.icon(
-                        onPressed: () => _showMaterialEditor(null),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Novo Material'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: theme.colorScheme.primary,
-                          foregroundColor: theme.colorScheme.onPrimary,
+                      const SizedBox(height: 32),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: theme.cardTheme.color,
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                        ),
+                        child: TextField(
+                          onChanged: (value) => setState(() => _searchQuery = value),
+                          decoration: InputDecoration(
+                            hintText: 'Buscar por nome',
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            icon: Icon(Icons.search, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
+                          ),
                         ),
                       ),
+                      const SizedBox(height: 24),
+                      if (_loading)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 48),
+                          child: Center(
+                            child: SizedBox(
+                              width: 28,
+                              height: 28,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.primary),
+                            ),
+                          ),
+                        )
+                      else if (filteredItems.isEmpty)
+                        _EmptyMaterialsState(
+                          hasSearch: _searchQuery.isNotEmpty,
+                          onCreate: () => _showMaterialEditor(null),
+                        )
+                      else
+                        ExcludeFocus(
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: filteredItems.length,
+                            separatorBuilder: (context, index) => const SizedBox(height: 12),
+                            itemBuilder: (context, index) {
+                              final item = filteredItems[index];
+                              return _MaterialCard(
+                                item: item,
+                                formattedCost: currency.format(item.costCents / 100.0),
+                                onTap: () => _showMaterialEditor(item),
+                                onDelete: () async {
+                                  final ok = await _showConfirmDelete(item.name);
+                                  if (ok == true) await _delete(item);
+                                },
+                              );
+                            },
+                          ),
+                        ),
                     ],
                   ),
-                  const SizedBox(height: 32),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: theme.cardTheme.color,
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                      border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-                    ),
-                    child: TextField(
-                      onChanged: (value) => setState(() => _searchQuery = value),
-                      decoration: InputDecoration(
-                        hintText: 'Buscar por nome...',
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        icon: Icon(Icons.search, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
-                      ),
-                    ),
+                ),
+                const SizedBox(width: 24),
+                ExcludeFocus(
+                  child: _FilterPanel(
+                    sortOption: _sortOption,
+                    onToggleDateSort: _toggleDateSort,
+                    onToggleNameSort: _toggleNameSort,
+                    onToggleUnitSort: _toggleUnitSort,
+                    onToggleQuantitySort: _toggleQuantitySort,
+                    onTogglePriceSort: _togglePriceSort,
                   ),
-                  const SizedBox(height: 24),
-                  if (_loading)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 48),
-                      child: Center(
-                        child: SizedBox(
-                          width: 28,
-                          height: 28,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.primary),
-                        ),
-                      ),
-                    )
-                  else if (filteredItems.isEmpty)
-                    _EmptyMaterialsState(
-                      hasSearch: _searchQuery.isNotEmpty,
-                      onCreate: () => _showMaterialEditor(null),
-                    )
-                  else
-                    ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: filteredItems.length,
-                      separatorBuilder: (context, index) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final item = filteredItems[index];
-                        return _MaterialCard(
-                          item: item,
-                          formattedCost: currency.format(item.costCents / 100.0),
-                          onTap: () => _showMaterialEditor(item),
-                          onDelete: () async {
-                            final ok = await _showConfirmDelete(item.name);
-                            if (ok == true) await _delete(item);
-                          },
-                        );
-                      },
-                    ),
-                ],
+                ),
+              ],
+            ),
+          ),
+          if (_loading)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SizedBox(
+                height: 3,
+                child: LinearProgressIndicator(
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    theme.colorScheme.primary,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(width: 24),
-            _FilterPanel(
-              sortOption: _sortOption,
-              onToggleDateSort: _toggleDateSort,
-              onToggleNameSort: _toggleNameSort,
-              onToggleUnitSort: _toggleUnitSort,
-              onToggleQuantitySort: _toggleQuantitySort,
-              onTogglePriceSort: _togglePriceSort,
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -755,6 +808,7 @@ class _MaterialCard extends StatelessWidget {
                   onDelete();
                 }
               },
+              tooltip: 'Opções',
               itemBuilder: (context) => [
                 const PopupMenuItem(
                   value: 'delete',
@@ -802,37 +856,39 @@ class _EmptyMaterialsState extends StatelessWidget {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.08)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
+    return ExcludeFocus(
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.08)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(Icons.inventory_2_outlined, color: theme.colorScheme.primary),
             ),
-            child: Icon(Icons.inventory_2_outlined, color: theme.colorScheme.primary),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Nenhum material cadastrado', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 4),
-                Text('Cadastre nome, unidade, quantidade e custo (R\$) para começar.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.65))),
-              ],
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Nenhum material cadastrado', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  Text('Cadastre nome, unidade, quantidade e custo (R\$) para começar.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.65))),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 16),
-          ElevatedButton.icon(onPressed: onCreate, icon: const Icon(Icons.add), label: const Text('Cadastrar')),
-        ],
+            const SizedBox(width: 16),
+            ElevatedButton.icon(onPressed: onCreate, icon: const Icon(Icons.add), label: const Text('Cadastrar')),
+          ],
+        ),
       ),
     );
   }
@@ -859,6 +915,7 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
   late final TextEditingController _costCtrl;
   final FocusNode _dialogFocusNode = FocusNode();
   final FocusNode _nameFocusNode = FocusNode();
+  final FocusNode _unitFocusNode = FocusNode();
   final FocusNode _quantityFocusNode = FocusNode();
   final FocusNode _costFocusNode = FocusNode();
 
@@ -888,16 +945,25 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
     _costCtrl = TextEditingController(text: _initialCost);
     
     _nameFocusNode.addListener(_onFieldFocusChange);
+    _unitFocusNode.addListener(_onUnitFocusChange);
     _quantityFocusNode.addListener(_onFieldFocusChange);
     _costFocusNode.addListener(_onFieldFocusChange);
-    
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _dialogFocusNode.requestFocus();
     });
   }
 
+  void _onUnitFocusChange() {
+    if (_unitFocusNode.hasFocus) {
+      // Quando o dropdown recebe foco via TAB, não fazemos nada aqui
+      // O usuário pode pressionar Enter ou Space para abrir
+    } else {
+      _onFieldFocusChange();
+    }
+  }
+
   void _onFieldFocusChange() {
-    if (!_nameFocusNode.hasFocus && !_quantityFocusNode.hasFocus && !_costFocusNode.hasFocus) {
+    if (!_nameFocusNode.hasFocus && !_unitFocusNode.hasFocus && !_quantityFocusNode.hasFocus && !_costFocusNode.hasFocus) {
       Future.delayed(const Duration(milliseconds: 100), () {
         if (mounted && !_isShowingDiscardDialog) {
           _dialogFocusNode.requestFocus();
@@ -920,6 +986,7 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
     _costCtrl.dispose();
     _dialogFocusNode.dispose();
     _nameFocusNode.dispose();
+    _unitFocusNode.dispose();
     _quantityFocusNode.dispose();
     _costFocusNode.dispose();
     super.dispose();
@@ -1017,10 +1084,24 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
     return result ?? false;
   }
 
+  void _handleSave() {
+    if (!_formKey.currentState!.validate()) return;
+    final cents = _parseCostToCents(_costCtrl.text) ?? 0;
+    final quantity = _parseQuantity(_quantityCtrl.text) ?? '0';
+    final now = DateTime.now();
+    final unit = (_selectedUnit ?? '').trim();
+    final item = (widget.initial ??
+            MaterialItem(id: now.microsecondsSinceEpoch.toString(), name: '', unit: '', costCents: 0, quantity: '0', createdAt: now))
+        .copyWith(name: _nameCtrl.text.trim(), unit: unit, quantity: quantity, costCents: cents);
+    context.pop(item);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+
+
 
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -1072,16 +1153,18 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
                               style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                             ),
                           ),
-                          IconButton(
-                            onPressed: () async {
-                              final shouldClose = await _onWillPop();
-                              if (shouldClose && context.mounted) {
-                                context.pop();
-                              }
-                            },
-                            icon: const Icon(Icons.close),
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                            tooltip: 'Fechar (Esc)',
+                          ExcludeFocus(
+                            child: IconButton(
+                              onPressed: () async {
+                                final shouldClose = await _onWillPop();
+                                if (shouldClose && context.mounted) {
+                                  context.pop();
+                                }
+                              },
+                              icon: const Icon(Icons.close),
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                              tooltip: 'Fechar (Esc)',
+                            ),
                           ),
                         ],
                       ),
@@ -1096,6 +1179,7 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
                               textInputAction: TextInputAction.next,
                               decoration: const InputDecoration(labelText: 'Nome do material'),
                               validator: _validateMaterialName,
+                              onFieldSubmitted: (_) => _unitFocusNode.requestFocus(),
                             ),
                             const SizedBox(height: 12),
                             Row(
@@ -1103,6 +1187,7 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
                                 Expanded(
                                   child: DropdownButtonFormField<String>(
                                     initialValue: _selectedUnit,
+                                    focusNode: _unitFocusNode,
                                     isExpanded: true,
                                     decoration: const InputDecoration(labelText: 'Unidade de medida'),
                                     items: _unitOptions
@@ -1136,6 +1221,7 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
                                     textInputAction: TextInputAction.next,
                                     decoration: const InputDecoration(labelText: 'Quantidade'),
                                     validator: (v) => _parseQuantity(v ?? '') == null ? 'Informe uma quantidade válida' : null,
+                                    onFieldSubmitted: (_) => _costFocusNode.requestFocus(),
                                   ),
                                 ),
                               ],
@@ -1148,6 +1234,7 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
                               inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9R\$\s\.,]'))],
                               decoration: const InputDecoration(labelText: 'Custo (R\$)'),
                               validator: (v) => _parseCostToCents(v ?? '') == null ? 'Informe um custo válido' : null,
+                              onFieldSubmitted: (_) => _handleSave(),
                             ),
                           ],
                         ),
@@ -1156,37 +1243,31 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
                       Row(
                         children: [
                           Expanded(
-                            child: OutlinedButton(
-                              onPressed: () async {
-                                final shouldClose = await _onWillPop();
-                                if (shouldClose && context.mounted) {
-                                  context.pop();
-                                }
-                              },
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
-                                side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
-                                foregroundColor: theme.colorScheme.onSurface,
+                            child: ExcludeFocus(
+                              child: OutlinedButton(
+                                onPressed: () async {
+                                  final shouldClose = await _onWillPop();
+                                  if (shouldClose && context.mounted) {
+                                    context.pop();
+                                  }
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                                  side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
+                                  foregroundColor: theme.colorScheme.onSurface,
+                                ),
+                                child: const Text('Cancelar'),
                               ),
-                              child: const Text('Cancelar'),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: ElevatedButton(
-                              onPressed: () {
-                                if (!_formKey.currentState!.validate()) return;
-                                final cents = _parseCostToCents(_costCtrl.text) ?? 0;
-                                final quantity = _parseQuantity(_quantityCtrl.text) ?? '0';
-                                final now = DateTime.now();
-                                final unit = (_selectedUnit ?? '').trim();
-                                final item = (widget.initial ??
-                                        MaterialItem(id: now.microsecondsSinceEpoch.toString(), name: '', unit: '', costCents: 0, quantity: '0', createdAt: now))
-                                    .copyWith(name: _nameCtrl.text.trim(), unit: unit, quantity: quantity, costCents: cents);
-                                context.pop(item);
-                              },
-                              child: Text(widget.initial == null ? 'Cadastrar' : 'Salvar'),
+                            child: ExcludeFocus(
+                              child: ElevatedButton(
+                                onPressed: _handleSave,
+                                child: Text(widget.initial == null ? 'Cadastrar' : 'Salvar'),
+                              ),
                             ),
                           ),
                         ],

@@ -79,7 +79,11 @@ class _ProductsPageState extends State<ProductsPage> {
     try {
       final products = await _api.fetchProducts();
       final materials = await _materialsApi.fetchMaterials();
-      products.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      products.sort((a, b) {
+        final dateA = a.updatedAt ?? a.createdAt;
+        final dateB = b.updatedAt ?? b.createdAt;
+        return dateB.compareTo(dateA);
+      });
       if (!mounted) return;
       setState(() {
         _items = products;
@@ -138,10 +142,108 @@ class _ProductsPageState extends State<ProductsPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao deletar produto: $e')),
-      );
+      
+      final errorMessage = e.toString();
+      if (errorMessage.contains('Produto em uso') || 
+          errorMessage.contains('sendo usado') ||
+          errorMessage.contains('orçamento')) {
+        _showProductInUseDialog(item.name, errorMessage);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao deletar produto: $e')),
+        );
+      }
     }
+  }
+
+  Future<void> _showProductInUseDialog(String productName, String errorMessage) {
+    final theme = Theme.of(context);
+    return showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          backgroundColor: theme.colorScheme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: theme.colorScheme.error,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Produto em uso',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'O produto "$productName" não pode ser excluído porque está sendo usado em um ou mais orçamentos.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.errorContainer.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: theme.colorScheme.error.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 20,
+                          color: theme.colorScheme.error,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Para excluir este produto, primeiro remova-o dos orçamentos que o utilizam.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  ExcludeFocus(
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        child: const Text('Entendi'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   List<ProductItem> get _filteredAndSortedItems {
@@ -159,10 +261,18 @@ class _ProductsPageState extends State<ProductsPage> {
     
     switch (_sortOption) {
       case SortOption.newestFirst:
-        filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        filtered.sort((a, b) {
+          final dateA = a.updatedAt ?? a.createdAt;
+          final dateB = b.updatedAt ?? b.createdAt;
+          return dateB.compareTo(dateA);
+        });
         break;
       case SortOption.oldestFirst:
-        filtered.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        filtered.sort((a, b) {
+          final dateA = a.updatedAt ?? a.createdAt;
+          final dateB = b.updatedAt ?? b.createdAt;
+          return dateA.compareTo(dateB);
+        });
         break;
       case SortOption.nameAsc:
         filtered.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
@@ -224,99 +334,152 @@ class _ProductsPageState extends State<ProductsPage> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(32.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
+      body: Stack(
+        children: [
+          RefreshIndicator(
+            onRefresh: _load,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(32.0),
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Produtos',
-                        style: theme.textTheme.headlineMedium,
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: () => _showProductEditor(null),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Novo Produto'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: theme.colorScheme.primary,
-                          foregroundColor: theme.colorScheme.onPrimary,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.inventory_2_outlined,
+                                  size: 32,
+                                  color: theme.colorScheme.primary,
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Produtos',
+                                  style: theme.textTheme.headlineMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                ExcludeFocus(
+                                  child: IconButton(
+                                    onPressed: _load,
+                                    icon: const Icon(Icons.refresh),
+                                    tooltip: 'Atualizar',
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ExcludeFocus(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => _showProductEditor(null),
+                                    icon: const Icon(Icons.add),
+                                    label: const Text('Novo Produto'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: theme.colorScheme.primary,
+                                      foregroundColor: theme.colorScheme.onPrimary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 32),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: theme.cardTheme.color,
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                      border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-                    ),
-                    child: TextField(
-                      onChanged: (value) => setState(() => _searchQuery = value),
-                      decoration: InputDecoration(
-                        hintText: 'Buscar por nome ou material...',
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        icon: Icon(Icons.search, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  if (_loading)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 48),
-                      child: Center(
-                        child: SizedBox(
-                          width: 28,
-                          height: 28,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.primary),
+                        const SizedBox(height: 32),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: theme.cardTheme.color,
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                            border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                          ),
+                          child: TextField(
+                            onChanged: (value) => setState(() => _searchQuery = value),
+                            decoration: InputDecoration(
+                              hintText: 'Buscar por nome ou material',
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              icon: Icon(Icons.search, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
+                            ),
+                          ),
                         ),
-                      ),
-                    )
-                  else if (filteredItems.isEmpty)
-                    _EmptyProductsState(
-                      hasSearch: _searchQuery.isNotEmpty,
-                      onCreate: () => _showProductEditor(null),
-                    )
-                  else
-                    ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: filteredItems.length,
-                      separatorBuilder: (context, index) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final item = filteredItems[index];
-                        return _ProductCard(
-                          item: item,
-                          onTap: () => _showProductEditor(item),
-                          onDelete: () async {
-                            final ok = await _showConfirmDelete(item.name);
-                            if (ok == true) await _delete(item);
-                          },
-                        );
-                      },
+                        const SizedBox(height: 24),
+                        if (_loading)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 48),
+                            child: Center(
+                              child: SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.primary),
+                              ),
+                            ),
+                          )
+                        else if (filteredItems.isEmpty)
+                          _EmptyProductsState(
+                            hasSearch: _searchQuery.isNotEmpty,
+                            onCreate: () => _showProductEditor(null),
+                          )
+                        else
+                          ExcludeFocus(
+                            child: ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: filteredItems.length,
+                              separatorBuilder: (context, index) => const SizedBox(height: 12),
+                              itemBuilder: (context, index) {
+                                final item = filteredItems[index];
+                                return _ProductCard(
+                                  item: item,
+                                  onTap: () => _showProductEditor(item),
+                                  onDelete: () async {
+                                    final ok = await _showConfirmDelete(item.name);
+                                    if (ok == true) await _delete(item);
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                      ],
                     ),
+                  ),
+                  const SizedBox(width: 24),
+                  ExcludeFocus(
+                    child: _FilterPanel(
+                      sortOption: _sortOption,
+                      onToggleDateSort: _toggleDateSort,
+                      onToggleNameSort: _toggleNameSort,
+                      onToggleMaterialsSort: _toggleMaterialsSort,
+                    ),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(width: 24),
-            _FilterPanel(
-              sortOption: _sortOption,
-              onToggleDateSort: _toggleDateSort,
-              onToggleNameSort: _toggleNameSort,
-              onToggleMaterialsSort: _toggleMaterialsSort,
+          ),
+          if (_loading)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SizedBox(
+                height: 3,
+                child: LinearProgressIndicator(
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    theme.colorScheme.primary,
+                  ),
+                ),
+              ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -567,6 +730,7 @@ class _ProductCard extends StatelessWidget {
                   onDelete();
                 }
               },
+              tooltip: 'Filtrar',
               itemBuilder: (context) => [
                 const PopupMenuItem(
                   value: 'delete',
@@ -643,7 +807,9 @@ class _EmptyProductsState extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          ElevatedButton.icon(onPressed: onCreate, icon: const Icon(Icons.add), label: const Text('Cadastrar')),
+          ExcludeFocus(
+            child: ElevatedButton.icon(onPressed: onCreate, icon: const Icon(Icons.add), label: const Text('Cadastrar')),
+          ),
         ],
       ),
     );
@@ -669,13 +835,13 @@ class ProductEditorSheet extends StatefulWidget {
 class _ProductEditorSheetState extends State<ProductEditorSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameCtrl;
-  final List<_MaterialSelection> _selectedMaterials = [];
+  final Set<int> _selectedMaterialIds = {};
   final FocusNode _dialogFocusNode = FocusNode();
   final FocusNode _nameFocusNode = FocusNode();
   bool _isShowingDiscardDialog = false;
   
   late final String _initialName;
-  late final List<int> _initialMaterialIds;
+  late final Set<int> _initialMaterialIds;
 
   @override
   void initState() {
@@ -685,17 +851,11 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
     
     if (widget.initial != null) {
       for (final pm in widget.initial!.materials) {
-        _selectedMaterials.add(_MaterialSelection(
-          materialId: pm.materialId,
-          materialName: pm.materialNome,
-        ));
+        _selectedMaterialIds.add(pm.materialId);
       }
     }
     
-    _initialMaterialIds = _selectedMaterials
-        .where((m) => m.materialId != null)
-        .map((m) => m.materialId!)
-        .toList();
+    _initialMaterialIds = Set.from(_selectedMaterialIds);
     
     _nameFocusNode.addListener(_onFieldFocusChange);
     
@@ -719,19 +879,8 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
       return true;
     }
     
-    final currentMaterialIds = _selectedMaterials
-        .where((m) => m.materialId != null)
-        .map((m) => m.materialId!)
-        .toList();
-    
-    if (currentMaterialIds.length != _initialMaterialIds.length) {
-      return true;
-    }
-    
-    final initialSet = _initialMaterialIds.toSet();
-    final currentSet = currentMaterialIds.toSet();
-    
-    return !initialSet.containsAll(currentSet) || !currentSet.containsAll(initialSet);
+    return !_selectedMaterialIds.containsAll(_initialMaterialIds) || 
+           !_initialMaterialIds.containsAll(_selectedMaterialIds);
   }
 
   @override
@@ -742,18 +891,28 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
     super.dispose();
   }
 
-  void _addMaterial() {
-    setState(() {
-      _selectedMaterials.add(_MaterialSelection(
-        materialId: null,
-        materialName: '',
-      ));
-    });
+  Future<void> _showMaterialSelector() async {
+    final result = await showDialog<Set<int>>(
+      context: context,
+      builder: (dialogContext) {
+        return _MaterialSelectorDialog(
+          availableMaterials: widget.availableMaterials,
+          selectedMaterialIds: Set.from(_selectedMaterialIds),
+        );
+      },
+    );
+    
+    if (result != null) {
+      setState(() {
+        _selectedMaterialIds.clear();
+        _selectedMaterialIds.addAll(result);
+      });
+    }
   }
 
-  void _removeMaterial(int index) {
+  void _removeMaterial(int materialId) {
     setState(() {
-      _selectedMaterials.removeAt(index);
+      _selectedMaterialIds.remove(materialId);
     });
   }
 
@@ -780,13 +939,17 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
           title: const Text('Descartar alterações?'),
           content: const Text('Você tem alterações não salvas. Deseja descartá-las?'),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancelar'),
+            ExcludeFocus(
+              child: TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancelar'),
+              ),
             ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Descartar'),
+            ExcludeFocus(
+              child: TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Descartar'),
+              ),
             ),
           ],
         ),
@@ -828,11 +991,16 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
     final theme = Theme.of(context);
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
 
+    final selectedMaterials = widget.availableMaterials
+        .where((m) => _selectedMaterialIds.contains(int.parse(m.id)))
+        .toList();
+
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       backgroundColor: theme.colorScheme.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-      child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 860),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 860),
         child: PopScope(
           canPop: false,
           onPopInvokedWithResult: (didPop, result) async {
@@ -877,16 +1045,18 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
                               style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                             ),
                           ),
-                          IconButton(
-                            onPressed: () async {
-                              final shouldClose = await _onWillPop();
-                              if (shouldClose && context.mounted) {
-                                context.pop();
-                              }
-                            },
-                            icon: const Icon(Icons.close),
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                            tooltip: 'Fechar (Esc)',
+                          ExcludeFocus(
+                            child: IconButton(
+                              onPressed: () async {
+                                final shouldClose = await _onWillPop();
+                                if (shouldClose && context.mounted) {
+                                  context.pop();
+                                }
+                              },
+                              icon: const Icon(Icons.close),
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                              tooltip: 'Fechar (Esc)',
+                            ),
                           ),
                         ],
                       ),
@@ -911,15 +1081,20 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
                                   'Materiais',
                                   style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
                                 ),
-                                TextButton.icon(
-                                  onPressed: _addMaterial,
-                                  icon: const Icon(Icons.add, size: 18),
-                                  label: const Text('Adicionar material'),
+                                ExcludeFocus(
+                                  child: ElevatedButton.icon(
+                                    onPressed: _showMaterialSelector,
+                                    icon: const Icon(Icons.add, size: 18),
+                                    label: Text(_selectedMaterialIds.isEmpty ? 'Selecionar materiais' : 'Editar seleção'),
+                                    style: ElevatedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 12),
-                            if (_selectedMaterials.isEmpty)
+                            if (_selectedMaterialIds.isEmpty)
                               Container(
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
@@ -929,7 +1104,7 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
                                 ),
                                 child: Center(
                                   child: Text(
-                                    'Nenhum material adicionado',
+                                    'Nenhum material selecionado',
                                     style: theme.textTheme.bodySmall?.copyWith(
                                       color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                                     ),
@@ -937,27 +1112,25 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
                                 ),
                               )
                             else
-                              ListView.separated(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: _selectedMaterials.length,
-                                separatorBuilder: (context, index) => const SizedBox(height: 12),
-                                itemBuilder: (context, index) {
-                                  return _MaterialSelectionRow(
-                                    selection: _selectedMaterials[index],
-                                    availableMaterials: widget.availableMaterials,
-                                    selectedMaterialIds: _selectedMaterials
-                                        .where((m) => m.materialId != null)
-                                        .map((m) => m.materialId!)
-                                        .toList(),
-                                    onChanged: (updated) {
-                                      setState(() {
-                                        _selectedMaterials[index] = updated;
-                                      });
-                                    },
-                                    onRemove: () => _removeMaterial(index),
-                                  );
-                                },
+                              ExcludeFocus(
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: selectedMaterials.map((material) {
+                                    final materialId = int.parse(material.id);
+                                    return Chip(
+                                      label: Text(material.name),
+                                      deleteIcon: const Icon(Icons.close, size: 18),
+                                      onDeleted: () => _removeMaterial(materialId),
+                                      backgroundColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+                                      labelStyle: TextStyle(
+                                        color: theme.colorScheme.onPrimaryContainer,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      deleteIconColor: theme.colorScheme.onPrimaryContainer,
+                                    );
+                                  }).toList(),
+                                ),
                               ),
                           ],
                         ),
@@ -966,51 +1139,59 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
                       Row(
                         children: [
                           Expanded(
-                            child: OutlinedButton(
-                              onPressed: () async {
-                                final shouldClose = await _onWillPop();
-                                if (shouldClose && context.mounted) {
-                                  context.pop();
-                                }
-                              },
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
-                                side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
-                                foregroundColor: theme.colorScheme.onSurface,
+                            child: ExcludeFocus(
+                              child: OutlinedButton(
+                                onPressed: () async {
+                                  final shouldClose = await _onWillPop();
+                                  if (shouldClose && context.mounted) {
+                                    context.pop();
+                                  }
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                                  side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
+                                  foregroundColor: theme.colorScheme.onSurface,
+                                ),
+                                child: const Text('Cancelar'),
                               ),
-                              child: const Text('Cancelar'),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: ElevatedButton(
-                              onPressed: () {
-                                if (!_formKey.currentState!.validate()) return;
-                                
-                                final validMaterials = _selectedMaterials
-                                    .where((m) => m.materialId != null)
-                                    .map((m) => ProductMaterial(
-                                          materialId: m.materialId!,
-                                          materialNome: m.materialName,
-                                        ))
-                                    .toList();
+                            child: ExcludeFocus(
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  if (!_formKey.currentState!.validate()) return;
+                                  
+                                  final validMaterials = _selectedMaterialIds
+                                      .map((id) {
+                                        final material = widget.availableMaterials.firstWhere(
+                                          (m) => m.id == id.toString(),
+                                        );
+                                        return ProductMaterial(
+                                          materialId: id,
+                                          materialNome: material.name,
+                                        );
+                                      })
+                                      .toList();
 
-                                final now = DateTime.now();
-                                final item = (widget.initial ??
-                                        ProductItem(
-                                          id: now.microsecondsSinceEpoch.toString(),
-                                          name: '',
-                                          materials: const [],
-                                          createdAt: now,
-                                        ))
-                                    .copyWith(
-                                  name: _nameCtrl.text.trim(),
-                                  materials: validMaterials,
-                                );
-                                context.pop(item);
-                              },
-                              child: Text(widget.initial == null ? 'Cadastrar' : 'Salvar'),
+                                  final now = DateTime.now();
+                                  final item = (widget.initial ??
+                                          ProductItem(
+                                            id: now.microsecondsSinceEpoch.toString(),
+                                            name: '',
+                                            materials: const [],
+                                            createdAt: now,
+                                          ))
+                                      .copyWith(
+                                    name: _nameCtrl.text.trim(),
+                                    materials: validMaterials,
+                                  );
+                                  context.pop(item);
+                                },
+                                child: Text(widget.initial == null ? 'Cadastrar' : 'Salvar'),
+                              ),
                             ),
                           ),
                         ],
@@ -1027,107 +1208,253 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
   }
 }
 
-class _MaterialSelection {
-  final int? materialId;
-  final String materialName;
-
-  _MaterialSelection({
-    required this.materialId,
-    required this.materialName,
-  });
-
-  _MaterialSelection copyWith({
-    int? materialId,
-    String? materialName,
-  }) =>
-      _MaterialSelection(
-        materialId: materialId ?? this.materialId,
-        materialName: materialName ?? this.materialName,
-      );
-}
-
-class _MaterialSelectionRow extends StatefulWidget {
-  final _MaterialSelection selection;
+class _MaterialSelectorDialog extends StatefulWidget {
   final List<MaterialItem> availableMaterials;
-  final List<int> selectedMaterialIds;
-  final ValueChanged<_MaterialSelection> onChanged;
-  final VoidCallback onRemove;
+  final Set<int> selectedMaterialIds;
 
-  const _MaterialSelectionRow({
-    required this.selection,
+  const _MaterialSelectorDialog({
     required this.availableMaterials,
     required this.selectedMaterialIds,
-    required this.onChanged,
-    required this.onRemove,
   });
 
   @override
-  State<_MaterialSelectionRow> createState() => _MaterialSelectionRowState();
+  State<_MaterialSelectorDialog> createState() => _MaterialSelectorDialogState();
 }
 
-class _MaterialSelectionRowState extends State<_MaterialSelectionRow> {
+class _MaterialSelectorDialogState extends State<_MaterialSelectorDialog> {
+  late Set<int> _tempSelectedIds;
+  String _searchQuery = '';
+  final FocusNode _dialogFocusNode = FocusNode();
+  final FocusNode _searchFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _tempSelectedIds = Set.from(widget.selectedMaterialIds);
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _searchFocusNode.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _dialogFocusNode.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  List<MaterialItem> get _filteredMaterials {
+    if (_searchQuery.isEmpty) {
+      return widget.availableMaterials;
+    }
+    
+    final query = _searchQuery.toLowerCase();
+    return widget.availableMaterials
+        .where((m) => m.name.toLowerCase().contains(query))
+        .toList();
+  }
+
+  void _toggleMaterial(int materialId) {
+    setState(() {
+      if (_tempSelectedIds.contains(materialId)) {
+        _tempSelectedIds.remove(materialId);
+      } else {
+        _tempSelectedIds.add(materialId);
+      }
+    });
+  }
+
+  void _selectAll() {
+    setState(() {
+      _tempSelectedIds.addAll(
+        _filteredMaterials.map((m) => int.parse(m.id)),
+      );
+    });
+  }
+
+  void _clearAll() {
+    setState(() {
+      final filteredIds = _filteredMaterials.map((m) => int.parse(m.id)).toSet();
+      _tempSelectedIds.removeAll(filteredIds);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: DropdownButtonFormField<int>(
-              initialValue: widget.selection.materialId,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Material',
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    final filteredMaterials = _filteredMaterials;
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      backgroundColor: theme.colorScheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
+        child: Focus(
+          focusNode: _dialogFocusNode,
+          onKeyEvent: (node, event) {
+            if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
+              Navigator.of(context).pop();
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Selecionar materiais',
+                        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    ExcludeFocus(
+                      child: IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                        tooltip: 'Fechar (Esc)',
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              items: widget.availableMaterials
-                  .map(
-                    (m) {
-                      final materialId = int.parse(m.id);
-                      final isAlreadySelected = widget.selectedMaterialIds.contains(materialId) &&
-                          widget.selection.materialId != materialId;
-                      
-                      return DropdownMenuItem(
-                        value: materialId,
-                        enabled: !isAlreadySelected,
-                        child: Text(
-                          m.name,
-                          overflow: TextOverflow.ellipsis,
-                          style: isAlreadySelected
-                              ? TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.3))
-                              : null,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                  ),
+                  child: TextField(
+                    focusNode: _searchFocusNode,
+                    onChanged: (value) => setState(() => _searchQuery = value),
+                    decoration: InputDecoration(
+                      hintText: 'Buscar material',
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      icon: Icon(Icons.search, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  children: [
+                    Text(
+                      '${_tempSelectedIds.length} ${_tempSelectedIds.length == 1 ? 'selecionado' : 'selecionados'}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const Spacer(),
+                    ExcludeFocus(
+                      child: TextButton(
+                        onPressed: filteredMaterials.isEmpty ? null : _selectAll,
+                        child: const Text('Selecionar todos'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ExcludeFocus(
+                      child: TextButton(
+                        onPressed: _tempSelectedIds.isEmpty ? null : _clearAll,
+                        child: const Text('Limpar'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: filteredMaterials.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.all(48),
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.search_off,
+                                size: 48,
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Nenhum material encontrado',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      );
-                    },
-                  )
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  final material = widget.availableMaterials.firstWhere((m) => m.id == value.toString());
-                  widget.onChanged(widget.selection.copyWith(
-                    materialId: value,
-                    materialName: material.name,
-                  ));
-                }
-              },
-            ),
+                      )
+                    : ExcludeFocus(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: filteredMaterials.length,
+                          itemBuilder: (context, index) {
+                            final material = filteredMaterials[index];
+                            final materialId = int.parse(material.id);
+                            final isSelected = _tempSelectedIds.contains(materialId);
+
+                            return CheckboxListTile(
+                              value: isSelected,
+                              onChanged: (value) => _toggleMaterial(materialId),
+                              title: Text(material.name),
+                              controlAffinity: ListTileControlAffinity.leading,
+                              activeColor: theme.colorScheme.primary,
+                            );
+                          },
+                        ),
+                      ),
+              ),
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ExcludeFocus(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                            side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
+                            foregroundColor: theme.colorScheme.onSurface,
+                          ),
+                          child: const Text('Cancelar'),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ExcludeFocus(
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.of(context).pop(_tempSelectedIds),
+                          child: const Text('Confirmar'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: widget.onRemove,
-            color: theme.colorScheme.error,
-            iconSize: 20,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1157,26 +1484,30 @@ class _ConfirmDeleteSheet extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
-                  onPressed: () => context.pop(false),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
-                    side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
-                    foregroundColor: theme.colorScheme.onSurface,
+                child: ExcludeFocus(
+                  child: OutlinedButton(
+                    onPressed: () => context.pop(false),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                      side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
+                      foregroundColor: theme.colorScheme.onSurface,
+                    ),
+                    child: const Text('Cancelar'),
                   ),
-                  child: const Text('Cancelar'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: ElevatedButton(
-                  onPressed: () => context.pop(true),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: theme.colorScheme.error,
-                    foregroundColor: theme.colorScheme.onError,
+                child: ExcludeFocus(
+                  child: ElevatedButton(
+                    onPressed: () => context.pop(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.colorScheme.error,
+                      foregroundColor: theme.colorScheme.onError,
+                    ),
+                    child: const Text('Excluir'),
                   ),
-                  child: const Text('Excluir'),
                 ),
               ),
             ],

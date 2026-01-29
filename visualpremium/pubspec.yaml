@@ -33,6 +33,7 @@ flutter:
       - assets/images/logo.png
       - assets/images/logo branca.png
       - assets/images/logo preta.png
+      - assets/images/logo pretaInicio.png
 
 flutter_launcher_icons:
   windows:

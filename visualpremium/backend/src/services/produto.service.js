@@ -92,8 +92,27 @@ class ProdutoService {
   }
 
   async deletar(id) {
-    await prisma.produtoMaterial.deleteMany({ where: { produtoId: id } });
-    return prisma.produto.delete({ where: { id } });
+    try {
+      // Verificar se o produto está sendo usado em orçamentos
+      const produtoComOrcamentos = await prisma.produto.findUnique({
+        where: { id },
+        include: {
+          orcamentos: true
+        }
+      });
+
+      if (produtoComOrcamentos && produtoComOrcamentos.orcamentos.length > 0) {
+        throw new Error('Não é possível deletar este produto pois ele está sendo usado em orçamentos');
+      }
+
+      await prisma.produtoMaterial.deleteMany({ where: { produtoId: id } });
+      return prisma.produto.delete({ where: { id } });
+    } catch (error) {
+      if (error.code === 'P2003') {
+        throw new Error('Não é possível deletar este produto pois ele está sendo usado em outros registros');
+      }
+      throw error;
+    }
   }
 }
 

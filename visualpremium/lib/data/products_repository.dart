@@ -69,10 +69,22 @@ class ProductsApiRepository {
   }
 
   Future<void> deleteProduct(String id) async {
-    final url = Uri.parse('$baseUrl/produtos/$id');
-    final response = await http.delete(url);
-    if (response.statusCode != 200) {
-      throw Exception('Erro ao deletar produto');
+    try {
+      final url = Uri.parse('$baseUrl/produtos/$id');
+      final response = await http.delete(url);
+      
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        // Sucesso - não precisa retornar nada
+        return;
+      } else if (response.statusCode == 400) {
+        // Erro de validação do backend
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['error'] ?? 'Erro ao deletar produto');
+      } else {
+        throw Exception('Erro ao deletar produto: ${response.statusCode}');
+      }
+    } catch (e) {
+      rethrow;
     }
   }
 }

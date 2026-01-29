@@ -6,6 +6,7 @@ import 'pages/inicio_page.dart';
 import 'pages/orcamentos_page.dart';
 import 'pages/produtos_page.dart';
 import 'pages/materiais_page.dart';
+import 'pages/splash_page.dart';
 
 /// GoRouter configuration for app navigation
 class AppRouter {
@@ -15,9 +16,15 @@ class AppRouter {
 
   static final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: AppRoutes.inicio,
+    initialLocation: '/splash',    
     routes: [
-      // ShellRoute wraps the pages with the AppLayout (Sidebar)
+      GoRoute(
+        path: '/splash',
+        name: 'splash',
+        pageBuilder: (context, state) => NoTransitionPage(
+          child: const SplashPage(),
+        ),
+      ),
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) {

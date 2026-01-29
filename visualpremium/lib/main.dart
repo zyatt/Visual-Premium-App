@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'theme.dart';
 import 'theme_provider.dart';
+import 'package:visualpremium/providers/data_provider.dart';
 import 'nav.dart';
 
 void main() {
-  
-  
   runApp(const MyApp());
 }
 
@@ -19,9 +18,7 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        // Add more providers here as needed
-        // Example:
-        // ChangeNotifierProvider(create: (_) => ExampleProvider()),
+        ChangeNotifierProvider(create: (_) => DataProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
