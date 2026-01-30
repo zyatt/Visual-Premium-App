@@ -504,7 +504,7 @@ class _FilterPanel extends StatelessWidget {
     
     return Container(
       width: 280,
-      margin: const EdgeInsets.only(top: 67),
+      margin: const EdgeInsets.only(top: 72),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: theme.cardTheme.color,

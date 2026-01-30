@@ -1,11 +1,12 @@
 const { Router } = require('express');
-const controller = require('../controllers/pedido.controller');
+const PedidoController = require('../controllers/pedido.controller');
 
 const router = Router();
 
-router.get('/', controller.listar);
-router.post('/', controller.criar);
-router.put('/:id', controller.atualizar);
-router.delete('/:id', controller.deletar);
+router.get('/', PedidoController.listar);
+router.get('/:id', PedidoController.buscarPorId);
+router.put('/:id', PedidoController.atualizar);
+router.patch('/:id/status', PedidoController.atualizarStatus);
+router.delete('/:id', PedidoController.deletar);
 
 module.exports = router;

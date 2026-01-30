@@ -4,13 +4,12 @@ import '../routes.dart';
 import 'components/app_layout.dart';
 import 'pages/inicio_page.dart';
 import 'pages/orcamentos_page.dart';
+import 'pages/pedidos_page.dart';
 import 'pages/produtos_page.dart';
 import 'pages/materiais_page.dart';
 import 'pages/splash_page.dart';
 
-/// GoRouter configuration for app navigation
 class AppRouter {
-  // Navigator keys are useful for nested navigation
   static final _rootNavigatorKey = GlobalKey<NavigatorState>();
   static final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -43,6 +42,13 @@ class AppRouter {
             name: 'orcamentos',
             pageBuilder: (context, state) => NoTransitionPage(
               child: const BudgetsPage(),
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.pedidos,
+            name: 'pedidos',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: const PedidosPage(),
             ),
           ),
           GoRoute(

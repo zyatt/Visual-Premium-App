@@ -545,7 +545,7 @@ class _FilterPanel extends StatelessWidget {
     
     return Container(
       width: 280,
-      margin: const EdgeInsets.only(top: 67),
+      margin: const EdgeInsets.only(top: 72),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: theme.cardTheme.color,
@@ -718,6 +718,20 @@ class _SortOptionWithToggle extends StatelessWidget {
   }
 }
 
+
+String _formatQuantityDisplay(String quantity) {
+  final num = double.tryParse(quantity);
+  if (num == null) return quantity;
+  
+  // Se for inteiro, mostra sem casas decimais
+  if (num == num.truncate()) {
+    return num.truncate().toString();
+  }
+  
+  // Se tiver decimais, mostra com até 2 casas decimais, removendo zeros à direita
+  return num.toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
+}
+
 class _MaterialCard extends StatelessWidget {
   final MaterialItem item;
   final String formattedCost;
@@ -778,7 +792,7 @@ class _MaterialCard extends StatelessWidget {
                     style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
                   ),
                   Text(
-                    'Unidade: ${item.unit} • Qtd: ${item.quantity}',
+                    'Unidade: ${item.unit} • Qtd: ${_formatQuantityDisplay(item.quantity)}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                     ),
@@ -919,7 +933,7 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
   final FocusNode _quantityFocusNode = FocusNode();
   final FocusNode _costFocusNode = FocusNode();
 
-  static const List<String> _unitOptions = ['Kg', 'm²', 'm', 'Unidade', 'Altura', 'Hora', '%', 'L'];
+  static const List<String> _unitOptions = ['Kg', 'm²', 'm/l', 'Unidade', 'Altura', 'Hora', '%', 'L'];
   String? _selectedUnit;
   bool _isShowingDiscardDialog = false;
   
@@ -1006,16 +1020,11 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
     var s = input.trim();
     if (s.isEmpty) return null;
     
-    if (_selectedUnit == 'Kg') {
-      s = s.replaceAll(',', '.');
-      final value = double.tryParse(s);
-      if (value == null || value.isNaN || value.isInfinite || value < 0) return null;
-      return value.toString();
-    } else {
-      final value = int.tryParse(s);
-      if (value == null || value < 0) return null;
-      return value.toString();
-    }
+    // Agora aceita decimal para todas unidades
+    s = s.replaceAll(',', '.');
+    final value = double.tryParse(s);
+    if (value == null || value.isNaN || value.isInfinite || value < 0) return null;
+    return value.toString();
   }
 
   String? _validateMaterialName(String? value) {
@@ -1211,12 +1220,9 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
                                   child: TextFormField(
                                     controller: _quantityCtrl,
                                     focusNode: _quantityFocusNode,
-                                    keyboardType: TextInputType.numberWithOptions(decimal: _selectedUnit == 'Kg'),
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                     inputFormatters: [
-                                      if (_selectedUnit == 'Kg')
-                                        FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                      else
-                                        FilteringTextInputFormatter.digitsOnly
+                                      FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
                                     ],
                                     textInputAction: TextInputAction.next,
                                     decoration: const InputDecoration(labelText: 'Quantidade'),

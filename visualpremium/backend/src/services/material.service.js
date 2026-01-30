@@ -28,21 +28,10 @@ class MaterialService {
       throw new Error('Já existe um material com este nome');
     }
 
-    // Valida e converte quantidade baseado na unidade
-    let quantidadeNum;
-    if (unidade === 'Kg') {
-      // Permite decimal
-      quantidadeNum = parseFloat(quantidade);
-      if (isNaN(quantidadeNum) || quantidadeNum < 0) {
-        throw new Error('Quantidade inválida para Kg');
-      }
-    } else {
-      // Apenas inteiros
-      const qty = parseInt(quantidade);
-      if (isNaN(qty) || qty < 0) {
-        throw new Error('Quantidade deve ser um número inteiro');
-      }
-      quantidadeNum = qty;
+    // Valida e converte quantidade (agora permite decimal para todas unidades)
+    const quantidadeNum = parseFloat(quantidade);
+    if (isNaN(quantidadeNum) || quantidadeNum < 0) {
+      throw new Error('Quantidade inválida');
     }
 
     return prisma.material.create({
@@ -78,20 +67,12 @@ class MaterialService {
       }
     }
 
-    // Valida e converte quantidade baseado na unidade se fornecida
+    // Valida e converte quantidade (agora permite decimal para todas unidades)
     let quantidadeNum;
     if (quantidade !== undefined) {
-      if (unidade === 'Kg') {
-        quantidadeNum = parseFloat(quantidade);
-        if (isNaN(quantidadeNum) || quantidadeNum < 0) {
-          throw new Error('Quantidade inválida para Kg');
-        }
-      } else {
-        const qty = parseInt(quantidade);
-        if (isNaN(qty) || qty < 0) {
-          throw new Error('Quantidade deve ser um número inteiro');
-        }
-        quantidadeNum = qty;
+      quantidadeNum = parseFloat(quantidade);
+      if (isNaN(quantidadeNum) || quantidadeNum < 0) {
+        throw new Error('Quantidade inválida');
       }
     }
 

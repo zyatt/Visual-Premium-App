@@ -67,14 +67,30 @@ class OrcamentoService {
       freteValor,
       caminhaoMunck,
       caminhaoMunckHoras,
-      caminhaoMunckValorHora
+      caminhaoMunckValorHora,
+      formaPagamento,
+      condicoesPagamento,
+      prazoEntrega
     } = data;
 
+    // Validações básicas
     if (!cliente || !numero || !produtoId) {
       throw new Error('Cliente, número e produto são obrigatórios');
     }
 
-    // Verifica se o produto existe
+    if (!formaPagamento || formaPagamento.trim() === '') {
+      throw new Error('Forma de pagamento é obrigatória');
+    }
+
+    if (!condicoesPagamento || condicoesPagamento.trim() === '') {
+      throw new Error('Condições de pagamento são obrigatórias');
+    }
+
+    if (!prazoEntrega || prazoEntrega.trim() === '') {
+      throw new Error('Prazo de entrega é obrigatório');
+    }
+
+    // Verificar se o produto existe
     const produto = await prisma.produto.findUnique({
       where: { id: produtoId },
       include: {
@@ -90,11 +106,10 @@ class OrcamentoService {
       throw new Error('Produto não encontrado');
     }
 
-    // Converte strings booleanas para boolean
+    // Validações condicionais
     const freteBool = frete === true || frete === 'true';
     const caminhaoMunckBool = caminhaoMunck === true || caminhaoMunck === 'true';
 
-    // Valida frete
     if (freteBool) {
       if (!freteDesc || freteDesc.trim() === '') {
         throw new Error('Descrição do frete é obrigatória');
@@ -104,7 +119,6 @@ class OrcamentoService {
       }
     }
 
-    // Valida caminhão munck
     if (caminhaoMunckBool) {
       if (!caminhaoMunckHoras || caminhaoMunckHoras <= 0) {
         throw new Error('Quantidade de horas do caminhão munck deve ser maior que zero');
@@ -114,7 +128,7 @@ class OrcamentoService {
       }
     }
 
-    // Valida despesas adicionais
+    // Validar despesas adicionais
     const despesasValidadas = [];
     if (despesasAdicionais && Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
       for (const despesa of despesasAdicionais) {
@@ -131,7 +145,7 @@ class OrcamentoService {
       }
     }
 
-    // Valida e converte quantidades dos materiais
+    // Validar materiais
     const materiaisValidados = [];
     if (materiais && materiais.length > 0) {
       for (const m of materiais) {
@@ -163,26 +177,40 @@ class OrcamentoService {
       }
     }
 
-    // Cria o orçamento com status "Pendente"
+    // Preparar dados para criação
+    const createData = {
+      cliente: cliente.trim(),
+      numero,
+      status: 'Pendente',
+      produtoId,
+      frete: freteBool,
+      freteDesc: freteBool ? freteDesc.trim() : null,
+      freteValor: freteBool ? parseFloat(freteValor) : null,
+      caminhaoMunck: caminhaoMunckBool,
+      caminhaoMunckHoras: caminhaoMunckBool ? parseFloat(caminhaoMunckHoras) : null,
+      caminhaoMunckValorHora: caminhaoMunckBool ? parseFloat(caminhaoMunckValorHora) : null,
+      formaPagamento: formaPagamento.trim(),
+      condicoesPagamento: condicoesPagamento.trim(),
+      prazoEntrega: prazoEntrega.trim()
+    };
+
+    // Adicionar materiais apenas se houver
+    if (materiaisValidados.length > 0) {
+      createData.materiais = {
+        create: materiaisValidados
+      };
+    }
+
+    // Adicionar despesas apenas se houver
+    if (despesasValidadas.length > 0) {
+      createData.despesasAdicionais = {
+        create: despesasValidadas
+      };
+    }
+
+    // Criar orçamento
     const orcamento = await prisma.orcamento.create({
-      data: {
-        cliente,
-        numero,
-        status: 'Pendente',
-        produtoId,
-        frete: freteBool,
-        freteDesc: freteBool ? freteDesc : null,
-        freteValor: freteBool ? parseFloat(freteValor) : null,
-        caminhaoMunck: caminhaoMunckBool,
-        caminhaoMunckHoras: caminhaoMunckBool ? parseFloat(caminhaoMunckHoras) : null,
-        caminhaoMunckValorHora: caminhaoMunckBool ? parseFloat(caminhaoMunckValorHora) : null,
-        materiais: {
-          create: materiaisValidados
-        },
-        despesasAdicionais: {
-          create: despesasValidadas
-        }
-      },
+      data: createData,
       include: {
         produto: {
           include: {
@@ -218,10 +246,13 @@ class OrcamentoService {
       freteValor,
       caminhaoMunck,
       caminhaoMunckHoras,
-      caminhaoMunckValorHora
+      caminhaoMunckValorHora,
+      formaPagamento,
+      condicoesPagamento,
+      prazoEntrega
     } = data;
 
-    // Verifica se o orçamento existe
+    // Verificar se o orçamento existe
     const orcamentoExistente = await prisma.orcamento.findUnique({
       where: { id }
     });
@@ -230,12 +261,23 @@ class OrcamentoService {
       throw new Error('Orçamento não encontrado');
     }
 
-    // Converte strings booleanas para boolean
+    // Validações condicionais
+    if (formaPagamento !== undefined && (!formaPagamento || formaPagamento.trim() === '')) {
+      throw new Error('Forma de pagamento é obrigatória');
+    }
+
+    if (condicoesPagamento !== undefined && (!condicoesPagamento || condicoesPagamento.trim() === '')) {
+      throw new Error('Condições de pagamento são obrigatórias');
+    }
+
+    if (prazoEntrega !== undefined && (!prazoEntrega || prazoEntrega.trim() === '')) {
+      throw new Error('Prazo de entrega é obrigatório');
+    }
+
     const freteBool = frete === true || frete === 'true';
     const caminhaoMunckBool = caminhaoMunck === true || caminhaoMunck === 'true';
 
-    // Valida frete
-    if (freteBool) {
+    if (frete !== undefined && freteBool) {
       if (!freteDesc || freteDesc.trim() === '') {
         throw new Error('Descrição do frete é obrigatória');
       }
@@ -244,8 +286,7 @@ class OrcamentoService {
       }
     }
 
-    // Valida caminhão munck
-    if (caminhaoMunckBool) {
+    if (caminhaoMunck !== undefined && caminhaoMunckBool) {
       if (!caminhaoMunckHoras || caminhaoMunckHoras <= 0) {
         throw new Error('Quantidade de horas do caminhão munck deve ser maior que zero');
       }
@@ -254,7 +295,7 @@ class OrcamentoService {
       }
     }
 
-    // Valida despesas adicionais
+    // Validar despesas adicionais
     let despesasValidadas;
     if (despesasAdicionais !== undefined) {
       despesasValidadas = [];
@@ -274,7 +315,7 @@ class OrcamentoService {
       }
     }
 
-    // Se mudou o produto, verifica se existe
+    // Buscar produto se necessário
     let produto;
     if (produtoId && produtoId !== orcamentoExistente.produtoId) {
       produto = await prisma.produto.findUnique({
@@ -304,7 +345,7 @@ class OrcamentoService {
       });
     }
 
-    // Valida e converte quantidades dos materiais
+    // Validar materiais
     let materiaisValidados;
     if (materiais) {
       materiaisValidados = [];
@@ -337,41 +378,55 @@ class OrcamentoService {
       }
     }
 
-    // Remove materiais antigos antes de atualizar
+    // Deletar materiais antigos se houver novos
     if (materiaisValidados) {
       await prisma.orcamentoMaterial.deleteMany({
         where: { orcamentoId: id }
       });
     }
 
-    // Remove despesas antigas antes de atualizar
+    // Deletar despesas antigas se houver novas
     if (despesasValidadas !== undefined) {
       await prisma.despesaAdicional.deleteMany({
         where: { orcamentoId: id }
       });
     }
 
-    // Atualiza o orçamento
+    // Preparar dados para atualização
+    const updateData = {
+      cliente: cliente ? cliente.trim() : undefined,
+      numero: numero || undefined,
+      status: status || undefined,
+      produtoId: produtoId || undefined,
+      frete: frete !== undefined ? freteBool : undefined,
+      freteDesc: frete !== undefined ? (freteBool ? freteDesc?.trim() : null) : undefined,
+      freteValor: frete !== undefined ? (freteBool ? parseFloat(freteValor) : null) : undefined,
+      caminhaoMunck: caminhaoMunck !== undefined ? caminhaoMunckBool : undefined,
+      caminhaoMunckHoras: caminhaoMunck !== undefined ? (caminhaoMunckBool ? parseFloat(caminhaoMunckHoras) : null) : undefined,
+      caminhaoMunckValorHora: caminhaoMunck !== undefined ? (caminhaoMunckBool ? parseFloat(caminhaoMunckValorHora) : null) : undefined,
+      formaPagamento: formaPagamento ? formaPagamento.trim() : undefined,
+      condicoesPagamento: condicoesPagamento ? condicoesPagamento.trim() : undefined,
+      prazoEntrega: prazoEntrega ? prazoEntrega.trim() : undefined
+    };
+
+    // Adicionar materiais apenas se houver
+    if (materiaisValidados && materiaisValidados.length > 0) {
+      updateData.materiais = {
+        create: materiaisValidados
+      };
+    }
+
+    // Adicionar despesas apenas se houver
+    if (despesasValidadas !== undefined && despesasValidadas.length > 0) {
+      updateData.despesasAdicionais = {
+        create: despesasValidadas
+      };
+    }
+
+    // Atualizar orçamento
     const orcamento = await prisma.orcamento.update({
       where: { id },
-      data: {
-        cliente: cliente || undefined,
-        numero: numero || undefined,
-        status: status || undefined,
-        produtoId: produtoId || undefined,
-        frete: frete !== undefined ? freteBool : undefined,
-        freteDesc: freteBool ? freteDesc : null,
-        freteValor: freteBool ? parseFloat(freteValor) : null,
-        caminhaoMunck: caminhaoMunck !== undefined ? caminhaoMunckBool : undefined,
-        caminhaoMunckHoras: caminhaoMunckBool ? parseFloat(caminhaoMunckHoras) : null,
-        caminhaoMunckValorHora: caminhaoMunckBool ? parseFloat(caminhaoMunckValorHora) : null,
-        materiais: materiaisValidados ? {
-          create: materiaisValidados
-        } : undefined,
-        despesasAdicionais: despesasValidadas !== undefined ? {
-          create: despesasValidadas
-        } : undefined
-      },
+      data: updateData,
       include: {
         produto: {
           include: {
@@ -396,7 +451,16 @@ class OrcamentoService {
 
   async atualizarStatus(id, status) {
     const orcamento = await prisma.orcamento.findUnique({
-      where: { id }
+      where: { id },
+      include: {
+        materiais: {
+          include: {
+            material: true
+          }
+        },
+        despesasAdicionais: true,
+        pedido: true
+      }
     });
 
     if (!orcamento) {
@@ -407,6 +471,78 @@ class OrcamentoService {
       throw new Error('Status inválido');
     }
 
+    // Se o status está sendo alterado para "Aprovado" e ainda não existe um pedido
+    if (status === 'Aprovado' && !orcamento.pedido) {
+      const pedidoData = {
+        cliente: orcamento.cliente,
+        numero: null,
+        status: 'Em Andamento',
+        produtoId: orcamento.produtoId,  // ✅ CORREÇÃO: usar produtoId diretamente
+        frete: orcamento.frete,
+        freteDesc: orcamento.freteDesc,
+        freteValor: orcamento.freteValor,
+        caminhaoMunck: orcamento.caminhaoMunck,
+        caminhaoMunckHoras: orcamento.caminhaoMunckHoras,
+        caminhaoMunckValorHora: orcamento.caminhaoMunckValorHora,
+        formaPagamento: orcamento.formaPagamento,
+        condicoesPagamento: orcamento.condicoesPagamento,
+        prazoEntrega: orcamento.prazoEntrega,
+        orcamentoId: orcamento.id
+      };
+
+      // Adicionar materiais do orçamento ao pedido
+      if(orcamento.materiais && orcamento.materiais.length > 0) {
+        pedidoData.materiais = {
+          create: orcamento.materiais.map(m => ({
+            materialId: m.materialId,
+            quantidade: m.quantidade
+          }))
+        };
+      }
+
+      // Adicionar despesas adicionais do orçamento ao pedido
+      if (orcamento.despesasAdicionais && orcamento.despesasAdicionais.length > 0) {
+        pedidoData.despesasAdicionais = {
+          create: orcamento.despesasAdicionais.map(d => ({
+            descricao: d.descricao,
+            valor: d.valor
+          }))
+        };
+      }
+
+      // Criar o pedido em uma transação junto com a atualização do status
+      return await prisma.$transaction(async (tx) => {
+        // Criar o pedido
+        await tx.pedido.create({
+          data: pedidoData
+        });
+
+        // Atualizar o status do orçamento
+        return await tx.orcamento.update({
+          where: { id },
+          data: { status },
+          include: {
+            produto: {
+              include: {
+                materiais: {
+                  include: {
+                    material: true
+                  }
+                }
+              }
+            },
+            materiais: {
+              include: {
+                material: true
+              }
+            },
+            despesasAdicionais: true
+          }
+        });
+      });
+    }
+
+    // Caso contrário, apenas atualizar o status
     return prisma.orcamento.update({
       where: { id },
       data: { status },
@@ -460,9 +596,12 @@ class OrcamentoService {
             material: true
           }
         }
+      },
+      orderBy: {
+        nome: 'asc'
       }
     });
   }
 }
 
-module.exports = new OrcamentoService();
+module.exports = new OrcamentoService()

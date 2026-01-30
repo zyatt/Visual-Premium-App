@@ -94,6 +94,11 @@ class _Sidebar extends StatelessWidget {
                   route: '/orcamentos',
                 ),
                 _NavItem(
+                  icon: Icons.shopping_cart_outlined,
+                  label: 'Pedidos',
+                  route: '/pedidos',
+                ),
+                _NavItem(
                   icon: Icons.inventory_2_outlined,
                   label: 'Produtos',
                   route: '/produtos',

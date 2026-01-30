@@ -1,26 +1,50 @@
 const service = require('../services/pedido.service');
 
 class PedidoController {
-  listar(req, res) {
-    return service.listar().then(res.json.bind(res));
+  async listar(req, res) {
+    try {
+      const pedidos = await service.listar();
+      res.json(pedidos);
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
   }
 
-  criar(req, res) {
-    return service.criar(req.body)
-      .then(res.json.bind(res))
-      .catch(e => res.status(400).json({ error: e.message }));
+  async buscarPorId(req, res) {
+    try {
+      const pedido = await service.buscarPorId(+req.params.id);
+      res.json(pedido);
+    } catch (e) {
+      res.status(404).json({ error: e.message });
+    }
   }
 
-  atualizar(req, res) {
-    return service.atualizar(+req.params.id, req.body)
-      .then(res.json.bind(res))
-      .catch(e => res.status(400).json({ error: e.message }));
+  async atualizar(req, res) {
+    try {
+      const pedido = await service.atualizar(+req.params.id, req.body);
+      res.json(pedido);
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
   }
 
-  deletar(req, res) {
-    return service.deletar(+req.params.id)
-      .then(() => res.json({ message: 'Pedido deletado com sucesso' }))
-      .catch(e => res.status(400).json({ error: e.message }));
+  async atualizarStatus(req, res) {
+    try {
+      const { status } = req.body;
+      const pedido = await service.atualizarStatus(+req.params.id, status);
+      res.json(pedido);
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  }
+
+  async deletar(req, res) {
+    try {
+      await service.deletar(+req.params.id);
+      res.json({ message: 'Pedido deletado com sucesso' });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
   }
 }
 

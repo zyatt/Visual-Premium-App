@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:visualpremium/models/orcamento_item.dart';
+import 'package:visualpremium/models/pedido_item.dart';
 import 'package:visualpremium/data/config.dart';
 
 class OrcamentosApiRepository {
@@ -81,20 +82,29 @@ class OrcamentosApiRepository {
   }
 
   Future<OrcamentoItem> updateStatus(int id, String status) async {
-    final url = Uri.parse('$baseUrl/orcamentos/$id/status');
-    final response = await http.patch(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'status': status}),
-    );
-    if (response.statusCode == 200) {
-      final updated = OrcamentoItem.tryFromMap(jsonDecode(response.body));
-      if (updated == null) {
-        throw Exception('Falha ao parsear resposta do servidor');
+    try {
+      final url = Uri.parse('$baseUrl/orcamentos/$id/status');
+      
+      final response = await http.patch(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'status': status}),
+      );
+            
+      if (response.statusCode == 200) {
+        final jsonData = jsonDecode(response.body);
+        final updated = OrcamentoItem.tryFromMap(jsonData);
+        
+        if (updated == null) {
+          throw Exception('Falha ao parsear resposta do servidor');
+        }
+        
+        return updated;
+      } else {
+        throw Exception('Erro ao atualizar status: ${response.statusCode} - ${response.body}');
       }
-      return updated;
-    } else {
-      throw Exception('Erro ao atualizar status: ${response.statusCode}');
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -109,7 +119,6 @@ class OrcamentosApiRepository {
     }
   }
 
-  /// Baixa o PDF do orçamento
   Future<Uint8List> downloadOrcamentoPdf(int id, {bool regenerate = false}) async {
     try {
       final queryParams = regenerate ? '?regenerate=true' : '';
@@ -132,11 +141,78 @@ class OrcamentosApiRepository {
     }
   }
 
-  /// Baixa o PDF do pedido (para implementação futura)
+  Future<List<PedidoItem>> fetchPedidos() async {
+    try {
+      final url = Uri.parse('$baseUrl/pedidos');
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        return PedidoItem.decodeList(response.body);
+      } else {
+        throw Exception('Erro ao buscar pedidos: ${response.statusCode}');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+
+  Future<PedidoItem> updatePedido(PedidoItem item) async {
+    final url = Uri.parse('$baseUrl/pedidos/${item.id}');
+    final response = await http.put(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(item.toMap()),
+    );
+    if (response.statusCode == 200) {
+      final updated = PedidoItem.tryFromMap(jsonDecode(response.body));
+      if (updated == null) {
+        throw Exception('Falha ao parsear resposta do servidor');
+      }
+      return updated;
+    } else {
+      throw Exception('Erro ao atualizar pedido: ${response.statusCode}');
+    }
+  }
+
+  Future<PedidoItem> updatePedidoStatus(int id, String status) async {
+    final url = Uri.parse('$baseUrl/pedidos/$id/status');
+    final response = await http.patch(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'status': status}),
+    );
+    if (response.statusCode == 200) {
+      final updated = PedidoItem.tryFromMap(jsonDecode(response.body));
+      if (updated == null) {
+        throw Exception('Falha ao parsear resposta do servidor');
+      }
+      return updated;
+    } else {
+      throw Exception('Erro ao atualizar status: ${response.statusCode}');
+    }
+  }
+
+  Future<void> deletePedido(int id) async {
+    final url = Uri.parse('$baseUrl/pedidos/$id');
+    final response = await http.delete(url);
+
+    if (response.statusCode == 200) {
+      return;
+    } else {
+      throw Exception('Erro ao deletar pedido: ${response.statusCode}');
+    }
+  }
+
   Future<Uint8List> downloadPedidoPdf(int id) async {
     try {
       final url = Uri.parse('$baseUrl/pdf/pedido/$id');
-      final response = await http.get(url);
+      final response = await http.get(
+        url,
+        headers: {
+          'Accept': 'application/pdf',
+        },
+      );
 
       if (response.statusCode == 200) {
         return response.bodyBytes;

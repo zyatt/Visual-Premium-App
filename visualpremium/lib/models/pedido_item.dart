@@ -1,22 +1,22 @@
 import 'dart:convert';
 
-class DespesaAdicionalItem {
+class PedidoDespesaAdicionalItem {
   final int id;
   final String descricao;
   final double valor;
 
-  const DespesaAdicionalItem({
+  const PedidoDespesaAdicionalItem({
     required this.id,
     required this.descricao,
     required this.valor,
   });
 
-  DespesaAdicionalItem copyWith({
+  PedidoDespesaAdicionalItem copyWith({
     int? id,
     String? descricao,
     double? valor,
   }) =>
-      DespesaAdicionalItem(
+      PedidoDespesaAdicionalItem(
         id: id ?? this.id,
         descricao: descricao ?? this.descricao,
         valor: valor ?? this.valor,
@@ -27,7 +27,7 @@ class DespesaAdicionalItem {
         'valor': valor,
       };
 
-  static DespesaAdicionalItem? tryFromMap(Map<String, Object?> map) {
+  static PedidoDespesaAdicionalItem? tryFromMap(Map<String, Object?> map) {
     try {
       final id = map['id'];
       final descricao = map['descricao'];
@@ -39,7 +39,7 @@ class DespesaAdicionalItem {
 
       final valorDouble = (valor is int) ? valor.toDouble() : (valor is double ? valor : 0.0);
 
-      return DespesaAdicionalItem(
+      return PedidoDespesaAdicionalItem(
         id: int.parse(id.toString()),
         descricao: descricao.trim(),
         valor: valorDouble,
@@ -50,7 +50,7 @@ class DespesaAdicionalItem {
   }
 }
 
-class OrcamentoMaterialItem {
+class PedidoMaterialItem {
   final int id;
   final int materialId;
   final String materialNome;
@@ -58,7 +58,7 @@ class OrcamentoMaterialItem {
   final double materialCusto;
   final String quantidade;
 
-  const OrcamentoMaterialItem({
+  const PedidoMaterialItem({
     required this.id,
     required this.materialId,
     required this.materialNome,
@@ -72,7 +72,7 @@ class OrcamentoMaterialItem {
     return materialCusto * qty;
   }
 
-  OrcamentoMaterialItem copyWith({
+  PedidoMaterialItem copyWith({
     int? id,
     int? materialId,
     String? materialNome,
@@ -80,7 +80,7 @@ class OrcamentoMaterialItem {
     double? materialCusto,
     String? quantidade,
   }) =>
-      OrcamentoMaterialItem(
+      PedidoMaterialItem(
         id: id ?? this.id,
         materialId: materialId ?? this.materialId,
         materialNome: materialNome ?? this.materialNome,
@@ -94,7 +94,7 @@ class OrcamentoMaterialItem {
         'quantidade': quantidade,
       };
 
-  static OrcamentoMaterialItem? tryFromMap(Map<String, Object?> map) {
+  static PedidoMaterialItem? tryFromMap(Map<String, Object?> map) {
     try {
       final id = map['id'];
       final materialId = map['materialId'];
@@ -117,7 +117,7 @@ class OrcamentoMaterialItem {
       final custoDouble = (custo is int) ? custo.toDouble() : (custo is double ? custo : 0.0);
       final quantidadeStr = quantidade.toString();
 
-      return OrcamentoMaterialItem(
+      return PedidoMaterialItem(
         id: int.parse(id.toString()),
         materialId: int.parse(materialId.toString()),
         materialNome: nome.trim(),
@@ -131,99 +131,15 @@ class OrcamentoMaterialItem {
   }
 }
 
-class ProdutoItem {
-  final int id;
-  final String nome;
-  final List<ProdutoMaterialItem> materiais;
-
-  const ProdutoItem({
-    required this.id,
-    required this.nome,
-    required this.materiais,
-  });
-
-  static ProdutoItem? tryFromMap(Map<String, Object?> map) {
-    try {
-      final id = map['id'];
-      final nome = map['nome'];
-      final materiaisData = map['materiais'];
-
-      if (id == null || nome is! String) {
-        return null;
-      }
-
-      final materiais = <ProdutoMaterialItem>[];
-      if (materiaisData is List) {
-        for (final m in materiaisData) {
-          if (m is Map) {
-            final item = ProdutoMaterialItem.tryFromMap(m.map((k, v) => MapEntry(k.toString(), v)));
-            if (item != null) materiais.add(item);
-          }
-        }
-      }
-
-      return ProdutoItem(
-        id: int.parse(id.toString()),
-        nome: nome.trim(),
-        materiais: materiais,
-      );
-    } catch (e) {
-      return null;
-    }
-  }
-}
-
-class ProdutoMaterialItem {
-  final int materialId;
-  final String materialNome;
-  final String materialUnidade;
-  final double materialCusto;
-
-  const ProdutoMaterialItem({
-    required this.materialId,
-    required this.materialNome,
-    required this.materialUnidade,
-    required this.materialCusto,
-  });
-
-  static ProdutoMaterialItem? tryFromMap(Map<String, Object?> map) {
-    try {
-      final materialData = map['material'];
-      if (materialData == null) return null;
-
-      final materialMap = materialData as Map<String, dynamic>;
-      final id = materialMap['id'];
-      final nome = materialMap['nome'];
-      final custo = materialMap['custo'];
-      final unidade = materialMap['unidade'];
-
-      if (id == null || nome is! String || custo == null || unidade is! String) {
-        return null;
-      }
-
-      final custoDouble = (custo is int) ? custo.toDouble() : (custo is double ? custo : 0.0);
-
-      return ProdutoMaterialItem(
-        materialId: int.parse(id.toString()),
-        materialNome: nome.trim(),
-        materialUnidade: unidade.trim(),
-        materialCusto: custoDouble,
-      );
-    } catch (e) {
-      return null;
-    }
-  }
-}
-
-class OrcamentoItem {
+class PedidoItem {
   final int id;
   final String cliente;
-  final int numero;
+  final int? numero;
   final String status;
   final int produtoId;
   final String produtoNome;
-  final List<OrcamentoMaterialItem> materiais;
-  final List<DespesaAdicionalItem> despesasAdicionais;
+  final List<PedidoMaterialItem> materiais;
+  final List<PedidoDespesaAdicionalItem> despesasAdicionais;
   final bool frete;
   final String? freteDesc;
   final double? freteValor;
@@ -236,10 +152,10 @@ class OrcamentoItem {
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  const OrcamentoItem({
+  const PedidoItem({
     required this.id,
     required this.cliente,
-    required this.numero,
+    this.numero,
     required this.status,
     required this.produtoId,
     required this.produtoNome,
@@ -282,15 +198,15 @@ class OrcamentoItem {
     return t;
   }
 
-  OrcamentoItem copyWith({
+  PedidoItem copyWith({
     int? id,
     String? cliente,
     int? numero,
     String? status,
     int? produtoId,
     String? produtoNome,
-    List<OrcamentoMaterialItem>? materiais,
-    List<DespesaAdicionalItem>? despesasAdicionais,
+    List<PedidoMaterialItem>? materiais,
+    List<PedidoDespesaAdicionalItem>? despesasAdicionais,
     bool? frete,
     String? freteDesc,
     double? freteValor,
@@ -303,7 +219,7 @@ class OrcamentoItem {
     DateTime? createdAt,
     DateTime? updatedAt,
   }) =>
-      OrcamentoItem(
+      PedidoItem(
         id: id ?? this.id,
         cliente: cliente ?? this.cliente,
         numero: numero ?? this.numero,
@@ -343,7 +259,7 @@ class OrcamentoItem {
         'prazoEntrega': prazoEntrega,
       };
 
-  static OrcamentoItem? tryFromMap(Map<String, Object?> map) {
+  static PedidoItem? tryFromMap(Map<String, Object?> map) {
     try {
       final id = map['id'];
       final cliente = map['cliente'];
@@ -366,9 +282,9 @@ class OrcamentoItem {
       final caminhaoMunckHoras = map['caminhaoMunckHoras'];
       final caminhaoMunckValorHora = map['caminhaoMunckValorHora'];
 
-      if (id == null || cliente is! String || numero == null || status is! String || 
-          produtoId == null || produtoData == null || formaPagamento is! String ||
-          condicoesPagamento is! String || prazoEntrega is! String) {
+      if (id == null || cliente is! String || status is! String || 
+        produtoId == null || produtoData == null || formaPagamento is! String ||
+        condicoesPagamento is! String || prazoEntrega is! String) {
         return null;
       }
 
@@ -377,30 +293,30 @@ class OrcamentoItem {
 
       if (produtoNome == null) return null;
 
-      final materiais = <OrcamentoMaterialItem>[];
+      final materiais = <PedidoMaterialItem>[];
       if (materiaisData is List) {
         for (final m in materiaisData) {
           if (m is Map) {
-            final item = OrcamentoMaterialItem.tryFromMap(m.map((k, v) => MapEntry(k.toString(), v)));
+            final item = PedidoMaterialItem.tryFromMap(m.map((k, v) => MapEntry(k.toString(), v)));
             if (item != null) materiais.add(item);
           }
         }
       }
 
-      final despesasAdicionais = <DespesaAdicionalItem>[];
+      final despesasAdicionais = <PedidoDespesaAdicionalItem>[];
       if (despesasData is List) {
         for (final d in despesasData) {
           if (d is Map) {
-            final item = DespesaAdicionalItem.tryFromMap(d.map((k, v) => MapEntry(k.toString(), v)));
+            final item = PedidoDespesaAdicionalItem.tryFromMap(d.map((k, v) => MapEntry(k.toString(), v)));
             if (item != null) despesasAdicionais.add(item);
           }
         }
       }
 
-      return OrcamentoItem(
+      return PedidoItem(
         id: int.parse(id.toString()),
         cliente: cliente.trim(),
-        numero: int.parse(numero.toString()),
+        numero: numero != null ? int.parse(numero.toString()) : null,
         status: status.trim(),
         produtoId: int.parse(produtoId.toString()),
         produtoNome: produtoNome.trim(),
@@ -429,28 +345,14 @@ class OrcamentoItem {
     }
   }
 
-  static List<OrcamentoItem> decodeList(String raw) {
+  static List<PedidoItem> decodeList(String raw) {
     final decoded = jsonDecode(raw);
     if (decoded is! List) return const [];
-    final out = <OrcamentoItem>[];
+    final out = <PedidoItem>[];
     for (final e in decoded) {
       if (e is Map) {
         final map = e.map((k, v) => MapEntry(k.toString(), v));
         final item = tryFromMap(map);
-        if (item != null) out.add(item);
-      }
-    }
-    return out;
-  }
-
-  static List<ProdutoItem> decodeProdutoList(String raw) {
-    final decoded = jsonDecode(raw);
-    if (decoded is! List) return const [];
-    final out = <ProdutoItem>[];
-    for (final e in decoded) {
-      if (e is Map) {
-        final map = e.map((k, v) => MapEntry(k.toString(), v));
-        final item = ProdutoItem.tryFromMap(map);
         if (item != null) out.add(item);
       }
     }

@@ -20,6 +20,10 @@ model Orcamento {
   caminhaoMunck          Boolean                @default(false)
   caminhaoMunckHoras     Float?
   caminhaoMunckValorHora Float?
+
+  formaPagamento         String
+  condicoesPagamento     String
+  prazoEntrega           String
   
   produto                Produto                @relation(fields: [produtoId], references: [id])
   materiais              OrcamentoMaterial[]
@@ -43,16 +47,44 @@ model DespesaAdicional {
 }
 
 model Pedido {
-  id          Int              @id @default(autoincrement())
-  cliente     String
-  numero      Int
-  produtoId   Int
-  produto     Produto          @relation(fields: [produtoId], references: [id])
-  materiais   PedidoMaterial[]
-  orcamentoId Int?             @unique
-  orcamento   Orcamento?       @relation(fields: [orcamentoId], references: [id])
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id                     Int                         @id @default(autoincrement())
+  cliente                String
+  numero                 Int?
+  status                 String                      @default("Em Andamento")
+  produtoId              Int
+
+  frete                  Boolean                     @default(false)
+  freteDesc              String?
+  freteValor             Float?
+
+  caminhaoMunck          Boolean                     @default(false)
+  caminhaoMunckHoras     Float?
+  caminhaoMunckValorHora Float?
+
+  formaPagamento         String
+  condicoesPagamento     String
+  prazoEntrega           String
+  
+  produto                Produto                     @relation(fields: [produtoId], references: [id])
+  materiais              PedidoMaterial[]
+  despesasAdicionais     PedidoDespesaAdicional[]
+  orcamentoId            Int?                        @unique
+  orcamento              Orcamento?                  @relation(fields: [orcamentoId], references: [id])
+  createdAt              DateTime                    @default(now())
+  updatedAt              DateTime                    @updatedAt
+
+  @@map("pedidos")
+}
+
+model PedidoDespesaAdicional {
+  id          Int       @id @default(autoincrement())
+  pedidoId    Int
+  descricao   String
+  valor       Float
+  pedido      Pedido    @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@map("pedidos_despesas_adicionais")
 }
 
 model Produto {

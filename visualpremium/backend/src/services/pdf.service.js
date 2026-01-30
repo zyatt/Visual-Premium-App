@@ -17,7 +17,7 @@ class PdfService {
       this._desenharItensAdicionais(doc, data);
     }
     
-    this._desenharResumo(doc, data);
+    this._desenharInfoPagamentoETotal(doc, data);
     this._desenharFooter(doc);
     
     doc.end();
@@ -27,206 +27,266 @@ class PdfService {
   _desenharHeader(doc, logoPath, numero, titulo) {
     const margin = doc.page.margins.left;
     const pageWidth = doc.page.width;
-       
+    const contentWidth = pageWidth - 2 * margin;
+    
     if (fs.existsSync(logoPath)) {
       try {
         doc.image(logoPath, margin, 35, { width: 70, height: 35 });
       } catch (error) {
+        console.error('Erro ao carregar logo:', error);
       }
     }
     
     const numeroStr = numero.toString();
-    
-    const rightMargin = pageWidth - margin;
-    const lineEndX = rightMargin;
-    
     const now = new Date();
     const dataFormatada = now.toLocaleDateString('pt-BR');
     const horaFormatada = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     const dataHoraStr = `${dataFormatada} ${horaFormatada}`;
     
-    doc.fontSize(7).font('Helvetica');
-    const tituloWidth = doc.widthOfString(titulo);
+    const infoBlockWidth = 120;
+    const infoBlockX = pageWidth - margin - infoBlockWidth;
     
-    doc.fontSize(20).font('Helvetica-Bold');
-    const numeroWidth = doc.widthOfString(numeroStr);
+    doc.fontSize(8)
+       .font('Helvetica')
+       .fillColor('#666666')
+       .text(titulo, infoBlockX, 35, { width: infoBlockWidth, align: 'center' });
     
-    doc.fontSize(6).font('Helvetica');
-    const dataHoraWidth = doc.widthOfString(dataHoraStr);
-    
-    const maxWidth = Math.max(tituloWidth, numeroWidth, dataHoraWidth);
-    const dataHoraX = lineEndX - maxWidth;
+    doc.fontSize(22)
+       .font('Helvetica-Bold')
+       .fillColor('#1a1a1a')
+       .text(numeroStr, infoBlockX, 46, { width: infoBlockWidth, align: 'center' });
     
     doc.fontSize(7)
        .font('Helvetica')
        .fillColor('#666666')
-       .text(titulo, dataHoraX, 35, { width: maxWidth, align: 'center' });
+       .text(dataHoraStr, infoBlockX, 70, { width: infoBlockWidth, align: 'center' });
     
-    doc.fontSize(20)
-       .font('Helvetica-Bold')
-       .fillColor('#1a1a1a')
-       .text(numeroStr, dataHoraX, 48, { width: maxWidth, align: 'center' });
-    
-    doc.fontSize(6)
-       .font('Helvetica')
-       .fillColor('#666666')
-       .text(dataHoraStr, dataHoraX, 70, { width: maxWidth, align: 'center' });
-    
-    doc.moveTo(margin, 85)
-       .lineTo(pageWidth - margin, 85)
-       .strokeColor('#e0e0e0')
-       .lineWidth(0.5)
+    doc.moveTo(margin, 88)
+       .lineTo(pageWidth - margin, 88)
+       .strokeColor('#d1d5db')
+       .lineWidth(1)
        .stroke();
   }
 
   _desenharInfoPrincipal(doc, cliente, produto) {
     const margin = doc.page.margins.left;
     const pageWidth = doc.page.width;
-    let y = 92;
+    const contentWidth = pageWidth - 2 * margin;
+    let y = 98;
     
-    const cardHeight = 42;
-    const cardY = y;
+    const cardHeight = 70;
+    const padding = 12;
     
-    doc.fontSize(5)
-       .font('Helvetica-Bold')
-       .fillColor('#6b7280')
-       .text('CLIENTE', margin + 10, cardY + 6);
-    
-    doc.fontSize(7)
-       .font('Helvetica')
-       .fillColor('#374151')
-       .text(cliente, margin + 10, cardY + 13, { width: pageWidth - 2 * margin - 20, align: 'left' });
-    
-    doc.fontSize(5)
-       .font('Helvetica-Bold')
-       .fillColor('#6b7280')
-       .text('PRODUTO', margin + 10, cardY + 26);
-    
-    doc.fontSize(7)
-       .font('Helvetica')
-       .fillColor('#374151')
-       .text(produto, margin + 10, cardY + 33, { width: pageWidth - 2 * margin - 20, align: 'left' });
-    
-    doc.moveTo(margin, cardY + cardHeight + 5)
-       .lineTo(pageWidth - margin, cardY + cardHeight + 5)
-       .strokeColor('#e0e0e0')
-       .lineWidth(0.5)
+    doc.roundedRect(margin, y, contentWidth, cardHeight, 4)
+       .strokeColor('#d1d5db')
+       .lineWidth(1)
        .stroke();
+    
+    doc.fontSize(6)
+       .font('Helvetica-Bold')
+       .fillColor('#6b7280')
+       .text('CLIENTE', margin + padding, y + padding);
+    
+    doc.fontSize(8)
+       .font('Helvetica')
+       .fillColor('#1f2937')
+       .text(cliente, margin + padding, y + padding + 10, { 
+         width: contentWidth - 2 * padding, 
+         align: 'left' 
+       });
+    
+    doc.fontSize(6)
+       .font('Helvetica-Bold')
+       .fillColor('#6b7280')
+       .text('PRODUTO', margin + padding, y + padding + 28);
+    
+    doc.fontSize(8)
+       .font('Helvetica')
+       .fillColor('#1f2937')
+       .text(produto, margin + padding, y + padding + 38, { 
+         width: contentWidth - 2 * padding, 
+         align: 'left' 
+       });
   }
 
   _desenharTabelaMateriais(doc, materiais) {
     const margin = doc.page.margins.left;
     const pageWidth = doc.page.width;
-    let y = 145;
+    const contentWidth = pageWidth - 2 * margin;
+    let y = 180;
     
-    const startY = y;
-    
-    doc.fontSize(7)
+    doc.fontSize(8)
        .font('Helvetica-Bold')
        .fillColor('#1a1a1a')
        .text('MATERIAIS', margin, y);
     
-    y += 10;
+    y += 16;
     
-    const tableWidth = pageWidth - 2 * margin;
     const colWidths = {
-      material: tableWidth * 0.48,
-      unidade: tableWidth * 0.10,
-      quantidade: tableWidth * 0.14,
-      valorUnit: tableWidth * 0.14,
-      total: tableWidth * 0.14
+      numero: contentWidth * 0.06,
+      material: contentWidth * 0.42,
+      unidade: contentWidth * 0.10,
+      quantidade: contentWidth * 0.14,
+      valorUnit: contentWidth * 0.14,
+      total: contentWidth * 0.14
     };
     
-    const headerStartY = y;
+    const tableStartY = y;
+    const headerHeight = 20;
+    const rowHeight = 18;
     
-    doc.roundedRect(margin, y, tableWidth, 18, 3)
-       .fillColor('#f5f5f5')
-       .fill();
-    
-    doc.fontSize(5)
-       .font('Helvetica-Bold')
-       .fillColor('#1a1a1a');
-    
-    let x = margin + 8;
-    doc.text('MATERIAL', x, y + 6, { width: colWidths.material - 15, align: 'left' });
-    
-    x += colWidths.material;
-    doc.text('UN', x - 8, y + 6, { width: colWidths.unidade, align: 'center' });
-    
-    x += colWidths.unidade;
-    doc.text('QUANTIDADE', x - 8, y + 6, { width: colWidths.quantidade, align: 'center' });
-    
-    x += colWidths.quantidade;
-    doc.text('CUSTO', x - 8, y + 6, { width: colWidths.valorUnit, align: 'right' });
-    
-    x += colWidths.valorUnit;
-    doc.text('TOTAL', x - 8, y + 6, { width: colWidths.total - 10, align: 'right' });
-    
-    y += 18;
-    
-    const contentStartY = y;
+    doc.roundedRect(margin, y, contentWidth, headerHeight, 3)
+       .fillAndStroke('#f3f4f6', '#d1d5db');
     
     doc.fontSize(6)
-       .font('Helvetica')
-       .fillColor('#1f2937');
+       .font('Helvetica-Bold')
+       .fillColor('#374151');
+    
+    let x = margin;
+    doc.text('#', x, y + 7, { 
+      width: colWidths.numero, 
+      align: 'center' 
+    });
+    x += colWidths.numero;
+    
+    doc.text('MATERIAL', x, y + 7, { 
+      width: colWidths.material, 
+      align: 'center' 
+    });
+    x += colWidths.material;
+    
+    doc.text('UN', x, y + 7, { 
+      width: colWidths.unidade, 
+      align: 'center' 
+    });
+    x += colWidths.unidade;
+    
+    doc.text('QUANTIDADE', x, y + 7, { 
+      width: colWidths.quantidade, 
+      align: 'center' 
+    });
+    x += colWidths.quantidade;
+    
+    doc.text('CUSTO', x, y + 7, { 
+      width: colWidths.valorUnit, 
+      align: 'center' 
+    });
+    x += colWidths.valorUnit;
+    
+    doc.text('TOTAL', x, y + 7, { 
+      width: colWidths.total, 
+      align: 'center' 
+    });
+    
+    y += headerHeight;
     
     materiais.forEach((material, index) => {
-      const rowHeight = 16;
-      
       if (index % 2 === 0) {
-        doc.rect(margin, y, tableWidth, rowHeight)
-           .fillColor('#f9fafb')
+        doc.rect(margin, y, contentWidth, rowHeight)
+           .fillColor('#fafafa')
            .fill();
       }
       
-      x = margin + 8;
-      const textY = y + 5;
+      x = margin;
+      const textY = y + 6;
+      
+      doc.fillColor('#6b7280')
+         .font('Helvetica-Bold')
+         .fontSize(7)
+         .text((index + 1).toString(), x, textY, { 
+           width: colWidths.numero, 
+           align: 'center' 
+         });
+      x += colWidths.numero;
       
       doc.fillColor('#1f2937')
          .font('Helvetica')
-         .fontSize(6)
-         .text(material.materialNome, x, textY, { 
-           width: colWidths.material - 15, 
+         .fontSize(7)
+         .text(material.materialNome, x + 10, textY, { 
+           width: colWidths.material - 10, 
            align: 'left',
            lineBreak: false,
            ellipsis: true
          });
-      
       x += colWidths.material;
-      doc.fillColor('#6b7280')
-         .fontSize(5)
-         .text(material.materialUnidade, x - 8, textY, { width: colWidths.unidade, align: 'center' });
       
+      doc.fillColor('#6b7280')
+         .fontSize(6)
+         .text(material.materialUnidade, x, textY, { 
+           width: colWidths.unidade, 
+           align: 'center' 
+         });
       x += colWidths.unidade;
       
       const quantidade = this._formatarQuantidade(material.quantidade, material.materialUnidade);
       doc.fillColor('#1f2937')
          .font('Helvetica-Bold')
-         .fontSize(6)
-         .text(quantidade, x - 8, textY, { width: colWidths.quantidade, align: 'center' });
-      
+         .fontSize(7)
+         .text(quantidade, x, textY, { 
+           width: colWidths.quantidade, 
+           align: 'center' 
+         });
       x += colWidths.quantidade;
       
       doc.fillColor('#6b7280')
          .font('Helvetica')
-         .fontSize(5)
-         .text(this._formatarMoeda(material.materialCusto), x - 8, textY, { width: colWidths.valorUnit, align: 'right' });
-      
+         .fontSize(6)
+         .text(this._formatarMoeda(material.materialCusto), x, textY, { 
+           width: colWidths.valorUnit, 
+           align: 'center' 
+         });
       x += colWidths.valorUnit;
       
       const totalItem = this._calcularTotalItem(material.quantidade, material.materialCusto);
       doc.fillColor('#1f2937')
          .font('Helvetica-Bold')
-         .fontSize(6)
-         .text(this._formatarMoeda(totalItem), x - 8, textY, { width: colWidths.total - 10, align: 'right' });
+         .fontSize(7)
+         .text(this._formatarMoeda(totalItem), x, textY, { 
+           width: colWidths.total, 
+           align: 'center' 
+         });
       
       y += rowHeight;
     });
     
-    const totalHeight = y - headerStartY;
+    const tableHeight = headerHeight + (materiais.length * rowHeight);
+    doc.roundedRect(margin, tableStartY, contentWidth, tableHeight, 4)
+       .strokeColor('#d1d5db')
+       .lineWidth(1)
+       .stroke();
     
-    doc.rect(margin, headerStartY, tableWidth, totalHeight)
-       .strokeColor('#e0e0e0')
+    x = margin + colWidths.numero;
+    doc.moveTo(x, tableStartY)
+       .lineTo(x, tableStartY + tableHeight)
+       .strokeColor('#e5e7eb')
+       .lineWidth(0.5)
+       .stroke();
+    
+    x += colWidths.material;
+    doc.moveTo(x, tableStartY)
+       .lineTo(x, tableStartY + tableHeight)
+       .strokeColor('#e5e7eb')
+       .lineWidth(0.5)
+       .stroke();
+    
+    x += colWidths.unidade;
+    doc.moveTo(x, tableStartY)
+       .lineTo(x, tableStartY + tableHeight)
+       .strokeColor('#e5e7eb')
+       .lineWidth(0.5)
+       .stroke();
+    
+    x += colWidths.quantidade;
+    doc.moveTo(x, tableStartY)
+       .lineTo(x, tableStartY + tableHeight)
+       .strokeColor('#e5e7eb')
+       .lineWidth(0.5)
+       .stroke();
+    
+    x += colWidths.valorUnit;
+    doc.moveTo(x, tableStartY)
+       .lineTo(x, tableStartY + tableHeight)
+       .strokeColor('#e5e7eb')
        .lineWidth(0.5)
        .stroke();
     
@@ -236,168 +296,283 @@ class PdfService {
   _desenharItensAdicionais(doc, data) {
     const margin = doc.page.margins.left;
     const pageWidth = doc.page.width;
-    let y = doc.y + 10;
-    
-    const tableWidth = pageWidth - 2 * margin;
-    const colWidths = {
-      material: tableWidth * 0.48,
-      unidade: tableWidth * 0.10,
-      quantidade: tableWidth * 0.14,
-      valorUnit: tableWidth * 0.14,
-      total: tableWidth * 0.14
-    };
-    
-    const totalColX = margin + 8 + colWidths.material + colWidths.unidade + colWidths.quantidade + colWidths.valorUnit;
+    const contentWidth = pageWidth - 2 * margin;
+    let y = doc.y + 15;
     
     let subtotal = 0;
     data.materiais.forEach(mat => {
       subtotal += this._calcularTotalItem(mat.quantidade, mat.materialCusto);
     });
     
-    doc.fontSize(6)
-       .font('Helvetica')
-       .fillColor('#6b7280')
-       .text('Subtotal Materiais', totalColX - 40, y);
+    const subtotalBoxWidth = 200;
+    const subtotalBoxX = pageWidth - margin - subtotalBoxWidth;
     
     doc.fontSize(7)
-       .font('Helvetica-Bold')
-       .fillColor('#374151')
-       .text(this._formatarMoeda(subtotal), totalColX - 8, y, { 
-         width: colWidths.total - 10, 
+       .font('Helvetica')
+       .fillColor('#6b7280')
+       .text('Subtotal Materiais', subtotalBoxX, y, { 
+         width: subtotalBoxWidth - 87, 
          align: 'right' 
        });
     
-    y += 30;
+    doc.fontSize(8)
+       .font('Helvetica-Bold')
+       .fillColor('#1f2937')
+       .text(this._formatarMoeda(subtotal), subtotalBoxX + subtotalBoxWidth - 105, y, { 
+         width: 80, 
+         align: 'right' 
+       });
     
-    doc.fontSize(7)
+    y += 25;
+    
+    doc.fontSize(8)
        .font('Helvetica-Bold')
        .fillColor('#1a1a1a')
        .text('INFORMAÇÕES ADICIONAIS', margin, y);
     
-    y += 18;
+    y += 16;
     
-    const fullBoxWidth = pageWidth - 2 * margin;
-    const boxStartY = y - 3;
+    const boxStartY = y;
+    const padding = 12;
+    const lineSpacing = 12; // Espaçamento fixo entre linhas
+    let boxContentY = y + padding;
     
     if (data.despesasAdicionais && data.despesasAdicionais.length > 0) {
       const titulo = data.despesasAdicionais.length === 1 ? 'DESPESA ADICIONAL' : 'DESPESAS ADICIONAIS';
       
-      const startY = y;
-      
-      doc.fontSize(5)
+      doc.fontSize(6)
          .font('Helvetica-Bold')
          .fillColor('#6b7280')
-         .text(titulo, margin + 10, y);
+         .text(titulo, margin + padding, boxContentY);
       
-      y += 10;
+      boxContentY += 12;
       
       data.despesasAdicionais.forEach((despesa, index) => {
-        doc.fontSize(6)
+        const numeroWidth = 20;
+        const itemStartY = boxContentY;
+        
+        doc.fontSize(7)
+           .font('Helvetica-Bold')
+           .fillColor('#6b7280')
+           .text(`${index + 1}.`, margin + padding, boxContentY, { 
+             width: numeroWidth, 
+             align: 'left' 
+           });
+        
+        doc.fontSize(7)
            .font('Helvetica')
            .fillColor('#1f2937')
-           .text(despesa.descricao, margin + 10, y, { width: fullBoxWidth - 110 });
+           .text(despesa.descricao, margin + padding + numeroWidth, boxContentY, { 
+             width: contentWidth - 2 * padding - numeroWidth - 100 
+           });
         
-        doc.fontSize(6)
+        const descricaoEndY = doc.y;
+        
+        doc.fontSize(7)
            .font('Helvetica-Bold')
            .fillColor('#1a1a1a')
-           .text(this._formatarMoeda(despesa.valor), pageWidth - margin - 80, y, { 
-             width: 70, 
+           .text(this._formatarMoeda(despesa.valor), pageWidth - margin - padding - 90, itemStartY, { 
+             width: 90, 
              align: 'right' 
            });
         
-        y += 12;
+        boxContentY = Math.max(descricaoEndY, doc.y) + lineSpacing;
         
         if (index < data.despesasAdicionais.length - 1) {
-          doc.moveTo(margin + 10, y)
-             .lineTo(pageWidth - margin, y)
+          doc.moveTo(margin + padding, boxContentY - lineSpacing/2)
+             .lineTo(pageWidth - margin - padding, boxContentY - lineSpacing/2)
              .strokeColor('#e5e7eb')
-             .lineWidth(0.3)
+             .lineWidth(0.5)
              .stroke();
-          
-          y += 8;
         }
       });
-      
-      y += 6;
+            
+      if (data.frete || data.caminhaoMunck) {
+        doc.moveTo(margin + padding, boxContentY - lineSpacing/2)
+           .lineTo(pageWidth - margin - padding, boxContentY - lineSpacing/2)
+           .strokeColor('#e5e7eb')
+           .lineWidth(0.5)
+           .stroke();
+      }
     }
     
     if (data.frete && data.freteDesc && data.freteValor) {
-      const startY = y;
-      
-      doc.fontSize(5)
+      doc.fontSize(6)
          .font('Helvetica-Bold')
          .fillColor('#6b7280')
-         .text('FRETE', margin + 10, y);
+         .text('FRETE', margin + padding, boxContentY);
       
-      y += 10;
+      boxContentY += 12;
       
-      doc.fontSize(6)
+      const itemStartY = boxContentY;
+      
+      doc.fontSize(7)
          .font('Helvetica')
          .fillColor('#1f2937')
-         .text(data.freteDesc, margin + 10, y, { width: fullBoxWidth - 110 });
+         .text(data.freteDesc, margin + padding, boxContentY, { 
+           width: contentWidth - 2 * padding - 100 
+         });
       
-      doc.fontSize(6)
+      const freteDescEndY = doc.y;
+      
+      doc.fontSize(7)
          .font('Helvetica-Bold')
          .fillColor('#1a1a1a')
-         .text(this._formatarMoeda(data.freteValor), pageWidth - margin - 80, y, { 
-           width: 70, 
+         .text(this._formatarMoeda(data.freteValor), pageWidth - margin - padding - 90, itemStartY, { 
+           width: 90, 
            align: 'right' 
          });
       
-      y += 12;
+      boxContentY = Math.max(freteDescEndY, doc.y) + lineSpacing;
       
-      doc.moveTo(margin + 10, y)
-         .lineTo(pageWidth - margin, y)
-         .strokeColor('#e5e7eb')
-         .lineWidth(0.3)
-         .stroke();
-      
-      y += 8;
+      if (data.caminhaoMunck) {
+        doc.moveTo(margin + padding, boxContentY - lineSpacing/2)
+           .lineTo(pageWidth - margin - padding, boxContentY - lineSpacing/2)
+           .strokeColor('#e5e7eb')
+           .lineWidth(0.5)
+           .stroke();
+      }
     }
     
     if (data.caminhaoMunck && data.caminhaoMunckHoras && data.caminhaoMunckValorHora) {
       const totalMunck = data.caminhaoMunckHoras * data.caminhaoMunckValorHora;
-      const startY = y;
-      
-      doc.fontSize(5)
-         .font('Helvetica-Bold')
-         .fillColor('#6b7280')
-         .text('CAMINHÃO MUNCK', margin + 10, y);
-      
-      y += 10;
       
       doc.fontSize(6)
+         .font('Helvetica-Bold')
+         .fillColor('#6b7280')
+         .text('CAMINHÃO MUNCK', margin + padding, boxContentY);
+      
+      boxContentY += 12;
+      
+      const itemStartY = boxContentY;
+      
+      doc.fontSize(7)
          .font('Helvetica')
          .fillColor('#1f2937')
          .text(`${this._formatarQuantidade(data.caminhaoMunckHoras, 'h')} horas × ${this._formatarMoeda(data.caminhaoMunckValorHora)}/h`, 
-                margin + 10, y, { width: fullBoxWidth - 110 });
+                margin + padding, boxContentY, { 
+                  width: contentWidth - 2 * padding - 100 
+                });
       
-      doc.fontSize(6)
+      const munckDescEndY = doc.y;
+      
+      doc.fontSize(7)
          .font('Helvetica-Bold')
          .fillColor('#1a1a1a')
-         .text(this._formatarMoeda(totalMunck), pageWidth - margin - 80, y, { 
-           width: 70, 
+         .text(this._formatarMoeda(totalMunck), pageWidth - margin - padding - 90, itemStartY, { 
+           width: 90, 
            align: 'right' 
          });
       
-      y += 12;
+      boxContentY = Math.max(munckDescEndY, doc.y) + lineSpacing;
     }
     
-    const boxHeight = y - boxStartY;
-    doc.rect(margin, boxStartY, fullBoxWidth, boxHeight)
-       .strokeColor('#e0e0e0')
-       .lineWidth(0.5)
+    const boxHeight = boxContentY - boxStartY + padding - lineSpacing;
+    doc.roundedRect(margin, boxStartY, contentWidth, boxHeight, 4)
+       .strokeColor('#d1d5db')
+       .lineWidth(1)
        .stroke();
   }
 
-  _desenharResumo(doc, data) {
+  _desenharInfoPagamentoETotal(doc, data) {
     const margin = doc.page.margins.left;
     const pageWidth = doc.page.width;
-    let y = doc.y + 10;
+    const contentWidth = pageWidth - 2 * margin;
+    let y = doc.y + 20;
     
-    const boxWidth = 180;
-    const boxX = pageWidth - margin - boxWidth;
+    // Título
+    doc.fontSize(8)
+       .font('Helvetica-Bold')
+       .fillColor('#1a1a1a')
+       .text('INFORMAÇÕES DE PAGAMENTO', margin, y);
     
+    y += 16;
+    
+    const boxStartY = y;
+    const padding = 12;
+    const infoHeight = 52;
+    const totalHeight = 50;
+    const totalBoxHeight = infoHeight + totalHeight;
+    
+    // Box principal
+    doc.roundedRect(margin, y, contentWidth, totalBoxHeight, 4)
+       .strokeColor('#d1d5db')
+       .lineWidth(1)
+       .stroke();
+    
+    // Seção de informações de pagamento
+    const thirdWidth = (contentWidth - 2 * padding - 20) / 3;
+    const col1X = margin + padding;
+    const col2X = margin + padding + thirdWidth + 10;
+    const col3X = margin + padding + 2 * (thirdWidth + 10);
+    
+    // Forma de Pagamento
+    doc.fontSize(6)
+       .font('Helvetica-Bold')
+       .fillColor('#6b7280')
+       .text('FORMA DE PAGAMENTO', col1X, y + padding);
+    
+    doc.fontSize(7)
+       .font('Helvetica')
+       .fillColor('#1f2937')
+       .text(data.formaPagamento, col1X, y + padding + 8, { 
+         width: thirdWidth, 
+         align: 'left' 
+       });
+    
+    // Divisor vertical 1
+    const divider1X = col1X + thirdWidth + 5;
+    doc.moveTo(divider1X, y + padding)
+       .lineTo(divider1X, y + infoHeight - padding)
+       .strokeColor('#e5e7eb')
+       .lineWidth(0.5)
+       .stroke();
+    
+    // Condições de Pagamento
+    doc.fontSize(6)
+       .font('Helvetica-Bold')
+       .fillColor('#6b7280')
+       .text('CONDIÇÕES DE PAGAMENTO', col2X, y + padding);
+    
+    doc.fontSize(7)
+       .font('Helvetica')
+       .fillColor('#1f2937')
+       .text(data.condicoesPagamento, col2X, y + padding + 8, { 
+         width: thirdWidth, 
+         align: 'left' 
+       });
+    
+    // Divisor vertical 2
+    const divider2X = col2X + thirdWidth + 5;
+    doc.moveTo(divider2X, y + padding)
+       .lineTo(divider2X, y + infoHeight - padding)
+       .strokeColor('#e5e7eb')
+       .lineWidth(0.5)
+       .stroke();
+    
+    // Prazo de Entrega
+    doc.fontSize(6)
+       .font('Helvetica-Bold')
+       .fillColor('#6b7280')
+       .text('PRAZO DE ENTREGA', col3X, y + padding);
+    
+    doc.fontSize(7)
+       .font('Helvetica')
+       .fillColor('#1f2937')
+       .text(data.prazoEntrega, col3X, y + padding + 8, { 
+         width: thirdWidth, 
+         align: 'left' 
+       });
+    
+    // Linha divisória horizontal
+    y += infoHeight;
+    doc.moveTo(margin, y)
+       .lineTo(pageWidth - margin, y)
+       .strokeColor('#d1d5db')
+       .lineWidth(1)
+       .stroke();
+    
+    // Seção de valor total
     let totalGeral = 0;
     
     data.materiais.forEach(mat => {
@@ -414,28 +589,31 @@ class PdfService {
       totalGeral += data.caminhaoMunckHoras * data.caminhaoMunckValorHora;
     }
     
-    y += 8;
-    
     doc.fontSize(7)
        .font('Helvetica-Bold')
        .fillColor('#6b7280')
-       .text('VALOR TOTAL', boxX, y, { width: boxWidth, align: 'right' });
+       .text('VALOR TOTAL', margin + padding, y + 12, { 
+         width: contentWidth - 2 * padding, 
+         align: 'center' 
+       });
     
-    doc.fontSize(14)
+    doc.fontSize(16)
        .font('Helvetica-Bold')
        .fillColor('#1a1a1a')
-       .text(this._formatarMoeda(totalGeral), boxX, y + 10, { width: boxWidth, align: 'right' });
+       .text(this._formatarMoeda(totalGeral), margin + padding, y + 24, { 
+         width: contentWidth - 2 * padding, 
+         align: 'center' 
+       });
   }
 
   _desenharFooter(doc) {
     const margin = doc.page.margins.left;
     const pageWidth = doc.page.width;
     const pageHeight = doc.page.height;
-    
-    doc.moveTo(margin, pageHeight - 40)
-       .lineTo(pageWidth - margin, pageHeight - 40)
-       .strokeColor('#e5e7eb')
-       .lineWidth(0.5)
+    doc.moveTo(margin, pageHeight - 45)
+       .lineTo(pageWidth - margin, pageHeight - 45)
+       .strokeColor('#d1d5db')
+       .lineWidth(1)
        .stroke();
   }
 

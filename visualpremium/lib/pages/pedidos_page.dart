@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:visualpremium/data/orcamentos_repository.dart';
 import 'package:visualpremium/models/orcamento_item.dart';
+import 'package:visualpremium/models/pedido_item.dart';
 import '../theme.dart';
 
 enum SortOption {
@@ -23,13 +24,13 @@ enum SortOption {
   totalDesc,
 }
 
-class OrcamentoFilters {
+class PedidoFilters {
   final Set<String> status;
   final Set<int> produtoIds;
   final Set<String> clientes;
   final DateTimeRange? dateRange;
 
-  const OrcamentoFilters({
+  const PedidoFilters({
     this.status = const {},
     this.produtoIds = const {},
     this.clientes = const {},
@@ -51,14 +52,14 @@ class OrcamentoFilters {
     return count;
   }
 
-  OrcamentoFilters copyWith({
+  PedidoFilters copyWith({
     Set<String>? status,
     Set<int>? produtoIds,
     Set<String>? clientes,
     DateTimeRange? dateRange,
     bool clearDateRange = false,
   }) {
-    return OrcamentoFilters(
+    return PedidoFilters(
       status: status ?? this.status,
       produtoIds: produtoIds ?? this.produtoIds,
       clientes: clientes ?? this.clientes,
@@ -66,26 +67,26 @@ class OrcamentoFilters {
     );
   }
 
-  OrcamentoFilters clear() {
-    return const OrcamentoFilters();
+  PedidoFilters clear() {
+    return const PedidoFilters();
   }
 }
 
-class BudgetsPage extends StatefulWidget {
-  const BudgetsPage({super.key});
+class PedidosPage extends StatefulWidget {
+  const PedidosPage({super.key});
 
   @override
-  State<BudgetsPage> createState() => _BudgetsPageState();
+  State<PedidosPage> createState() => _PedidosPageState();
 }
 
-class _BudgetsPageState extends State<BudgetsPage> {
+class _PedidosPageState extends State<PedidosPage> {
   final _api = OrcamentosApiRepository();
   bool _loading = true;
-  List<OrcamentoItem> _items = const [];
+  List<PedidoItem> _items = const [];
   String _searchQuery = '';
   int? _downloadingId;
   SortOption _sortOption = SortOption.newestFirst;
-  OrcamentoFilters _filters = const OrcamentoFilters();
+  PedidoFilters _filters = const PedidoFilters();
 
   @override
   void initState() {
@@ -96,7 +97,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final items = await _api.fetchOrcamentos();
+      final items = await _api.fetchPedidos();
       if (!mounted) return;
       setState(() {
         _items = items;
@@ -107,27 +108,19 @@ class _BudgetsPageState extends State<BudgetsPage> {
       setState(() => _loading = false);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar orçamentos: $e')),
+          SnackBar(content: Text('Erro ao carregar pedidos: $e')),
         );
       });
     }
   }
 
-  Future<void> _upsert(OrcamentoItem item) async {
+  Future<void> _upsert(PedidoItem item) async {
     setState(() => _loading = true);
     try {
-      final isUpdate = _items.any((e) => e.id == item.id);
-      OrcamentoItem updated;
-      if (isUpdate) {
-        updated = await _api.updateOrcamento(item);
-      } else {
-        updated = await _api.createOrcamento(item);
-      }
+      final updated = await _api.updatePedido(item);
       final idx = _items.indexWhere((e) => e.id == updated.id);
       final next = [..._items];
-      if (idx == -1) {
-        next.insert(0, updated);
-      } else {
+      if (idx != -1) {
         next[idx] = updated;
       }
       if (!mounted) return;
@@ -137,9 +130,9 @@ class _BudgetsPageState extends State<BudgetsPage> {
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(isUpdate ? 'Orçamento salvo' : 'Orçamento cadastrado'),
-            duration: const Duration(seconds: 2),
+          const SnackBar(
+            content: Text('Pedido salvo'),
+            duration: Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -149,43 +142,41 @@ class _BudgetsPageState extends State<BudgetsPage> {
       setState(() => _loading = false);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao salvar orçamento: $e')),
+          SnackBar(content: Text('Erro ao finalizar pedido: $e')),
         );
       });
     }
   }
 
-    Future<void> _updateStatus(OrcamentoItem item, String newStatus) async {
+  Future<void> _updateStatus(PedidoItem item, String newStatus) async {
     setState(() => _loading = true);
     try {
-      final updated = await _api.updateStatus(item.id, newStatus);
-      final idx = _items.indexWhere((e) => e.id == item.id); // Use item.id ao invés de updated.id
-      
-      if (!mounted) return;
-      final next = [..._items];
+      final updated = await _api.updatePedidoStatus(item.id, newStatus);
+      final idx = _items.indexWhere((e) => e.id == updated.id);
       if (idx != -1) {
+        final next = [..._items];
         next[idx] = updated;
-      } else {
-        next.insert(0, updated);
+        if (!mounted) return;
+        setState(() {
+          _items = next;
+          _loading = false;
+        });
       }
-      
-      setState(() {
-        _items = next;
-        _loading = false;
-      });
-      
-    } catch (e, stackTrace) {
-      
+    } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao atualizar status: $e')),
+        );
+      });
     }
   }
 
-  Future<void> _delete(OrcamentoItem item) async {
+  Future<void> _delete(PedidoItem item) async {
     setState(() => _loading = true);
     try {
-      await _api.deleteOrcamento(item.id);
+      await _api.deletePedido(item.id);
       final next = _items.where((e) => e.id != item.id).toList(growable: false);
       if (!mounted) return;
       setState(() {
@@ -197,18 +188,18 @@ class _BudgetsPageState extends State<BudgetsPage> {
       setState(() => _loading = false);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao deletar orçamento: $e')),
+          SnackBar(content: Text('Erro ao deletar pedido: $e')),
         );
       });
     }
   }
 
-  Future<void> _downloadPdf(OrcamentoItem item) async {
+  Future<void> _downloadPdf(PedidoItem item) async {
     setState(() => _downloadingId = item.id);
     try {
       final directory = await getDownloadsDirectory() ?? 
                         await getApplicationDocumentsDirectory();
-      final fileName = 'orcamento_${item.numero}_${item.cliente.replaceAll(' ', '_')}.pdf';
+      final fileName = 'pedido_${item.numero}_${item.cliente.replaceAll(' ', '_')}.pdf';
       final filePath = '${directory.path}/$fileName';
       final file = File(filePath);
       
@@ -216,7 +207,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
         await file.delete();
       }
       
-      final pdfBytes = await _api.downloadOrcamentoPdf(item.id);
+      final pdfBytes = await _api.downloadPedidoPdf(item.id);
       await file.writeAsBytes(pdfBytes);
       
       if (!mounted) return;
@@ -253,7 +244,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
     }
   }
 
-  Future<bool?> _showConfirmDelete(String cliente, int numero) {
+  Future<bool?> _showConfirmDelete(String cliente, int? numero) {
     final theme = Theme.of(context);
     return showDialog<bool>(
       context: context,
@@ -279,10 +270,10 @@ class _BudgetsPageState extends State<BudgetsPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Excluir orçamento?', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                    Text('Excluir pedido?', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 8),
                     Text(
-                      'Você tem certeza que deseja excluir o orçamento #$numero de $cliente?',
+                      'Você tem certeza que deseja excluir o pedido ${numero != null ? "#$numero" : "(sem número)"} de $cliente?',
                       style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
                     ),
                     const SizedBox(height: 20),
@@ -316,15 +307,14 @@ class _BudgetsPageState extends State<BudgetsPage> {
       },
     );
   }
-
-  Future<void> _showOrcamentoEditor(OrcamentoItem? initial) async {
-    final result = await showDialog<OrcamentoItem>(
+  Future<void> _showPedidoEditor(PedidoItem initial) async {
+    final result = await showDialog<PedidoItem>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        return OrcamentoEditorSheet(
+        return PedidoEditorSheet(
           initial: initial,
-          existingOrcamentos: _items,
+          existingPedidos: _items,
         );
       },
     );
@@ -335,7 +325,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
   }
 
   Future<void> _showFilterDialog() async {
-    final result = await showDialog<OrcamentoFilters>(
+    final result = await showDialog<PedidoFilters>(
       context: context,
       builder: (dialogContext) {
         return _FilterDialog(
@@ -352,7 +342,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
     }
   }
 
-  List<OrcamentoItem> get _filteredAndSortedItems {
+  List<PedidoItem> get _filteredAndSortedItems {
     var filtered = _items;
     
     if (_filters.status.isNotEmpty) {
@@ -404,10 +394,10 @@ class _BudgetsPageState extends State<BudgetsPage> {
         filtered.sort((a, b) => b.cliente.toLowerCase().compareTo(a.cliente.toLowerCase()));
         break;
       case SortOption.numeroAsc:
-        filtered.sort((a, b) => a.numero.compareTo(b.numero));
+        filtered.sort((a, b) => a.numero!.compareTo(b.numero as num));
         break;
       case SortOption.numeroDesc:
-        filtered.sort((a, b) => b.numero.compareTo(a.numero));
+        filtered.sort((a, b) => b.numero!.compareTo(a.numero as num));
         break;
       case SortOption.produtoAsc:
         filtered.sort((a, b) => a.produtoNome.toLowerCase().compareTo(b.produtoNome.toLowerCase()));
@@ -529,30 +519,13 @@ class _BudgetsPageState extends State<BudgetsPage> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Orçamentos', style: theme.textTheme.headlineMedium),
-                            Row(
-                              children: [
-                                ExcludeFocus(
-                                  child: IconButton(
-                                    onPressed: _load,
-                                    icon: const Icon(Icons.refresh),
-                                    tooltip: 'Atualizar',
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                ExcludeFocus(
-                                  child: ElevatedButton.icon(
-                                    onPressed: () => _showOrcamentoEditor(null),
-                                    icon: const Icon(Icons.add, size: 20),
-                                    label: const Text('Novo Orçamento'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: theme.colorScheme.primary,
-                                      foregroundColor: theme.colorScheme.onPrimary,
-                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                            Text('Pedidos', style: theme.textTheme.headlineMedium),
+                            ExcludeFocus(
+                              child: IconButton(
+                                onPressed: _load,
+                                icon: const Icon(Icons.refresh),
+                                tooltip: 'Atualizar',
+                              ),
                             ),
                           ],
                         ),
@@ -570,7 +543,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
                                 child: TextField(
                                   onChanged: (value) => setState(() => _searchQuery = value),
                                   decoration: InputDecoration(
-                                    hintText: 'Buscar orçamentos',
+                                    hintText: 'Buscar pedidos',
                                     border: InputBorder.none,
                                     enabledBorder: InputBorder.none,
                                     focusedBorder: InputBorder.none,
@@ -711,9 +684,8 @@ class _BudgetsPageState extends State<BudgetsPage> {
                             ),
                           )
                         else if (filteredItems.isEmpty)
-                          _EmptyOrcamentosState(
+                          _EmptyPedidosState(
                             hasSearch: _searchQuery.isNotEmpty || _filters.hasActiveFilters,
-                            onCreate: () => _showOrcamentoEditor(null),
                           )
                         else
                           ExcludeFocus(
@@ -724,10 +696,10 @@ class _BudgetsPageState extends State<BudgetsPage> {
                               separatorBuilder: (context, index) => const SizedBox(height: 12),
                               itemBuilder: (context, index) {
                                 final item = filteredItems[index];
-                                return _OrcamentoCard(
+                                return _PedidoCard(
                                   item: item,
                                   formattedValue: currency.format(item.total),
-                                  onTap: () => _showOrcamentoEditor(item),
+                                  onTap: () => _showPedidoEditor(item),
                                   onDelete: () async {
                                     final ok = await _showConfirmDelete(item.cliente, item.numero);
                                     if (ok == true) await _delete(item);
@@ -808,8 +780,8 @@ class _FilterChip extends StatelessWidget {
 }
 
 class _FilterDialog extends StatefulWidget {
-  final OrcamentoFilters currentFilters;
-  final List<OrcamentoItem> allItems;
+  final PedidoFilters currentFilters;
+  final List<PedidoItem> allItems;
 
   const _FilterDialog({
     required this.currentFilters,
@@ -880,7 +852,7 @@ class _FilterDialogState extends State<_FilterDialog> {
   }
 
   List<String> get _availableStatus {
-    return ['Pendente', 'Aprovado', 'Não Aprovado'];
+    return ['Em Andamento', 'Concluído', 'Cancelado'];
   }
 
   List<MapEntry<int, String>> get _filteredProdutos {
@@ -943,7 +915,7 @@ class _FilterDialogState extends State<_FilterDialog> {
                   Icon(Icons.filter_list, color: theme.colorScheme.primary),
                   const SizedBox(width: 12),
                   Text(
-                    'Filtrar Orçamentos',
+                    'Filtrar Pedidos',
                     style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const Spacer(),
@@ -1356,7 +1328,7 @@ class _FilterDialogState extends State<_FilterDialog> {
                     child: ElevatedButton(
                       onPressed: () {
                         Navigator.of(context).pop(
-                          OrcamentoFilters(
+                          PedidoFilters(
                             status: _selectedStatus,
                             produtoIds: _selectedProdutoIds,
                             clientes: _selectedClientes,
@@ -1670,8 +1642,7 @@ class _FilterPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
+        children: [Row(
             children: [
               Icon(
                 Icons.sort,
@@ -1836,11 +1807,10 @@ class _SortOptionWithToggle extends StatelessWidget {
   }
 }
 
-class _EmptyOrcamentosState extends StatelessWidget {
+class _EmptyPedidosState extends StatelessWidget {
   final bool hasSearch;
-  final VoidCallback onCreate;
 
-  const _EmptyOrcamentosState({required this.hasSearch, required this.onCreate});
+  const _EmptyPedidosState({required this.hasSearch});
 
   @override
   Widget build(BuildContext context) {
@@ -1855,7 +1825,7 @@ class _EmptyOrcamentosState extends StatelessWidget {
             Icon(Icons.search_off, size: 64, color: theme.colorScheme.onSurface.withValues(alpha: 0.3)),
             const SizedBox(height: 16),
             Text(
-              'Nenhum orçamento encontrado',
+              'Nenhum pedido encontrado',
               style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
             ),
           ],
@@ -1878,29 +1848,27 @@ class _EmptyOrcamentosState extends StatelessWidget {
               color: theme.colorScheme.primary.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(Icons.description_outlined, color: theme.colorScheme.primary, size: 24),
+            child: Icon(Icons.shopping_cart_outlined, color: theme.colorScheme.primary, size: 24),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Nenhum orçamento cadastrado', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+                Text('Nenhum pedido cadastrado', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
-                Text('Crie orçamentos para seus clientes com produtos e materiais.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.65))),
+                Text('Pedidos são criados automaticamente quando um orçamento é aprovado.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.65))),
               ],
             ),
           ),
-          const SizedBox(width: 16),
-          ElevatedButton.icon(onPressed: onCreate, icon: const Icon(Icons.add, size: 18), label: const Text('Criar')),
         ],
       ),
     );
   }
 }
 
-class _OrcamentoCard extends StatelessWidget {
-  final OrcamentoItem item;
+class _PedidoCard extends StatelessWidget {
+  final PedidoItem item;
   final String formattedValue;
   final VoidCallback onTap;
   final VoidCallback onDelete;
@@ -1908,7 +1876,7 @@ class _OrcamentoCard extends StatelessWidget {
   final VoidCallback onDownloadPdf;
   final bool isDownloading;
 
-  const _OrcamentoCard({
+  const _PedidoCard({
     required this.item,
     required this.formattedValue,
     required this.onTap,
@@ -1920,12 +1888,12 @@ class _OrcamentoCard extends StatelessWidget {
 
   Color _getStatusColor(String status) {
     switch (status) {
-      case 'Aprovado':
+      case 'Concluído':
         return Colors.green;
-      case 'Não Aprovado':
+      case 'Cancelado':
         return Colors.red;
       default:
-        return Colors.orange;
+        return Colors.blue;
     }
   }
 
@@ -1961,7 +1929,7 @@ class _OrcamentoCard extends StatelessWidget {
                 color: theme.colorScheme.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(Icons.description_outlined, color: theme.colorScheme.primary, size: 20),
+              child: Icon(Icons.shopping_cart_outlined, color: theme.colorScheme.primary, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1969,7 +1937,7 @@ class _OrcamentoCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Orçamento #${item.numero}',
+                    'Pedido ${item.numero != null ? "#${item.numero}" : "(sem número)"}',
                     style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 2),
@@ -2058,46 +2026,46 @@ class _OrcamentoCard extends StatelessWidget {
               onSelected: (value) {
                 if (value == 'delete') {
                   onDelete();
-                } else if (value == 'approve') {
-                  onStatusChange('Aprovado');
-                } else if (value == 'reject') {
-                  onStatusChange('Não Aprovado');
-                } else if (value == 'pending') {
-                  onStatusChange('Pendente');
+                } else if (value == 'concluir') {
+                  onStatusChange('Concluído');
+                } else if (value == 'cancelar') {
+                  onStatusChange('Cancelado');
+                } else if (value == 'andamento') {
+                  onStatusChange('Em Andamento');
                 }
               },
               tooltip: 'Opções',
               itemBuilder: (context) => [
-                if (item.status != 'Aprovado')
+                if (item.status != 'Em Andamento')
                   const PopupMenuItem(
-                    value: 'approve',
+                    value: 'andamento',
+                    child: Row(
+                      children: [
+                        Icon(Icons.play_circle_outline, color: Colors.blue, size: 18),
+                        SizedBox(width: 8),
+                        Text('Em Andamento'),
+                      ],
+                    ),
+                  ),
+                if (item.status != 'Concluído')
+                  const PopupMenuItem(
+                    value: 'concluir',
                     child: Row(
                       children: [
                         Icon(Icons.check_circle, color: Colors.green, size: 18),
                         SizedBox(width: 8),
-                        Text('Aprovar'),
+                        Text('Concluir'),
                       ],
                     ),
                   ),
-                if (item.status != 'Não Aprovado')
+                if (item.status != 'Cancelado')
                   const PopupMenuItem(
-                    value: 'reject',
+                    value: 'cancelar',
                     child: Row(
                       children: [
                         Icon(Icons.cancel, color: Colors.red, size: 18),
                         SizedBox(width: 8),
-                        Text('Não Aprovar'),
-                      ],
-                    ),
-                  ),
-                if (item.status != 'Pendente')
-                  const PopupMenuItem(
-                    value: 'pending',
-                    child: Row(
-                      children: [
-                        Icon(Icons.schedule, color: Colors.orange, size: 18),
-                        SizedBox(width: 8),
-                        Text('Pendente'),
+                        Text('Cancelar'),
                       ],
                     ),
                   ),
@@ -2121,24 +2089,26 @@ class _OrcamentoCard extends StatelessWidget {
   }
 }
 
-class OrcamentoEditorSheet extends StatefulWidget {
-  final OrcamentoItem? initial;
-  final List<OrcamentoItem> existingOrcamentos;
+class PedidoEditorSheet extends StatefulWidget {
+  final PedidoItem initial;
+  final List<PedidoItem> existingPedidos;
 
-  const OrcamentoEditorSheet({
+  const PedidoEditorSheet({
     super.key,
     required this.initial,
-    required this.existingOrcamentos,
+    required this.existingPedidos,
   });
   
   @override
-  State<OrcamentoEditorSheet> createState() => _OrcamentoEditorSheetState();
+  State<PedidoEditorSheet> createState() => _PedidoEditorSheetState();
 }
 
-class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
+class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
   final _formKey = GlobalKey<FormState>();
   final _api = OrcamentosApiRepository();
-  
+  // ignore: unnecessary_null_comparison
+  bool get _isEditing => widget.initial != null;
+
   late final TextEditingController _clienteCtrl;
   late final TextEditingController _numeroCtrl;
   late final TextEditingController _freteDescCtrl;
@@ -2290,29 +2260,26 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   void initState() {
     super.initState();
     
-    _initialCliente = widget.initial?.cliente ?? '';
-    _initialNumero = widget.initial?.numero.toString() ?? '';
-    _initialFreteDesc = widget.initial?.freteDesc ?? '';
-    _initialFreteValor = widget.initial?.freteValor?.toStringAsFixed(2) ?? '';
-    _initialMunckHoras = widget.initial?.caminhaoMunckHoras?.toStringAsFixed(1) ?? '';
-    _initialMunckValorHora = widget.initial?.caminhaoMunckValorHora?.toStringAsFixed(2) ?? '';
-    _initialFormaPagamento = widget.initial?.formaPagamento ?? '';
-    _initialCondicoesPagamento = widget.initial?.condicoesPagamento ?? '';
-    _initialPrazoEntrega = widget.initial?.prazoEntrega ?? '';
-    _initialFrete = widget.initial?.frete;
-    _initialCaminhaoMunck = widget.initial?.caminhaoMunck;
-    _initialDespesasAdicionais = widget.initial != null 
-      ? (widget.initial!.despesasAdicionais.isNotEmpty ? true : false)
-      : null;    _initialSelectedProdutoId = widget.initial?.produtoId;
+    _initialCliente = widget.initial.cliente;
+    _initialNumero = widget.initial.numero?.toString() ?? '';
+    _initialFreteDesc = widget.initial.freteDesc ?? '';
+    _initialFreteValor = widget.initial.freteValor?.toStringAsFixed(2) ?? '';
+    _initialMunckHoras = widget.initial.caminhaoMunckHoras?.toStringAsFixed(1) ?? '';
+    _initialMunckValorHora = widget.initial.caminhaoMunckValorHora?.toStringAsFixed(2) ?? '';
+    _initialFormaPagamento = widget.initial.formaPagamento;
+    _initialCondicoesPagamento = widget.initial.condicoesPagamento;
+    _initialPrazoEntrega = widget.initial.prazoEntrega;
+    _initialFrete = widget.initial.frete;
+    _initialCaminhaoMunck = widget.initial.caminhaoMunck;
+    _initialDespesasAdicionais = widget.initial.despesasAdicionais.isNotEmpty;
+    _initialSelectedProdutoId = widget.initial.produtoId;
     
-    _initialDespesasDesc = widget.initial?.despesasAdicionais.map((d) => d.descricao).toList() ?? [];
-    _initialDespesasValor = widget.initial?.despesasAdicionais.map((d) => d.valor.toStringAsFixed(2)).toList() ?? [];
+    _initialDespesasDesc = widget.initial.despesasAdicionais.map((d) => d.descricao).toList();
+    _initialDespesasValor = widget.initial.despesasAdicionais.map((d) => d.valor.toStringAsFixed(2)).toList();
     
     _initialQuantities = {};
-    if (widget.initial != null) {
-      for (final mat in widget.initial!.materiais) {
-        _initialQuantities[mat.materialId] = mat.quantidade;
-      }
+    for (final mat in widget.initial.materiais) {
+      _initialQuantities[mat.materialId] = mat.quantidade;
     }
     
     _clienteCtrl = TextEditingController(text: _initialCliente);
@@ -2359,29 +2326,26 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       });
     });
     
-    if (widget.initial != null) {
-      _frete = widget.initial!.frete;
-      _caminhaoMunck = widget.initial!.caminhaoMunck;
-      _despesasAdicionais = widget.initial != null
-          ? (widget.initial!.despesasAdicionais.isNotEmpty ? true : false)
-          : null;      
-      if (widget.initial!.despesasAdicionais.isNotEmpty) {
-        for (final despesa in widget.initial!.despesasAdicionais) {
-          final descCtrl = TextEditingController(text: despesa.descricao);
-          final valorCtrl = TextEditingController(text: despesa.valor.toStringAsFixed(2));
-          final descFocus = FocusNode();
-          final valorFocus = FocusNode();
-          
-          descCtrl.addListener(_updateTotal);
-          valorCtrl.addListener(_updateTotal);
-          descFocus.addListener(_onFieldFocusChange);
-          valorFocus.addListener(_onFieldFocusChange);
-          
-          _despesaDescControllers.add(descCtrl);
-          _despesaValorControllers.add(valorCtrl);
-          _despesaDescFocusNodes.add(descFocus);
-          _despesaValorFocusNodes.add(valorFocus);
-        }
+    _frete = widget.initial.frete;
+    _caminhaoMunck = widget.initial.caminhaoMunck;
+    _despesasAdicionais = widget.initial.despesasAdicionais.isNotEmpty;
+    
+    if (widget.initial.despesasAdicionais.isNotEmpty) {
+      for (final despesa in widget.initial.despesasAdicionais) {
+        final descCtrl = TextEditingController(text: despesa.descricao);
+        final valorCtrl = TextEditingController(text: despesa.valor.toStringAsFixed(2));
+        final descFocus = FocusNode();
+        final valorFocus = FocusNode();
+        
+        descCtrl.addListener(_updateTotal);
+        valorCtrl.addListener(_updateTotal);
+        descFocus.addListener(_onFieldFocusChange);
+        valorFocus.addListener(_onFieldFocusChange);
+        
+        _despesaDescControllers.add(descCtrl);
+        _despesaValorControllers.add(valorCtrl);
+        _despesaDescFocusNodes.add(descFocus);
+        _despesaValorFocusNodes.add(valorFocus);
       }
     }
     
@@ -2471,13 +2435,11 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       setState(() {
         _produtos = produtos..sort((a, b) => a.nome.toLowerCase().compareTo(b.nome.toLowerCase()));
         _loading = false;
-        if (widget.initial != null) {
-          _selectedProduto = produtos.firstWhere(
-            (p) => p.id == widget.initial!.produtoId,
-            orElse: () => produtos.first,
-          );
-          _initializeQuantityControllers();
-        }
+        _selectedProduto = produtos.firstWhere(
+          (p) => p.id == widget.initial.produtoId,
+          orElse: () => produtos.first,
+        );
+        _initializeQuantityControllers();
       });
     } catch (e) {
       if (!mounted) return;
@@ -2492,16 +2454,16 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     if (_selectedProduto == null) return;
     
     for (final mat in _selectedProduto!.materiais) {
-      final existingQty = widget.initial?.materiais
+      final existingQty = widget.initial.materiais
           .firstWhere((m) => m.materialId == mat.materialId,
-              orElse: () => const OrcamentoMaterialItem(
+              orElse: () => const PedidoMaterialItem(
                   id: 0,
                   materialId: 0,
                   materialNome: '',
                   materialUnidade: '',
                   materialCusto: 0,
                   quantidade: ''))
-          .quantidade ?? '';
+          .quantidade;
       
       final controller = TextEditingController(text: existingQty);
       final focusNode = FocusNode();
@@ -2628,24 +2590,26 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     });
   }
 
-  String? _validateNumeroOrcamento(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Informe o número';
+  String? _validateNumeroPedido(String? value) {
+    if ((value == null || value.trim().isEmpty)) {
+      return null;
     }
     
-    final trimmedNumero = value.trim();
-    final numero = int.tryParse(trimmedNumero);
-    
-    if (numero == null) {
-      return 'Número inválido';
-    }
-    
-    final isDuplicate = widget.existingOrcamentos.any((orcamento) =>
-        orcamento.numero == numero &&
-        orcamento.id != widget.initial?.id);
-    
-    if (isDuplicate) {
-      return 'Já existe um orçamento\ncom este número';
+    if (value.trim().isNotEmpty) {
+      final trimmedNumero = value.trim();
+      final numero = int.tryParse(trimmedNumero);
+      
+      if (numero == null) {
+        return 'Número inválido';
+      }
+      
+      final isDuplicate = widget.existingPedidos.any((pedido) =>
+          pedido.numero == numero &&
+          pedido.id != widget.initial.id);
+      
+      if (isDuplicate) {
+        return 'Já existe um pedido\ncom este número';
+      }
     }
     
     return null;
@@ -2703,7 +2667,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   void _save() {
     if (!_formKey.currentState!.validate()) return;
 
-    final materiais = <OrcamentoMaterialItem>[];
+    final materiais = <PedidoMaterialItem>[];
     
     for(final mat in _selectedProduto!.materiais) {
       final controller = _quantityControllers[mat.materialId];
@@ -2715,18 +2679,17 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       final qtyValue = double.tryParse(qty.replaceAll(',', '.'));
       if (qtyValue == null || qtyValue < 0) continue;
       
-      materiais.add(OrcamentoMaterialItem(
-        id: widget.initial?.materiais
+      materiais.add(PedidoMaterialItem(
+        id: widget.initial.materiais
                 .firstWhere((m) => m.materialId == mat.materialId,
-                    orElse: () => const OrcamentoMaterialItem(
+                    orElse: () => const PedidoMaterialItem(
                         id: 0,
                         materialId: 0,
                         materialNome: '',
                         materialUnidade: '',
                         materialCusto: 0,
                         quantidade: '0'))
-                .id ??
-            0,
+                .id,
         materialId: mat.materialId,
         materialNome: mat.materialNome,
         materialUnidade: mat.materialUnidade,
@@ -2735,7 +2698,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       ));
     }
 
-    final despesas = <DespesaAdicionalItem>[];
+    final despesas = <PedidoDespesaAdicionalItem>[];
     for (int i = 0; i < _despesaDescControllers.length; i++) {
       final desc = _despesaDescControllers[i].text.trim();
       final valorText = _despesaValorControllers[i].text.trim();
@@ -2745,9 +2708,9 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       final valor = double.tryParse(valorText.replaceAll(',', '.'));
       if (valor == null || valor <= 0) continue;
       
-      despesas.add(DespesaAdicionalItem(
-        id: widget.initial != null && i < widget.initial!.despesasAdicionais.length 
-            ? widget.initial!.despesasAdicionais[i].id 
+      despesas.add(PedidoDespesaAdicionalItem(
+        id: i < widget.initial.despesasAdicionais.length 
+            ? widget.initial.despesasAdicionais[i].id 
             : 0,
         descricao: desc,
         valor: valor,
@@ -2759,25 +2722,12 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         ? _condicoesPagamentoOutrasCtrl.text.trim()
         : _condicoesPagamentoCtrl.text.trim();
 
-    final now = DateTime.now();
-    final item = (widget.initial ??
-            OrcamentoItem(
-              id: 0,
-              cliente: '',
-              numero: 0,
-              status: 'Pendente',
-              produtoId: 0,
-              produtoNome: '',
-              materiais: [],
-              formaPagamento: '',
-              condicoesPagamento: '',
-              prazoEntrega: '',
-              createdAt: now,
-              updatedAt: now,
-            ))
-        .copyWith(
+    final numeroText = _numeroCtrl.text.trim();
+    final numero = numeroText.isEmpty ? 0 : int.parse(numeroText);
+
+    final item = widget.initial.copyWith(
       cliente: _clienteCtrl.text.trim(),
-      numero: int.parse(_numeroCtrl.text.trim()),
+      numero: numero,
       produtoId: _selectedProduto!.id,
       produtoNome: _selectedProduto!.nome,
       materiais: materiais,
@@ -2811,6 +2761,119 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         .toList();
   }
 
+  Widget _buildToggleButton(String label, bool isSelected, VoidCallback onTap) {
+    final theme = Theme.of(context);
+    
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.colorScheme.primary.withValues(alpha: 0.15)
+              : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isSelected
+                ? theme.colorScheme.primary.withValues(alpha: 0.5)
+                : theme.dividerColor.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: isSelected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurface.withValues(alpha: 0.7),
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            fontSize: 11,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToggleSection({
+    required String title,
+    required bool? value,
+    required ValueChanged<bool?> onChanged,
+    Widget? child,
+  }) {
+    final theme = Theme.of(context);
+    
+    return FormField<bool>(
+      initialValue: value,
+      validator: (v) => v == null ? 'Selecione Sim ou Não' : null,
+      builder: (formFieldState) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: formFieldState.hasError
+                      ? theme.colorScheme.error
+                      : value == true
+                          ? theme.colorScheme.primary.withValues(alpha: 0.3)
+                          : theme.dividerColor.withValues(alpha: 0.1),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          _buildToggleButton('Não', value == false, () {
+                            onChanged(false);
+                            formFieldState.didChange(false);
+                          }),
+                          const SizedBox(width: 6),
+                          _buildToggleButton('Sim', value == true, () {
+                            onChanged(true);
+                            formFieldState.didChange(true);
+                          }),
+                        ],
+                      ),
+                    ],
+                  ),
+                  if (formFieldState.hasError) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      formFieldState.errorText ?? '',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.error,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                  if (value == true && child != null) ...[
+                    const SizedBox(height: 8),
+                    child,
+                  ],
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildDespesasSection() {
     final theme = Theme.of(context);
     
@@ -2820,7 +2883,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         if (value == null) {
           return 'Selecione Sim ou Não';
         }
-        // Validação adicional: se escolheu "Sim", deve ter pelo menos uma despesa
         if (value == true && _despesaDescControllers.isEmpty) {
           return 'Adicione pelo menos uma despesa';
         }
@@ -3080,153 +3142,161 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                     ? const Center(child: CircularProgressIndicator())
                     : Row(
                         children: [
-                          Container(
-                            width: 240,
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                              borderRadius: const BorderRadius.only(
-                                topLeft: Radius.circular(16),
-                                bottomLeft: Radius.circular(16),
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Produtos',
-                                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      TextField(
-                                        controller: _produtoSearchCtrl,
-                                        focusNode: _produtoSearchFocusNode,
-                                        decoration: InputDecoration(
-                                          hintText: 'Buscar...',
-                                          isDense: true,
-                                          prefixIcon: const Icon(Icons.search, size: 18),
-                                          suffixIcon: _produtoSearchQuery.isNotEmpty
-                                              ? IconButton(
-                                                  icon: const Icon(Icons.clear, size: 16),
-                                                  onPressed: () {
-                                                    _produtoSearchCtrl.clear();
-                                                  },
-                                                )
-                                              : null,
-                                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                        ),
-                                        style: const TextStyle(fontSize: 13),
-                                      ),
-                                    ],
+                          // Painel de produtos - desabilitar quando editando
+                          Opacity(
+                            opacity: _isEditing ? 0.5 : 1.0,
+                            child: IgnorePointer(
+                              ignoring: _isEditing,
+                              child: Container(
+                                width: 240,
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                                  borderRadius: const BorderRadius.only(
+                                    topLeft: Radius.circular(16),
+                                    bottomLeft: Radius.circular(16),
                                   ),
                                 ),
-                                Expanded(
-                                  child: ExcludeFocus(
-                                    child: _filteredProdutos.isEmpty
-                                        ? Center(
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(16),
-                                              child: Text(
-                                                'Nenhum produto encontrado',
-                                                style: theme.textTheme.bodySmall?.copyWith(
-                                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                                                ),
-                                                textAlign: TextAlign.center,
-                                              ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.all(16),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Produtos',
+                                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                                          ),
+                                          const SizedBox(height: 12),
+                                          TextField(
+                                            controller: _produtoSearchCtrl,
+                                            focusNode: _produtoSearchFocusNode,
+                                            enabled: !_isEditing,
+                                            decoration: InputDecoration(
+                                              hintText: 'Buscar...',
+                                              isDense: true,
+                                              prefixIcon: const Icon(Icons.search, size: 18),
+                                              suffixIcon: _produtoSearchQuery.isNotEmpty
+                                                  ? IconButton(
+                                                      icon: const Icon(Icons.clear, size: 16),
+                                                      onPressed: () {
+                                                        _produtoSearchCtrl.clear();
+                                                      },
+                                                    )
+                                                  : null,
+                                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                             ),
-                                          )
-                                        : ListView.builder(
-                                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                                            itemCount: _filteredProdutos.length,
-                                            itemBuilder: (context, index) {
-                                              final produto = _filteredProdutos[index];
-                                              final isSelected = _selectedProduto?.id == produto.id;
-                                              
-                                              return Padding(
-                                                padding: const EdgeInsets.only(bottom: 6),
-                                                child: InkWell(
-                                                  onTap: () {
-                                                    setState(() {
-                                                      _selectedProduto = produto;
-                                                      for (final controller in _quantityControllers.values) {
-                                                        controller.dispose();
-                                                      }
-                                                      for (final focusNode in _quantityFocusNodes.values) {
-                                                        focusNode.dispose();
-                                                      }
-                                                      _quantityControllers.clear();
-                                                      _quantityFocusNodes.clear();
-                                                      _initializeQuantityControllers();
-                                                    });
-                                                  },
-                                                  borderRadius: BorderRadius.circular(8),
-                                                  child: Container(
-                                                    padding: const EdgeInsets.all(10),
-                                                    decoration: BoxDecoration(
-                                                      color: isSelected
-                                                          ? theme.colorScheme.primary.withValues(alpha: 0.15)
-                                                          : theme.colorScheme.surface,
-                                                      borderRadius: BorderRadius.circular(8),
-                                                      border: Border.all(
-                                                        color: isSelected
-                                                            ? theme.colorScheme.primary.withValues(alpha: 0.5)
-                                                            : theme.dividerColor.withValues(alpha: 0.1),
-                                                        width: isSelected ? 2 : 1,
-                                                      ),
+                                            style: const TextStyle(fontSize: 13),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Expanded(
+                                      child: ExcludeFocus(
+                                        child: _filteredProdutos.isEmpty
+                                            ? Center(
+                                                child: Padding(
+                                                  padding: const EdgeInsets.all(16),
+                                                  child: Text(
+                                                    'Nenhum produto encontrado',
+                                                    style: theme.textTheme.bodySmall?.copyWith(
+                                                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                                                     ),
-                                                    child: Row(
-                                                      children: [
-                                                        Container(
-                                                          padding: const EdgeInsets.all(6),
-                                                          decoration: BoxDecoration(
-                                                            color: isSelected
-                                                                ? theme.colorScheme.primary.withValues(alpha: 0.2)
-                                                                : theme.colorScheme.primary.withValues(alpha: 0.1),
-                                                            borderRadius: BorderRadius.circular(6),
-                                                          ),
-                                                          child: Icon(
-                                                            Icons.inventory_2_outlined,
-                                                            color: theme.colorScheme.primary,
-                                                            size: 16,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(width: 8),
-                                                        Expanded(
-                                                          child: Column(
-                                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                                            children: [
-                                                              Text(produto.nome,
-                                                                style: theme.textTheme.bodySmall?.copyWith(
-                                                                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                                                                  fontSize: 12,
-                                                                ),
-                                                                maxLines: 2,
-                                                                overflow: TextOverflow.ellipsis,
-                                                              ),
-                                                              Text(
-                                                                '${produto.materiais.length} materiais',
-                                                                style: theme.textTheme.bodySmall?.copyWith(
-                                                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                                                                  fontSize: 10,
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
+                                                    textAlign: TextAlign.center,
                                                   ),
                                                 ),
-                                              );
-                                            },
-                                          ),
-                                  ),
+                                              )
+                                            : ListView.builder(
+                                                padding: const EdgeInsets.symmetric(horizontal: 10),
+                                                itemCount: _filteredProdutos.length,
+                                                itemBuilder: (context, index) {
+                                                  final produto = _filteredProdutos[index];
+                                                  final isSelected = _selectedProduto?.id == produto.id;
+                                                  
+                                                  return Padding(
+                                                    padding: const EdgeInsets.only(bottom: 6),
+                                                    child: InkWell(
+                                                      onTap: _isEditing ? null : () {
+                                                        setState(() {
+                                                          _selectedProduto = produto;
+                                                          for (final controller in _quantityControllers.values) {
+                                                            controller.dispose();
+                                                          }
+                                                          for (final focusNode in _quantityFocusNodes.values) {
+                                                            focusNode.dispose();
+                                                          }
+                                                          _quantityControllers.clear();
+                                                          _quantityFocusNodes.clear();
+                                                          _initializeQuantityControllers();
+                                                        });
+                                                      },
+                                                      borderRadius: BorderRadius.circular(8),
+                                                      child: Container(
+                                                        padding: const EdgeInsets.all(10),
+                                                        decoration: BoxDecoration(
+                                                          color: isSelected
+                                                              ? theme.colorScheme.primary.withValues(alpha: 0.15)
+                                                              : theme.colorScheme.surface,
+                                                          borderRadius: BorderRadius.circular(8),
+                                                          border: Border.all(
+                                                            color: isSelected
+                                                                ? theme.colorScheme.primary.withValues(alpha: 0.5)
+                                                                : theme.dividerColor.withValues(alpha: 0.1),
+                                                            width: isSelected ? 2 : 1,
+                                                          ),
+                                                        ),
+                                                        child: Row(
+                                                          children: [
+                                                            Container(
+                                                              padding: const EdgeInsets.all(6),
+                                                              decoration: BoxDecoration(
+                                                                color: isSelected
+                                                                    ? theme.colorScheme.primary.withValues(alpha: 0.2)
+                                                                    : theme.colorScheme.primary.withValues(alpha: 0.1),
+                                                                borderRadius: BorderRadius.circular(6),
+                                                              ),
+                                                              child: Icon(
+                                                                Icons.inventory_2_outlined,
+                                                                color: theme.colorScheme.primary,
+                                                                size: 16,
+                                                              ),
+                                                            ),
+                                                            const SizedBox(width: 8),
+                                                            Expanded(
+                                                              child: Column(
+                                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                                children: [
+                                                                  Text(produto.nome,
+                                                                    style: theme.textTheme.bodySmall?.copyWith(
+                                                                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                                                      fontSize: 12,
+                                                                    ),
+                                                                    maxLines: 2,
+                                                                    overflow: TextOverflow.ellipsis,
+                                                                  ),
+                                                                  Text(
+                                                                    '${produto.materiais.length} materiais',
+                                                                    style: theme.textTheme.bodySmall?.copyWith(
+                                                                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                                                      fontSize: 10,
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
                           ),
                           Expanded(
@@ -3247,7 +3317,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                       children: [
                                         Expanded(
                                           child: Text(
-                                            widget.initial == null ? 'Novo Orçamento' : 'Editar Orçamento',
+                                            'Editar Pedido',
                                             style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                                           ),
                                         ),
@@ -3276,16 +3346,23 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                             children: [
                                               Expanded(
                                                 flex: 2,
-                                                child: TextFormField(
-                                                  controller: _clienteCtrl,
-                                                  focusNode: _clienteFocusNode,
-                                                  style: const TextStyle(fontSize: 13),
-                                                  decoration: const InputDecoration(
-                                                    labelText: 'Cliente',
-                                                    isDense: true,
-                                                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                                child: Opacity(
+                                                  opacity: 0.5,
+                                                  child: IgnorePointer(
+                                                    ignoring: true,
+                                                    child: TextFormField(
+                                                      controller: _clienteCtrl,
+                                                      focusNode: _clienteFocusNode,
+                                                      enabled: false,
+                                                      style: const TextStyle(fontSize: 13),
+                                                      decoration: const InputDecoration(
+                                                        labelText: 'Cliente',
+                                                        isDense: true,
+                                                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                                      ),
+                                                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe o cliente' : null,
+                                                    ),
                                                   ),
-                                                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe o cliente' : null,
                                                 ),
                                               ),
                                               const SizedBox(width: 10),
@@ -3293,15 +3370,16 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                 child: TextFormField(
                                                   controller: _numeroCtrl,
                                                   focusNode: _numeroFocusNode,
+                                                  enabled: true,
                                                   keyboardType: TextInputType.number,
                                                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                                   style: const TextStyle(fontSize: 13),
                                                   decoration: const InputDecoration(
-                                                    labelText: 'Nº Orçamento',
+                                                    labelText: 'Nº Pedido',
                                                     isDense: true,
                                                     contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                                   ),
-                                                  validator: _validateNumeroOrcamento,
+                                                  validator: _validateNumeroPedido,
                                                 ),
                                               ),
                                             ],
@@ -3309,414 +3387,312 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                           
                                           const SizedBox(height: 16),
                                           
-                                          if (_selectedProduto == null)
-                                            Column(
-                                              children: [
-                                                FormField<bool>(
-                                                  initialValue: false,
-                                                  validator: (_) => _selectedProduto == null ? 'Selecione um produto' : null,
-                                                  builder: (formFieldState) {
-                                                    return Column(
-                                                      children: [
-                                                        if (formFieldState.hasError)
-                                                          Container(
-                                                            padding: const EdgeInsets.all(12),
-                                                            margin: const EdgeInsets.only(bottom: 12),
-                                                            decoration: BoxDecoration(
-                                                              color: theme.colorScheme.errorContainer.withValues(alpha: 0.3),
-                                                              borderRadius: BorderRadius.circular(8),
-                                                              border: Border.all(
-                                                                color: theme.colorScheme.error.withValues(alpha: 0.5),
-                                                              ),
-                                                            ),
-                                                            child: Row(
-                                                              children: [
-                                                                Icon(
-                                                                  Icons.error_outline,
-                                                                  color: theme.colorScheme.error,
-                                                                  size: 18,
-                                                                ),
-                                                                const SizedBox(width: 10),
-                                                                Expanded(
-                                                                  child: Text(
-                                                                    formFieldState.errorText ?? '',
-                                                                    style: theme.textTheme.bodySmall?.copyWith(
-                                                                      color: theme.colorScheme.error,
-                                                                      fontWeight: FontWeight.w500,
-                                                                      fontSize: 12,
-                                                                    ),
-                                                                  ),
-                                                                ),
-                                                              ],
-                                                            ),
-                                                          ),
-                                                      ],
-                                                    );
-                                                  },
-                                                ),
-                                                Padding(
-                                                  padding: const EdgeInsets.symmetric(vertical: 40),
-                                                  child: Center(
-                                                    child: Column(
-                                                      children: [
-                                                        Icon(
-                                                          Icons.inventory_2_outlined,
-                                                          size: 48,
-                                                          color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
-                                                        ),
-                                                        const SizedBox(height: 12),
-                                                        Text(
-                                                          'Selecione um produto',
-                                                          style: theme.textTheme.titleMedium?.copyWith(
-                                                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                                                          ),
-                                                        ),
-                                                        const SizedBox(height: 6),
-                                                        Text(
-                                                          'Escolha um produto na lista ao lado',
-                                                          style: theme.textTheme.bodySmall?.copyWith(
-                                                            color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
-                                                            fontSize: 12,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            )
-                                          else ...[
+                                          if (_selectedProduto != null) ...[
                                             Text(
                                               'Materiais',
                                               style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
                                             ),
                                             const SizedBox(height: 8),
                                             
-                                            ..._selectedProduto!.materiais.map((mat) {
-                                              final controller = _quantityControllers[mat.materialId];
-                                              final focusNode = _quantityFocusNodes[mat.materialId];
-                                              if (controller == null || focusNode == null) return const SizedBox();
-                                              
-                                              final qty = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0.0;
-                                              final total = mat.materialCusto * qty;
-                                              
-                                              return Container(
-                                                margin: const EdgeInsets.only(bottom: 6),
-                                                padding: const EdgeInsets.all(8),
-                                                decoration: BoxDecoration(
-                                                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                                                  borderRadius: BorderRadius.circular(8),
-                                                  border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-                                                ),
-                                                child: Row(
-                                                  children: [
-                                                    Expanded(
-                                                      flex: 2,
-                                                      child: Column(
-                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                            // CORREÇÃO: Envolver materiais em Opacity e IgnorePointer
+                                            Opacity(
+                                              opacity: 0.5,
+                                              child: IgnorePointer(
+                                                ignoring: true,
+                                                child: Column(
+                                                  children: _selectedProduto!.materiais.map((mat) {
+                                                    final controller = _quantityControllers[mat.materialId];
+                                                    final focusNode = _quantityFocusNodes[mat.materialId];
+                                                    if (controller == null || focusNode == null) return const SizedBox();
+                                                    
+                                                    final qty = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0.0;
+                                                    final total = mat.materialCusto * qty;
+                                                    
+                                                    return Container(
+                                                      margin: const EdgeInsets.only(bottom: 6),
+                                                      padding: const EdgeInsets.all(8),
+                                                      decoration: BoxDecoration(
+                                                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                                                        borderRadius: BorderRadius.circular(8),
+                                                        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                                                      ),
+                                                      child: Row(
                                                         children: [
-                                                          Text(
-                                                            mat.materialNome,
-                                                            style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 11),
+                                                          Expanded(
+                                                            flex: 2,
+                                                            child: Column(
+                                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                                              children: [
+                                                                Text(
+                                                                  mat.materialNome,
+                                                                  style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 11),
+                                                                ),
+                                                                Text(
+                                                                  '${currency.format(mat.materialCusto)} / ${mat.materialUnidade}',
+                                                                  style: theme.textTheme.bodySmall?.copyWith(
+                                                                    fontSize: 10,
+                                                                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
                                                           ),
-                                                          Text(
-                                                            '${currency.format(mat.materialCusto)} / ${mat.materialUnidade}',
-                                                            style: theme.textTheme.bodySmall?.copyWith(
-                                                              fontSize: 10,
-                                                              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                                          const SizedBox(width: 8),
+                                                          SizedBox(
+                                                            width: 70,
+                                                            child: TextFormField(
+                                                              controller: controller,
+                                                              focusNode: focusNode,
+                                                              enabled: false,
+                                                              keyboardType: TextInputType.numberWithOptions(
+                                                                decimal: mat.materialUnidade == 'Kg',
+                                                              ),
+                                                              inputFormatters: [
+                                                                if (mat.materialUnidade == 'Kg')
+                                                                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                                                else
+                                                                  FilteringTextInputFormatter.digitsOnly
+                                                              ],
+                                                              textAlign: TextAlign.center,
+                                                              style: const TextStyle(fontSize: 12),
+                                                              decoration: const InputDecoration(
+                                                                labelText: 'Qtd',
+                                                                isDense: true,
+                                                                contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                                                              ),
+                                                              validator: (v) {
+                                                                if (v == null || v.trim().isEmpty) {
+                                                                  return 'Informe';
+                                                                }
+                                                                final value = double.tryParse(v.replaceAll(',', '.'));
+                                                                if (value == null || value < 0) {
+                                                                  return 'Inválido';
+                                                                }
+                                                                return null;
+                                                              },
+                                                            ),
+                                                          ),
+                                                          const SizedBox(width: 8),
+                                                          SizedBox(
+                                                            width: 75,
+                                                            child: Text(
+                                                              currency.format(total),
+                                                              style: theme.textTheme.bodySmall?.copyWith(
+                                                                fontWeight: FontWeight.bold,
+                                                                color: theme.colorScheme.primary,
+                                                                fontSize: 11,
+                                                              ),
+                                                              textAlign: TextAlign.right,
                                                             ),
                                                           ),
                                                         ],
                                                       ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    SizedBox(
-                                                      width: 70,
-                                                      child: TextFormField(
-                                                        controller: controller,
-                                                        focusNode: focusNode,
-                                                        keyboardType: TextInputType.numberWithOptions(
-                                                          decimal: mat.materialUnidade == 'Kg',
-                                                        ),
-                                                        inputFormatters: [
-                                                          if (mat.materialUnidade == 'Kg')
-                                                            FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                                          else
-                                                            FilteringTextInputFormatter.digitsOnly
-                                                        ],
-                                                        textAlign: TextAlign.center,
-                                                        style: const TextStyle(fontSize: 12),
-                                                        decoration: const InputDecoration(
-                                                          labelText: 'Qtd',
-                                                          isDense: true,
-                                                          contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                                                        ),
-                                                        validator: (v) {
-                                                          if (v == null || v.trim().isEmpty) {
-                                                            return 'Informe';
-                                                          }
-                                                          final value = double.tryParse(v.replaceAll(',', '.'));
-                                                          if (value == null || value < 0) {
-                                                            return 'Inválido';
-                                                          }
-                                                          return null;
-                                                        },
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    SizedBox(
-                                                      width: 75,
-                                                      child: Text(
-                                                        currency.format(total),
-                                                        style: theme.textTheme.bodySmall?.copyWith(
-                                                          fontWeight: FontWeight.bold,
-                                                          color: theme.colorScheme.primary,
-                                                          fontSize: 11,
-                                                        ),
-                                                        textAlign: TextAlign.right,
-                                                      ),
-                                                    ),
-                                                  ],
+                                                    );
+                                                  }).toList(),
                                                 ),
-                                              );
-                                            }),
+                                              ),
+                                            ),
                                             
                                             const SizedBox(height: 12),
                                             
-                                            _buildDespesasSection(),
+                                            Opacity(
+                                              opacity: 0.5,
+                                              child: IgnorePointer(
+                                                ignoring: true,
+                                                child: _buildDespesasSection(),
+                                              ),
+                                            ),
                                             
                                             const SizedBox(height: 12),
                                             
-                                            _buildToggleSection(
-                                              title: 'Frete',
-                                              value: _frete,
-                                              onChanged: (v) {
-                                                setState(() {
-                                                  _frete = v;
-                                                });
-                                              },
-                                              child: _frete == true
-                                                  ? Row(
-                                                      children: [
-                                                        Expanded(
-                                                          flex: 2,
-                                                          child: TextFormField(
-                                                            controller: _freteDescCtrl,
-                                                            focusNode: _freteDescFocusNode,
-                                                            style: const TextStyle(fontSize: 12),
-                                                            decoration: const InputDecoration(
-                                                              labelText: 'Descrição',
-                                                              isDense: true,
-                                                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                            Opacity(
+                                              opacity: 0.5,
+                                              child: IgnorePointer(
+                                                ignoring: true,
+                                                child: _buildToggleSection(
+                                                  title: 'Frete',
+                                                  value: _frete,
+                                                  onChanged: (v) {},
+                                                  child: _frete == true
+                                                      ? Row(
+                                                          children: [
+                                                            Expanded(
+                                                              flex: 2,
+                                                              child: TextFormField(
+                                                                controller: _freteDescCtrl,
+                                                                focusNode: _freteDescFocusNode,
+                                                                enabled: false,
+                                                                style: const TextStyle(fontSize: 12),
+                                                                decoration: const InputDecoration(
+                                                                  labelText: 'Descrição',
+                                                                  isDense: true,
+                                                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                                                ),
+                                                              ),
                                                             ),
-                                                            validator: (v)=> (v == null || v.trim().isEmpty) ? 'Informe' : null,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(width: 8),
-                                                        Expanded(
-                                                          child: TextFormField(
-                                                            controller: _freteValorCtrl,
-                                                            focusNode: _freteValorFocusNode,
-                                                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                                            inputFormatters: [
-                                                              FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                                            ],
-                                                            style: const TextStyle(fontSize: 12),
-                                                            decoration: const InputDecoration(
-                                                              labelText: 'Valor',
-                                                              isDense: true,
-                                                              prefixText: 'R\$ ',
-                                                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                                            const SizedBox(width: 8),
+                                                            Expanded(
+                                                              child: TextFormField(
+                                                                controller: _freteValorCtrl,
+                                                                focusNode: _freteValorFocusNode,
+                                                                enabled: false,
+                                                                style: const TextStyle(fontSize: 12),
+                                                                decoration: const InputDecoration(
+                                                                  labelText: 'Valor',
+                                                                  isDense: true,
+                                                                  prefixText: 'R\$ ',
+                                                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                                                ),
+                                                              ),
                                                             ),
-                                                            validator: (v) {
-                                                              if (v == null || v.trim().isEmpty) {
-                                                                return 'Informe';
-                                                              }
-                                                              final value = double.tryParse(v.replaceAll(',', '.'));
-                                                              if (value == null || value <= 0) {
-                                                                return 'Inválido';
-                                                              }
-                                                              return null;
-                                                            },
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    )
-                                                  : null,
+                                                          ],
+                                                        )
+                                                      : null,
+                                                ),
+                                              ),
                                             ),
                                             
                                             const SizedBox(height: 8),
                                             
-                                            _buildToggleSection(
-                                              title: 'Caminhão Munck',
-                                              value: _caminhaoMunck,
-                                              onChanged: (v) {
-                                                setState(() {
-                                                  _caminhaoMunck = v;
-                                                });
-                                              },
-                                              child: _caminhaoMunck == true
-                                                  ? Row(
-                                                      children: [
-                                                        Expanded(
-                                                          child: TextFormField(
-                                                            controller: _munckHorasCtrl,
-                                                            focusNode: _munckHorasFocusNode,
-                                                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                                            inputFormatters: [
-                                                              FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                                            ],
-                                                            style: const TextStyle(fontSize: 12),
-                                                            decoration: const InputDecoration(
-                                                              labelText: 'Horas',
-                                                              isDense: true,
-                                                              suffixText: 'h',
-                                                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                            Opacity(
+                                              opacity: 0.5,
+                                              child: IgnorePointer(
+                                                ignoring: true,
+                                                child: _buildToggleSection(
+                                                  title: 'Caminhão Munck',
+                                                  value: _caminhaoMunck,
+                                                  onChanged: (v) {},
+                                                  child: _caminhaoMunck == true
+                                                      ? Row(
+                                                          children: [
+                                                            Expanded(
+                                                              child: TextFormField(
+                                                                controller: _munckHorasCtrl,
+                                                                focusNode: _munckHorasFocusNode,
+                                                                enabled: false,
+                                                                style: const TextStyle(fontSize: 12),
+                                                                decoration: const InputDecoration(
+                                                                  labelText: 'Horas',
+                                                                  isDense: true,
+                                                                  suffixText: 'h',
+                                                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                                                ),
+                                                              ),
                                                             ),
-                                                            validator: (v) {
-                                                              if (v == null || v.trim().isEmpty) {
-                                                                return 'Informe';
-                                                              }
-                                                              final value = double.tryParse(v.replaceAll(',', '.'));
-                                                              if (value == null || value < 0) {
-                                                                return 'Inválido';
-                                                              }
-                                                              return null;
-                                                            },
-                                                          ),
-                                                        ),
-                                                        const SizedBox(width: 8),
-                                                        Expanded(
-                                                          child: TextFormField(
-                                                            controller: _munckValorHoraCtrl,
-                                                            focusNode: _munckValorHoraFocusNode,
-                                                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                                            inputFormatters: [
-                                                              FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                                            ],
-                                                            style: const TextStyle(fontSize: 12),
-                                                            decoration: const InputDecoration(
-                                                              labelText: 'Valor/Hora',
-                                                              isDense: true,
-                                                              prefixText: 'R\$ ',
-                                                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                                            const SizedBox(width: 8),
+                                                            Expanded(
+                                                              child: TextFormField(
+                                                                controller: _munckValorHoraCtrl,
+                                                                focusNode: _munckValorHoraFocusNode,
+                                                                enabled: false,
+                                                                style: const TextStyle(fontSize: 12),
+                                                                decoration: const InputDecoration(
+                                                                  labelText: 'Valor/Hora',
+                                                                  isDense: true,
+                                                                  prefixText: 'R\$ ',
+                                                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                                                ),
+                                                              ),
                                                             ),
-                                                            validator: (v) {
-                                                              if (v == null || v.trim().isEmpty) {
-                                                                return 'Informe';
-                                                              }
-                                                              final value = double.tryParse(v.replaceAll(',', '.'));
-                                                              if (value == null || value < 0) {
-                                                                return 'Inválido';
-                                                              }
-                                                              return null;
-                                                            },
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    )
-                                                  : null,
+                                                          ],
+                                                        )
+                                                      : null,
+                                                ),
+                                              ),
                                             ),
                                             
                                             const SizedBox(height: 16),
                                             
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: DropdownButtonFormField<String>(
-                                                    initialValue: _selectedFormaPagamento,
-                                                    focusNode: _formaPagamentoFocusNode,
-                                                    decoration: const InputDecoration(
-                                                      labelText: 'Forma de Pagamento',
-                                                      isDense: true,
-                                                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                                    ),
-                                                    style: const TextStyle(fontSize: 13),
-                                                    items: _formaPagamentoOptions.map((option) {
-                                                      return DropdownMenuItem<String>(
-                                                        value: option,
-                                                        child: Text(option),
-                                                      );
-                                                    }).toList(),
-                                                    onChanged: (value) {
-                                                      setState(() {
-                                                        _selectedFormaPagamento = value;
-                                                        if (value != null) {
-                                                          _formaPagamentoCtrl.text = value;
-                                                        }
-                                                      });
-                                                    },
-                                                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Selecione' : null,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 10),
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      DropdownButtonFormField<String>(
-                                                        initialValue: _selectedCondicaoPagamento,
-                                                        focusNode: _condicoesPagamentoFocusNode,
+                                            // CORREÇÃO: Envolver forma e condições de pagamento em Opacity e IgnorePointer
+                                            Opacity(
+                                              opacity: 0.5,
+                                              child: IgnorePointer(
+                                                ignoring: true,
+                                                child: Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: DropdownButtonFormField<String>(
+                                                        initialValue: _selectedFormaPagamento,
+                                                        focusNode: _formaPagamentoFocusNode,
+                                                        onChanged: null,
                                                         decoration: const InputDecoration(
-                                                          labelText: 'Condições de Pagamento',
+                                                          labelText: 'Forma de Pagamento',
                                                           isDense: true,
                                                           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                                         ),
                                                         style: const TextStyle(fontSize: 13),
-                                                        items: _condicoesPagamentoOptions.map((option) {
+                                                        items: _formaPagamentoOptions.map((option) {
                                                           return DropdownMenuItem<String>(
                                                             value: option,
                                                             child: Text(option),
                                                           );
                                                         }).toList(),
-                                                        onChanged: (value) {
-                                                          setState(() {
-                                                            _selectedCondicaoPagamento = value;
-                                                            if (value != null && value != 'Outras') {
-                                                              _condicoesPagamentoCtrl.text = value;
-                                                              _condicoesPagamentoOutrasCtrl.clear();
-                                                            } else if (value == 'Outras') {
-                                                              _condicoesPagamentoCtrl.text = 'Outras';
-                                                            }
-                                                          });
-                                                        },
-                                                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Selecione' : null,
+                                                        disabledHint: Text(_selectedFormaPagamento ?? ''),
                                                       ),
-                                                      if (_selectedCondicaoPagamento == 'Outras') ...[
-                                                        const SizedBox(height: 10),
-                                                        TextFormField(
-                                                          controller: _condicoesPagamentoOutrasCtrl,
-                                                          focusNode: _condicoesPagamentoOutrasFocusNode,
-                                                          style: const TextStyle(fontSize: 13),
-                                                          decoration: const InputDecoration(
-                                                            labelText: 'Especifique as condições',
-                                                            isDense: true,
-                                                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                                            hintText: 'Ex: 15/30/45 dias',
+                                                    ),
+                                                    const SizedBox(width: 10),
+                                                    Expanded(
+                                                      child: Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        children: [
+                                                          DropdownButtonFormField<String>(
+                                                            initialValue: _selectedCondicaoPagamento,
+                                                            focusNode: _condicoesPagamentoFocusNode,
+                                                            onChanged: null,
+                                                            decoration: const InputDecoration(
+                                                              labelText: 'Condições de Pagamento',
+                                                              isDense: true,
+                                                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                                            ),
+                                                            style: const TextStyle(fontSize: 13),
+                                                            items: _condicoesPagamentoOptions.map((option) {
+                                                              return DropdownMenuItem<String>(
+                                                                value: option,
+                                                                child: Text(option),
+                                                              );
+                                                            }).toList(),
+                                                            disabledHint: Text(_selectedCondicaoPagamento ?? ''),
                                                           ),
-                                                          validator: (v) => (v == null || v.trim().isEmpty) 
-                                                              ? 'Informe as condições' 
-                                                              : null,
-                                                        ),
-                                                      ],
-                                                    ],
-                                                  ),
+                                                          if (_selectedCondicaoPagamento == 'Outras') ...[
+                                                            const SizedBox(height: 10),
+                                                            TextFormField(
+                                                              controller: _condicoesPagamentoOutrasCtrl,
+                                                              focusNode: _condicoesPagamentoOutrasFocusNode,
+                                                              enabled: false,
+                                                              style: const TextStyle(fontSize: 13),
+                                                              decoration: const InputDecoration(
+                                                                labelText: 'Especifique as condições',
+                                                                isDense: true,
+                                                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
                                                 ),
-                                              ],
+                                              ),
                                             ),
                                             
                                             const SizedBox(height: 10),
                                             
-                                            TextFormField(
-                                              controller: _prazoEntregaCtrl,
-                                              focusNode: _prazoEntregaFocusNode,
-                                              style: const TextStyle(fontSize: 13),
-                                              decoration: const InputDecoration(
-                                                labelText: 'Prazo de Entrega',
-                                                isDense: true,
-                                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                            Opacity(
+                                              opacity: 0.5,
+                                              child: IgnorePointer(
+                                                ignoring: true,
+                                                child: TextFormField(
+                                                  controller: _prazoEntregaCtrl,
+                                                  focusNode: _prazoEntregaFocusNode,
+                                                  enabled: false,
+                                                  style: const TextStyle(fontSize: 13),
+                                                  decoration: const InputDecoration(
+                                                    labelText: 'Prazo de Entrega',
+                                                    isDense: true,
+                                                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                                  ),
+                                                ),
                                               ),
-                                              validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe o prazo' : null,
                                             ),
                                           ],
                                         ],
@@ -3740,7 +3716,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                           children: [
                                             Text(
-                                              'Total do Orçamento',
+                                              'Total do Pedido',
                                               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                                             ),
                                             Text(
@@ -3773,7 +3749,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                               child: ExcludeFocus(
                                                 child: ElevatedButton(
                                                   onPressed: _save,
-                                                  child: Text(widget.initial == null ? 'Finalizar' : 'Salvar'),
+                                                  child: const Text('Finalizar'),
                                                 ),
                                               ),
                                             ),
@@ -3789,118 +3765,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                         ],
                       ),
               ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildToggleSection({
-    required String title,
-    required bool? value,
-    required ValueChanged<bool?> onChanged,
-    Widget? child,
-  }) {
-    final theme = Theme.of(context);
-    
-    return FormField<bool>(
-      initialValue: value,
-      validator: (_) => value == null ? 'Selecione Sim ou Não' : null,
-      builder: (formFieldState) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: formFieldState.hasError
-                      ? theme.colorScheme.error
-                      : value == true
-                          ? theme.colorScheme.primary.withValues(alpha: 0.3)
-                          : theme.dividerColor.withValues(alpha: 0.1),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          _buildToggleButton('Não', value == false, () {
-                            onChanged(false);
-                            formFieldState.didChange(false);
-                          }),
-                          const SizedBox(width: 6),
-                          _buildToggleButton('Sim', value == true, () {
-                            onChanged(true);
-                            formFieldState.didChange(true);
-                          }),
-                        ],
-                      ),
-                    ],
-                  ),
-                  if (formFieldState.hasError) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      formFieldState.errorText ?? '',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                  if (child != null) ...[
-                    const SizedBox(height: 8),
-                    child,
-                  ],
-                ],
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildToggleButton(String label, bool selected, VoidCallback onTap) {
-    final theme = Theme.of(context);
-    
-    return ExcludeFocus(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          decoration: BoxDecoration(
-            color: selected 
-                ? theme.colorScheme.primary 
-                : theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: selected 
-                  ? theme.colorScheme.primary 
-                  : theme.dividerColor.withValues(alpha: 0.3),
-            ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color: selected 
-                  ? theme.colorScheme.onPrimary 
-                  : theme.colorScheme.onSurface,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
             ),
           ),
         ),
