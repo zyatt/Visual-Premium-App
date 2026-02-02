@@ -81,14 +81,20 @@ class OrcamentosApiRepository {
     }
   }
 
-  Future<OrcamentoItem> updateStatus(int id, String status) async {
+  // ✅ VERSÃO CORRIGIDA - Agora recebe o OrcamentoItem completo
+  Future<OrcamentoItem> updateStatus(OrcamentoItem item, String status) async {
     try {
-      final url = Uri.parse('$baseUrl/orcamentos/$id/status');
+      final url = Uri.parse('$baseUrl/orcamentos/${item.id}/status');
       
       final response = await http.patch(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'status': status}),
+        body: jsonEncode({
+          'status': status,
+          'produtoId': item.produtoId,  // ✅ Enviando produtoId
+          'cliente': item.cliente,       // ✅ Enviando cliente
+          'numero': item.numero,         // ✅ Enviando número
+        }),
       );
             
       if (response.statusCode == 200) {
@@ -171,16 +177,30 @@ class OrcamentosApiRepository {
       }
       return updated;
     } else {
-      throw Exception('Erro ao atualizar pedido: ${response.statusCode}');
+      // ✅ Capturar e exibir a mensagem de erro do servidor
+      String errorMessage = 'Erro ao atualizar pedido: ${response.statusCode}';
+      try {
+        final errorJson = jsonDecode(response.body);
+        if (errorJson is Map && errorJson.containsKey('error')) {
+          errorMessage = errorJson['error'];
+        } else {
+          errorMessage += ' - ${response.body}';
+        }
+      } catch (_) {
+        if (response.body.isNotEmpty) {
+          errorMessage += ' - ${response.body}';
+        }
+      }
+      throw Exception(errorMessage);
     }
   }
-
+  // ✅ CORRIGIDO - Apenas envia o status, sem dados desnecessários
   Future<PedidoItem> updatePedidoStatus(int id, String status) async {
     final url = Uri.parse('$baseUrl/pedidos/$id/status');
     final response = await http.patch(
       url,
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'status': status}),
+      body: jsonEncode({'status': status}),  // ✅ APENAS o status
     );
     if (response.statusCode == 200) {
       final updated = PedidoItem.tryFromMap(jsonDecode(response.body));

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:visualpremium/providers/auth_provider.dart';
 import '../theme_provider.dart';
 
 /// Diálogo de configurações do aplicativo
@@ -71,7 +73,7 @@ class SettingsDialog extends StatelessWidget {
             const SizedBox(height: 24),
 
             // User Info Section
-            _buildAccountSection(theme),
+            _buildAccountSection(context, theme),
 
             const SizedBox(height: 24),
 
@@ -142,7 +144,9 @@ class SettingsDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildAccountSection(ThemeData theme) {
+  Widget _buildAccountSection(BuildContext context, ThemeData theme) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -170,7 +174,7 @@ class SettingsDialog extends StatelessWidget {
                 radius: 24,
                 backgroundColor: theme.colorScheme.primary,
                 child: Text(
-                  'U',
+                  authProvider.currentUser?.username.substring(0, 1).toUpperCase() ?? 'U',
                   style: TextStyle(
                     color: theme.colorScheme.onPrimary,
                     fontSize: 20,
@@ -184,7 +188,7 @@ class SettingsDialog extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Usuário',
+                      authProvider.currentUser?.username ?? 'Usuário',
                       style: GoogleFonts.inter(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -193,7 +197,7 @@ class SettingsDialog extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Admin',
+                      authProvider.isAdmin ? 'Administrador' : 'Usuário',
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
@@ -203,6 +207,63 @@ class SettingsDialog extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        ExcludeFocus(
+          child: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                // ✅ Captura o navigator antes de operações assíncronas
+                final navigator = Navigator.of(context);
+                final router = GoRouter.of(context);
+                
+                // ✅ Fecha o diálogo primeiro
+                navigator.pop();
+                
+                // ✅ Pequeno delay para garantir que o diálogo foi fechado
+                await Future.delayed(const Duration(milliseconds: 100));
+                
+                // ✅ Mostra confirmação
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (dialogContext) => AlertDialog(
+                    title: const Text('Sair'),
+                    content: const Text('Deseja realmente sair do sistema?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(false),
+                        child: const Text('Cancelar'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(true),
+                        style: TextButton.styleFrom(
+                          foregroundColor: theme.colorScheme.error,
+                        ),
+                        child: const Text('Sair'),
+                      ),
+                    ],
+                  ),
+                );
+                
+                // ✅ Se confirmou, faz logout e navega
+                if (confirm == true) {
+                  await authProvider.logout();
+                  
+                  // ✅ Usa o router capturado anteriormente
+                  router.go('/login');
+                }
+              },
+              icon: const Icon(Icons.logout, size: 18),
+              label: const Text('Sair da conta'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: theme.colorScheme.error,
+                side: BorderSide(color: theme.colorScheme.error),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
           ),
         ),
       ],

@@ -1,6 +1,7 @@
   import 'package:flutter/material.dart';
   import 'package:go_router/go_router.dart';
   import 'package:provider/provider.dart';
+import 'package:visualpremium/providers/auth_provider.dart';
   import 'package:visualpremium/providers/data_provider.dart';
   import 'dart:math' as math;
 
@@ -144,7 +145,13 @@
         // Pequeno delay para suavizar a transição
         Future.delayed(const Duration(milliseconds: 300), () {
           if (mounted) {
-            context.go('/');
+            // ✅ Mudança: verifica autenticação antes de navegar
+            final authProvider = Provider.of<AuthProvider>(context, listen: false);
+            if (authProvider.isAuthenticated) {
+              context.go('/');
+            } else {
+              context.go('/login');
+            }
           }
         });
       }

@@ -5,6 +5,7 @@ import 'package:visualpremium/providers/data_provider.dart';
 import 'package:visualpremium/models/material_item.dart';
 import 'package:visualpremium/models/product_item.dart';
 import 'package:visualpremium/models/orcamento_item.dart';
+import 'package:visualpremium/models/pedido_item.dart';
 import 'package:visualpremium/theme.dart';
 
 const double estoqueBaixo = 10;
@@ -16,7 +17,20 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with RouteAware {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final dataProvider = Provider.of<DataProvider>(context, listen: false);
+      if (dataProvider.isLoaded && !dataProvider.isLoading) {
+        dataProvider.refreshData();
+      } else if (!dataProvider.isLoaded && !dataProvider.isLoading) {
+        dataProvider.loadAllData();
+      }
+    });
+  }
+
   Future<void> _handleRefresh(DataProvider dataProvider) async {
     await dataProvider.refreshData();
   }
@@ -70,6 +84,7 @@ class _HomePageState extends State<HomePage> {
           materials: dataProvider.materials,
           products: dataProvider.products,
           orcamentos: dataProvider.orcamentos,
+          pedidos: dataProvider.pedidos,
           isLoading: dataProvider.isLoading,
           onRefresh: () => _handleRefresh(dataProvider),
         );
@@ -82,6 +97,7 @@ class _HomePageContent extends StatelessWidget {
   final List<MaterialItem> materials;
   final List<ProductItem> products;
   final List<OrcamentoItem> orcamentos;
+  final List<PedidoItem> pedidos;
   final bool isLoading;
   final Future<void> Function() onRefresh;
 
@@ -89,6 +105,7 @@ class _HomePageContent extends StatelessWidget {
     required this.materials,
     required this.products,
     required this.orcamentos,
+    required this.pedidos,
     required this.isLoading,
     required this.onRefresh,
   });
@@ -101,6 +118,14 @@ class _HomePageContent extends StatelessWidget {
   int get _orcamentosNaoAprovados =>
       orcamentos.where((o) => o.status == 'Não Aprovado').length;
 
+  int get _totalPedidos => pedidos.length;
+  int get _pedidosEmAndamento =>
+      pedidos.where((p) => p.status == 'Em Andamento').length;
+  int get _pedidosConcluidos =>
+      pedidos.where((p) => p.status == 'Concluído').length;
+  int get _pedidosCancelados =>
+      pedidos.where((p) => p.status == 'Cancelado').length;
+
   List<MaterialItem> get _materiaisBaixoEstoque {
     return materials.where((m) {
       final qty = double.tryParse(m.quantity) ?? 0;
@@ -110,6 +135,12 @@ class _HomePageContent extends StatelessWidget {
 
   List<OrcamentoItem> get _orcamentosRecentes {
     final sorted = List<OrcamentoItem>.from(orcamentos);
+    sorted.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return sorted.take(5).toList();
+  }
+
+  List<PedidoItem> get _pedidosRecentes {
+    final sorted = List<PedidoItem>.from(pedidos);
     sorted.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return sorted.take(5).toList();
   }
@@ -129,88 +160,127 @@ class _HomePageContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
-          SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.dashboard_outlined,
-                      size: 32,
-                      color: theme.colorScheme.primary,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Visão Geral',
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+          RepaintBoundary(
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.all(screenWidth < 600 ? 16 : screenWidth < 1200 ? 24 : 32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.dashboard_outlined,
+                        size: screenWidth < 600 ? 24 : 32,
+                        color: theme.colorScheme.primary,
                       ),
-                    ),
-                    const Spacer(),
-                    ExcludeFocus(
-                      child: IconButton(
+                      SizedBox(width: screenWidth < 600 ? 8 : 12),
+                      Expanded(
+                        child: Text(
+                          'Visão Geral',
+                          style: theme.textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            fontSize: screenWidth < 600 ? 20 : screenWidth < 1200 ? 24 : 28,
+                          ),
+                        ),
+                      ),
+                      IconButton(
                         onPressed: isLoading ? null : onRefresh,
                         icon: const Icon(Icons.refresh),
                         tooltip: 'Atualizar',
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 32),
-                if (isLoading)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 48),
-                    child: Center(
-                      child: SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: theme.colorScheme.primary,
+                    ],
+                  ),
+                  SizedBox(height: screenWidth < 600 ? 16 : screenWidth < 1200 ? 24 : 32),
+                  if (isLoading)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 48),
+                      child: Center(
+                        child: SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: theme.colorScheme.primary,
+                          ),
                         ),
                       ),
+                    )
+                  else ...[
+                    Text(
+                      'Orçamentos',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontSize: screenWidth < 600 ? 14 : 16,
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                      ),
                     ),
-                  )
-                else ...[
-                  _buildStatsCards(theme),
-                  const SizedBox(height: 32),
-                  if (_materiaisBaixoEstoque.isNotEmpty) ...[
-                    _buildLowStockWarning(theme),
-                    const SizedBox(height: 32),
-                  ],
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final crossAxisCount = constraints.maxWidth > 1400
-                          ? 3
-                          : constraints.maxWidth > 900
-                              ? 2
-                              : 1;
+                    const SizedBox(height: 12),
+                    _buildOrcamentosStatsCards(theme, screenWidth),
+                    
+                    SizedBox(height: screenWidth < 600 ? 16 : screenWidth < 1200 ? 24 : 32),
+                    
+                    Text(
+                      'Pedidos',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontSize: screenWidth < 600 ? 14 : 16,
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildPedidosStatsCards(theme, screenWidth),
+                    
+                    SizedBox(height: screenWidth < 600 ? 16 : screenWidth < 1200 ? 24 : 32),
+                    
+                    if (_materiaisBaixoEstoque.isNotEmpty) ...[
+                      _buildLowStockWarning(theme, screenWidth),
+                      SizedBox(height: screenWidth < 600 ? 16 : screenWidth < 1200 ? 24 : 32),
+                    ],
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final crossAxisCount = constraints.maxWidth > 1600
+                            ? 4
+                            : constraints.maxWidth > 1200
+                                ? 3
+                                : constraints.maxWidth > 800
+                                    ? 2
+                                    : 1;
 
-                      return GridView.count(
-                        crossAxisCount: crossAxisCount,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        crossAxisSpacing: 24,
-                        mainAxisSpacing: 24,
-                        childAspectRatio: constraints.maxWidth > 900 ? 1.2 : 0.8,
-                        children: [
-                          _buildOrcamentosSection(theme),
-                          _buildMateriaisSection(theme),
-                          _buildProdutosSection(theme),
-                        ],
-                      );
-                    },
-                  ),
+                        final cardHeight = screenHeight < 700 
+                            ? 400.0 
+                            : screenHeight < 900 
+                                ? 450.0 
+                                : 500.0;
+
+                        final spacing = screenWidth < 600 ? 12.0 : screenWidth < 1200 ? 16.0 : 24.0;
+
+                        return GridView.count(
+                          crossAxisCount: crossAxisCount,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisSpacing: spacing,
+                          mainAxisSpacing: spacing,
+                          childAspectRatio: constraints.maxWidth / (cardHeight * crossAxisCount),
+                          children: [
+                            RepaintBoundary(child: _buildOrcamentosSection(theme, cardHeight)),
+                            RepaintBoundary(child: _buildPedidosSection(theme, cardHeight)),
+                            RepaintBoundary(child: _buildMateriaisSection(theme, cardHeight)),
+                            RepaintBoundary(child: _buildProdutosSection(theme, cardHeight)),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           if (isLoading)
@@ -233,168 +303,301 @@ class _HomePageContent extends StatelessWidget {
     );
   }
 
-  Widget _buildStatsCards(ThemeData theme) {
+  Widget _buildOrcamentosStatsCards(ThemeData theme, double screenWidth) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth > 900;
+        final isMedium = constraints.maxWidth > 600;
+        
         final children = [
           Expanded(
-            child: _StatCard(
-              title: 'Total de Orçamentos',
-              value: _totalOrcamentos.toString(),
-              icon: Icons.description_outlined,
-              color: theme.colorScheme.primary,
+            child: RepaintBoundary(
+              child: _StatCard(
+                title: 'Total',
+                value: _totalOrcamentos.toString(),
+                icon: Icons.description_outlined,
+                color: theme.colorScheme.primary,
+                isCompact: screenWidth < 600,
+              ),
             ),
           ),
-          const SizedBox(width: 16, height: 16),
+          SizedBox(width: isWide ? 16 : 12, height: isWide ? 16 : 12),
           Expanded(
-            child: _StatCard(
-              title: 'Pendentes',
-              value: _orcamentosPendentes.toString(),
-              icon: Icons.schedule,
-              color: Colors.orange,
+            child: RepaintBoundary(
+              child: _StatCard(
+                title: 'Pendentes',
+                value: _orcamentosPendentes.toString(),
+                icon: Icons.schedule,
+                color: Colors.orange,
+                isCompact: screenWidth < 600,
+              ),
             ),
           ),
-          const SizedBox(width: 16, height: 16),
+          SizedBox(width: isWide ? 16 : 12, height: isWide ? 16 : 12),
           Expanded(
-            child: _StatCard(
-              title: 'Aprovados',
-              value: _orcamentosAprovados.toString(),
-              icon: Icons.check_circle_outline,
-              color: Colors.green,
+            child: RepaintBoundary(
+              child: _StatCard(
+                title: 'Aprovados',
+                value: _orcamentosAprovados.toString(),
+                icon: Icons.check_circle_outline,
+                color: Colors.green,
+                isCompact: screenWidth < 600,
+              ),
             ),
           ),
-          const SizedBox(width: 16, height: 16),
+          SizedBox(width: isWide ? 16 : 12, height: isWide ? 16 : 12),
           Expanded(
-            child: _StatCard(
-              title: 'Não Aprovados',
-              value: _orcamentosNaoAprovados.toString(),
-              icon: Icons.cancel_outlined,
-              color: Colors.red,
+            child: RepaintBoundary(
+              child: _StatCard(
+                title: 'Não Aprovados',
+                value: _orcamentosNaoAprovados.toString(),
+                icon: Icons.cancel_outlined,
+                color: Colors.red,
+                isCompact: screenWidth < 600,
+              ),
             ),
           ),
         ];
 
-        return isWide
-            ? Row(children: children)
-            : Column(
-                children: children.map((w) {
-                  if (w is SizedBox) return const SizedBox(height: 16);
-                  return w;
-                }).toList(),
-              );
+        if (isWide) {
+          return Row(children: children);
+        } else if (isMedium) {
+          return Column(
+            children: [
+              Row(children: [children[0], children[1], children[2]]),
+              const SizedBox(height: 12),
+              Row(children: [children[4], children[6]]),
+            ],
+          );
+        } else {
+          return Column(
+            children: children.map((w) {
+              if (w is SizedBox) return const SizedBox(height: 12);
+              return w;
+            }).toList(),
+          );
+        }
       },
     );
   }
 
-  Widget _buildLowStockWarning(ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(
-          color: Colors.orange.withValues(alpha: 0.3),
-          width: 2,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.warning_amber_rounded,
-                color: Colors.orange,
-                size: 28,
+  Widget _buildPedidosStatsCards(ThemeData theme, double screenWidth) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth > 900;
+        final isMedium = constraints.maxWidth > 600;
+        
+        final children = [
+          Expanded(
+            child: RepaintBoundary(
+              child: _StatCard(
+                title: 'Total',
+                value: _totalPedidos.toString(),
+                icon: Icons.shopping_cart_outlined,
+                color: theme.colorScheme.secondary,
+                isCompact: screenWidth < 600,
               ),
-              const SizedBox(width: 12),
-              Text(
-                'Materiais com Estoque Baixo',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: Colors.orange.shade800,
-                ),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 16),
-          ...(_materiaisBaixoEstoque.map((material) {
-            final qty = double.tryParse(material.quantity) ?? 0;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.circle,
-                    size: 8,
-                    color: Colors.orange.shade700,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      '${material.name} - Quantidade: ${qty.toStringAsFixed(qty.truncateToDouble() == qty ? 0 : 1)}',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
-                      ),
+          SizedBox(width: isWide ? 16 : 12, height: isWide ? 16 : 12),
+          Expanded(
+            child: RepaintBoundary(
+              child: _StatCard(
+                title: 'Em Andamento',
+                value: _pedidosEmAndamento.toString(),
+                icon: Icons.play_circle_outline,
+                color: Colors.blue,
+                isCompact: screenWidth < 600,
+              ),
+            ),
+          ),
+          SizedBox(width: isWide ? 16 : 12, height: isWide ? 16 : 12),
+          Expanded(
+            child: RepaintBoundary(
+              child: _StatCard(
+                title: 'Concluídos',
+                value: _pedidosConcluidos.toString(),
+                icon: Icons.check_circle_outline,
+                color: Colors.green,
+                isCompact: screenWidth < 600,
+              ),
+            ),
+          ),
+          SizedBox(width: isWide ? 16 : 12, height: isWide ? 16 : 12),
+          Expanded(
+            child: RepaintBoundary(
+              child: _StatCard(
+                title: 'Cancelados',
+                value: _pedidosCancelados.toString(),
+                icon: Icons.cancel_outlined,
+                color: Colors.red,
+                isCompact: screenWidth < 600,
+              ),
+            ),
+          ),
+        ];
+
+        if (isWide) {
+          return Row(children: children);
+        } else if (isMedium) {
+          return Column(
+            children: [
+              Row(children: [children[0], children[1], children[2]]),
+              const SizedBox(height: 12),
+              Row(children: [children[4], children[6]]),
+            ],
+          );
+        } else {
+          return Column(
+            children: children.map((w) {
+              if (w is SizedBox) return const SizedBox(height: 12);
+              return w;
+            }).toList(),
+          );
+        }
+      },
+    );
+  }
+
+  Widget _buildLowStockWarning(ThemeData theme, double screenWidth) {
+    return RepaintBoundary(
+      child: Container(
+        padding: EdgeInsets.all(screenWidth < 600 ? 16 : 20),
+        decoration: BoxDecoration(
+          color: Colors.orange.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(
+            color: Colors.orange.withValues(alpha: 0.3),
+            width: 2,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.orange,
+                  size: screenWidth < 600 ? 24 : 28,
+                ),
+                SizedBox(width: screenWidth < 600 ? 8 : 12),
+                Expanded(
+                  child: Text(
+                    'Materiais com Estoque Baixo',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontSize: screenWidth < 600 ? 16 : 20,
+                      color: Colors.orange.shade800,
                     ),
                   ),
-                ],
-              ),
-            );
-          })),
-        ],
+                ),
+              ],
+            ),
+            SizedBox(height: screenWidth < 600 ? 12 : 16),
+            ...(_materiaisBaixoEstoque.map((material) {
+              final qty = double.tryParse(material.quantity) ?? 0;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.circle,
+                      size: 8,
+                      color: Colors.orange.shade700,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        '${material.name} - Quantidade: ${qty.toStringAsFixed(qty.truncateToDouble() == qty ? 0 : 1)}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontSize: screenWidth < 600 ? 12 : 14,
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            })),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildOrcamentosSection(ThemeData theme) {
+  Widget _buildOrcamentosSection(ThemeData theme, double cardHeight) {
     return _SectionCard(
       title: 'Orçamentos Recentes',
       icon: Icons.description_outlined,
       iconColor: theme.colorScheme.primary,
+      height: cardHeight,
       child: _orcamentosRecentes.isEmpty
           ? _buildEmptyState(theme, 'Nenhum orçamento cadastrado')
-          : SingleChildScrollView(
-              child: Column(
-                children: _orcamentosRecentes.map((orcamento) {
-                  return _OrcamentoItem(orcamento: orcamento);
-                }).toList(),
-              ),
+          : ListView.builder(
+              itemCount: _orcamentosRecentes.length,
+              itemBuilder: (context, index) {
+                return RepaintBoundary(
+                  child: _OrcamentoItem(orcamento: _orcamentosRecentes[index]),
+                );
+              },
             ),
     );
   }
 
-  Widget _buildMateriaisSection(ThemeData theme) {
+  Widget _buildPedidosSection(ThemeData theme, double cardHeight) {
+    return _SectionCard(
+      title: 'Pedidos Recentes',
+      icon: Icons.shopping_cart_outlined,
+      iconColor: theme.colorScheme.secondary,
+      height: cardHeight,
+      child: _pedidosRecentes.isEmpty
+          ? _buildEmptyState(theme, 'Nenhum pedido cadastrado')
+          : ListView.builder(
+              itemCount: _pedidosRecentes.length,
+              itemBuilder: (context, index) {
+                return RepaintBoundary(
+                  child: _PedidoItem(pedido: _pedidosRecentes[index]),
+                );
+              },
+            ),
+    );
+  }
+
+  Widget _buildMateriaisSection(ThemeData theme, double cardHeight) {
     return _SectionCard(
       title: 'Materiais Recentes',
       icon: Icons.construction,
       iconColor: theme.colorScheme.tertiary,
+      height: cardHeight,
       child: _materiaisRecentes.isEmpty
           ? _buildEmptyState(theme, 'Nenhum material cadastrado')
-          : SingleChildScrollView(
-              child: Column(
-                children: _materiaisRecentes.map((material) {
-                  return _MaterialItem(material: material);
-                }).toList(),
-              ),
+          : ListView.builder(
+              itemCount: _materiaisRecentes.length,
+              itemBuilder: (context, index) {
+                return RepaintBoundary(
+                  child: _MaterialItem(material: _materiaisRecentes[index]),
+                );
+              },
             ),
     );
   }
 
-  Widget _buildProdutosSection(ThemeData theme) {
+  Widget _buildProdutosSection(ThemeData theme, double cardHeight) {
     return _SectionCard(
       title: 'Produtos Recentes',
       icon: Icons.inventory_2_outlined,
-      iconColor: theme.colorScheme.secondary,
+      iconColor: Colors.purple,
+      height: cardHeight,
       child: _produtosRecentes.isEmpty
           ? _buildEmptyState(theme, 'Nenhum produto cadastrado')
-          : SingleChildScrollView(
-              child: Column(
-                children: _produtosRecentes.map((produto) {
-                  return _ProductItem(product: produto);
-                }).toList(),
-              ),
+          : ListView.builder(
+              itemCount: _produtosRecentes.length,
+              itemBuilder: (context, index) {
+                return RepaintBoundary(
+                  child: _ProductItem(product: _produtosRecentes[index]),
+                );
+              },
             ),
     );
   }
@@ -404,6 +607,7 @@ class _HomePageContent extends StatelessWidget {
       padding: const EdgeInsets.all(32),
       alignment: Alignment.center,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
             Icons.inbox_outlined,
@@ -416,6 +620,7 @@ class _HomePageContent extends StatelessWidget {
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -428,12 +633,14 @@ class _StatCard extends StatelessWidget {
   final String value;
   final IconData icon;
   final Color color;
+  final bool isCompact;
 
   const _StatCard({
     required this.title,
     required this.value,
     required this.icon,
     required this.color,
+    this.isCompact = false,
   });
 
   @override
@@ -441,7 +648,7 @@ class _StatCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isCompact ? 16 : 20),
       decoration: BoxDecoration(
         color: theme.cardTheme.color,
         borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -458,25 +665,27 @@ class _StatCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: EdgeInsets.all(isCompact ? 8 : 10),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: color, size: 24),
+                child: Icon(icon, color: color, size: isCompact ? 20 : 24),
               ),
               const Spacer(),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: isCompact ? 12 : 16),
           Text(
             value,
             style: theme.textTheme.headlineLarge?.copyWith(
               fontWeight: FontWeight.w800,
+              fontSize: isCompact ? 28 : 32,
               color: color,
             ),
           ),
@@ -484,6 +693,7 @@ class _StatCard extends StatelessWidget {
           Text(
             title,
             style: theme.textTheme.bodyMedium?.copyWith(
+              fontSize: isCompact ? 12 : 14,
               color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
               fontWeight: FontWeight.w500,
             ),
@@ -499,12 +709,14 @@ class _SectionCard extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
   final Widget child;
+  final double height;
 
   const _SectionCard({
     required this.title,
     required this.icon,
     required this.iconColor,
     required this.child,
+    required this.height,
   });
 
   @override
@@ -512,7 +724,7 @@ class _SectionCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Container(
-      height: 500,
+      height: height,
       decoration: BoxDecoration(
         color: theme.cardTheme.color,
         borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -536,10 +748,12 @@ class _SectionCard extends StatelessWidget {
               children: [
                 Icon(icon, color: iconColor, size: 24),
                 const SizedBox(width: 12),
-                Text(
-                  title,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
+                Expanded(
+                  child: Text(
+                    title,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],
@@ -615,6 +829,7 @@ class _OrcamentoItem extends StatelessWidget {
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -646,6 +861,115 @@ class _OrcamentoItem extends StatelessWidget {
                 ),
                 child: Text(
                   orcamento.status,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PedidoItem extends StatelessWidget {
+  final PedidoItem pedido;
+
+  const _PedidoItem({required this.pedido});
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'Concluído':
+        return Colors.green;
+      case 'Cancelado':
+        return Colors.red;
+      default:
+        return Colors.blue;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final currency = NumberFormat.simpleCurrency(locale: 'pt_BR');
+    final dateFormat = DateFormat('dd/MM/yyyy');
+    final statusColor = _getStatusColor(pedido.status);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: theme.dividerColor.withValues(alpha: 0.1),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.secondary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Text(
+                pedido.numero != null ? '#${pedido.numero}' : '-',
+                style: TextStyle(
+                  color: theme.colorScheme.secondary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  pedido.cliente,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  dateFormat.format(pedido.createdAt),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                currency.format(pedido.total),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.secondary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  pedido.status,
                   style: TextStyle(
                     color: statusColor,
                     fontSize: 10,
@@ -717,6 +1041,7 @@ class _MaterialItem extends StatelessWidget {
                         style: theme.textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -767,12 +1092,12 @@ class _ProductItem extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: theme.colorScheme.secondary.withValues(alpha: 0.1),
+              color: Colors.purple.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
               Icons.inventory_2_outlined,
-              color: theme.colorScheme.secondary,
+              color: Colors.purple,
               size: 20,
             ),
           ),
@@ -786,6 +1111,7 @@ class _ProductItem extends StatelessWidget {
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(

@@ -5,15 +5,18 @@ import 'package:visualpremium/data/orcamentos_repository.dart';
 import 'package:visualpremium/models/material_item.dart';
 import 'package:visualpremium/models/product_item.dart';
 import 'package:visualpremium/models/orcamento_item.dart';
+import 'package:visualpremium/models/pedido_item.dart';
 
 class DataProvider extends ChangeNotifier {
   final _materialsApi = MaterialsApiRepository();
   final _productsApi = ProductsApiRepository();
   final _orcamentosApi = OrcamentosApiRepository();
+  final _pedidosApi = OrcamentosApiRepository();
 
   List<MaterialItem> _materials = [];
   List<ProductItem> _products = [];
   List<OrcamentoItem> _orcamentos = [];
+  List<PedidoItem> _pedidos = [];
 
   bool _isLoaded = false;
   bool _isLoading = false;
@@ -22,6 +25,8 @@ class DataProvider extends ChangeNotifier {
   List<MaterialItem> get materials => _materials;
   List<ProductItem> get products => _products;
   List<OrcamentoItem> get orcamentos => _orcamentos;
+  List<PedidoItem> get pedidos => _pedidos; // ADICIONAR
+  
   bool get isLoaded => _isLoaded;
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -39,11 +44,13 @@ class DataProvider extends ChangeNotifier {
         _materialsApi.fetchMaterials(),
         _productsApi.fetchProducts(),
         _orcamentosApi.fetchOrcamentos(),
+        _pedidosApi.fetchPedidos(), // ADICIONAR
       ]);
 
       _materials = results[0] as List<MaterialItem>;
       _products = results[1] as List<ProductItem>;
       _orcamentos = results[2] as List<OrcamentoItem>;
+      _pedidos = results[3] as List<PedidoItem>; // ADICIONAR
 
       _isLoaded = true;
       _error = null;
@@ -57,15 +64,12 @@ class DataProvider extends ChangeNotifier {
   }
 
   Future<void> refreshData() async {
-    // Reseta os flags para permitir nova carga
     _isLoaded = false;
     _isLoading = false;
     notifyListeners();
     
-    // Aguarda um frame para garantir que a UI atualize
     await Future.delayed(Duration.zero);
     
-    // Carrega os dados novamente
     await loadAllData();
   }
 
@@ -73,6 +77,7 @@ class DataProvider extends ChangeNotifier {
     _materials = [];
     _products = [];
     _orcamentos = [];
+    _pedidos = []; // ADICIONAR
     _isLoaded = false;
     _error = null;
     notifyListeners();

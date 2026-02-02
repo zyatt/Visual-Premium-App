@@ -55,6 +55,35 @@ class PedidoService {
     return pedido;
   }
 
+  _calculateTotal(materiais, despesasAdicionais, frete, freteValor, caminhaoMunck, caminhaoMunckHoras, caminhaoMunckValorHora) {
+    let total = 0;
+
+    // Somar materiais - suporta tanto materiais do banco quanto novos materiais
+    for (const mat of materiais) {
+      const quantidade = parseFloat(mat.quantidade);
+      // Tentar pegar custo de diferentes estruturas
+      const custo = mat.material?.custo ?? mat.custo ?? 0;
+      total += custo * quantidade;
+    }
+
+    // Somar despesas adicionais
+    for (const desp of despesasAdicionais) {
+      total += desp.valor;
+    }
+
+    // Somar frete
+    if (frete && freteValor) {
+      total += freteValor;
+    }
+
+    // Somar caminhão munck
+    if (caminhaoMunck && caminhaoMunckHoras && caminhaoMunckValorHora) {
+      total += caminhaoMunckHoras * caminhaoMunckValorHora;
+    }
+
+    return total;
+  }
+
   async atualizar(id, data) {
     const { 
       cliente, 
@@ -76,11 +105,37 @@ class PedidoService {
 
     // Verificar se o pedido existe
     const pedidoExistente = await prisma.pedido.findUnique({
-      where: { id }
+      where: { id },
+      include: {
+        materiais: {
+          include: {
+            material: true
+          }
+        },
+        despesasAdicionais: true
+      }
     });
 
     if (!pedidoExistente) {
       throw new Error('Pedido não encontrado');
+    }
+
+    // ✅ VALIDAÇÃO DO NÚMERO DO PEDIDO
+    if (numero !== undefined && numero !== null) {
+      if (typeof numero !== 'number' || numero <= 0) {
+        throw new Error('Número do pedido inválido');
+      }
+      
+      const pedidoDuplicado = await prisma.pedido.findFirst({
+        where: {
+          numero: numero,
+          id: { not: id }
+        }
+      });
+      
+      if (pedidoDuplicado) {
+        throw new Error('Já existe um pedido com este número');
+      }
     }
 
     // Validações condicionais
@@ -171,6 +226,7 @@ class PedidoService {
     let materiaisValidados;
     if (materiais) {
       materiaisValidados = [];
+      
       for (const m of materiais) {
         const material = produto.materiais.find(pm => pm.materialId === m.materialId);
         if (!material) {
@@ -214,41 +270,75 @@ class PedidoService {
       });
     }
 
-    // Preparar dados para atualização
-    const updateData = {
-      cliente: cliente ? cliente.trim() : undefined,
-      numero: numero !== undefined ? (numero === 0 ? null : numero) : undefined,
-      status: status || undefined,
-      produtoId: produtoId || undefined,
-      frete: frete !== undefined ? freteBool : undefined,
-      freteDesc: frete !== undefined ? (freteBool ? freteDesc?.trim() : null) : undefined,
-      freteValor: frete !== undefined ? (freteBool ? parseFloat(freteValor) : null) : undefined,
-      caminhaoMunck: caminhaoMunck !== undefined ? caminhaoMunckBool : undefined,
-      caminhaoMunckHoras: caminhaoMunck !== undefined ? (caminhaoMunckBool ? parseFloat(caminhaoMunckHoras) : null) : undefined,
-      caminhaoMunckValorHora: caminhaoMunck !== undefined ? (caminhaoMunckBool ? parseFloat(caminhaoMunckValorHora) : null) : undefined,
-      formaPagamento: formaPagamento ? formaPagamento.trim() : undefined,
-      condicoesPagamento: condicoesPagamento ? condicoesPagamento.trim() : undefined,
-      prazoEntrega: prazoEntrega ? prazoEntrega.trim() : undefined
-    };
-
-    // Adicionar materiais apenas se houver
-    if (materiaisValidados && materiaisValidados.length > 0) {
-      updateData.materiais = {
-        create: materiaisValidados
-      };
+    // ✅ PREPARAR DADOS - APENAS CAMPOS QUE EXISTEM NO SCHEMA
+    const updateData = {};
+    
+    // Adicionar apenas campos que foram enviados e são válidos
+    if (cliente !== undefined) updateData.cliente = cliente.trim();
+    if (status !== undefined) updateData.status = status;
+    if (produtoId !== undefined) updateData.produtoId = produtoId;
+    if (numero !== undefined) updateData.numero = numero;
+    
+    // Campos de frete
+    if (frete !== undefined) {
+      updateData.frete = freteBool;
+      if (freteBool) {
+        updateData.freteDesc = freteDesc?.trim() || null;
+        updateData.freteValor = parseFloat(freteValor) || null;
+      } else {
+        updateData.freteDesc = null;
+        updateData.freteValor = null;
+      }
     }
-
-    // Adicionar despesas apenas se houver
-    if (despesasValidadas !== undefined && despesasValidadas.length > 0) {
-      updateData.despesasAdicionais = {
-        create: despesasValidadas
-      };
+    
+    // Campos de caminhão munck
+    if (caminhaoMunck !== undefined) {
+      updateData.caminhaoMunck = caminhaoMunckBool;
+      if (caminhaoMunckBool) {
+        updateData.caminhaoMunckHoras = parseFloat(caminhaoMunckHoras) || null;
+        updateData.caminhaoMunckValorHora = parseFloat(caminhaoMunckValorHora) || null;
+      } else {
+        updateData.caminhaoMunckHoras = null;
+        updateData.caminhaoMunckValorHora = null;
+      }
     }
+    
+    // Outros campos
+    if (formaPagamento !== undefined) updateData.formaPagamento = formaPagamento.trim();
+    if (condicoesPagamento !== undefined) updateData.condicoesPagamento = condicoesPagamento.trim();
+    if (prazoEntrega !== undefined) updateData.prazoEntrega = prazoEntrega.trim();
 
-    // Atualizar pedido
-    const pedido = await prisma.pedido.update({
+    // ✅ ATUALIZAR PEDIDO (sem total, será calculado automaticamente pelo Prisma)
+    await prisma.pedido.update({
       where: { id },
-      data: updateData,
+      data: updateData
+    });
+
+    // ✅ CRIAR MATERIAIS SE HOUVER
+    if (materiaisValidados && materiaisValidados.length > 0) {
+      await prisma.pedidoMaterial.createMany({
+        data: materiaisValidados.map(m => ({
+          materialId: m.materialId,
+          quantidade: m.quantidade,
+          pedidoId: id
+        }))
+      });
+    }
+
+    // ✅ CRIAR DESPESAS SE HOUVER
+    if (despesasValidadas && despesasValidadas.length > 0) {
+      await prisma.pedidoDespesaAdicional.createMany({
+        data: despesasValidadas.map(d => ({
+          descricao: d.descricao,
+          valor: d.valor,
+          pedidoId: id
+        }))
+      });
+    }
+
+    // ✅ BUSCAR E RETORNAR PEDIDO COMPLETO ATUALIZADO
+    return await prisma.pedido.findUnique({
+      where: { id },
       include: {
         produto: {
           include: {
@@ -267,9 +357,8 @@ class PedidoService {
         despesasAdicionais: true
       }
     });
-
-    return pedido;
   }
+
 
   async atualizarStatus(id, status) {
     const pedido = await prisma.pedido.findUnique({
@@ -280,7 +369,7 @@ class PedidoService {
       throw new Error('Pedido não encontrado');
     }
 
-    if (!['Em Andamento', 'Finalizado', 'Cancelado'].includes(status)) {
+    if (!['Em Andamento', 'Concluído', 'Cancelado'].includes(status)) {
       throw new Error('Status inválido');
     }
 

@@ -39,8 +39,19 @@ class OrcamentoController {
 
   async atualizarStatus(req, res) {
     try {
-      const { status } = req.body;
-      const orcamento = await service.atualizarStatus(+req.params.id, status);
+      const { status, produtoId, cliente, numero } = req.body;
+      
+      // Validação básica
+      if (!status) {
+        return res.status(400).json({ error: 'Status é obrigatório' });
+      }
+      
+      const orcamento = await service.atualizarStatus(
+        +req.params.id, 
+        status,
+        { produtoId, cliente, numero }
+      );
+      
       res.json(orcamento);
     } catch (e) {
       res.status(400).json({ error: e.message });

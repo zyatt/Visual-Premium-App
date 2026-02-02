@@ -37,7 +37,11 @@ class PdfService {
       }
     }
     
-    const numeroStr = numero.toString();
+    // ✅ MODIFICAÇÃO: Tratar numero como string ou número
+    const numeroStr = numero !== null && numero !== undefined 
+      ? numero.toString() 
+      : 'S/N';
+    
     const now = new Date();
     const dataFormatada = now.toLocaleDateString('pt-BR');
     const horaFormatada = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -48,7 +52,7 @@ class PdfService {
     
     doc.fontSize(8)
        .font('Helvetica')
-       .fillColor('#666666')
+       .fillColor('#666')
        .text(titulo, infoBlockX, 35, { width: infoBlockWidth, align: 'center' });
     
     doc.fontSize(22)
@@ -334,7 +338,7 @@ class PdfService {
     
     const boxStartY = y;
     const padding = 12;
-    const lineSpacing = 12; // Espaçamento fixo entre linhas
+    const lineSpacing = 12;
     let boxContentY = y + padding;
     
     if (data.despesasAdicionais && data.despesasAdicionais.length > 0) {
@@ -480,7 +484,6 @@ class PdfService {
     const contentWidth = pageWidth - 2 * margin;
     let y = doc.y + 20;
     
-    // Título
     doc.fontSize(8)
        .font('Helvetica-Bold')
        .fillColor('#1a1a1a')
@@ -494,19 +497,16 @@ class PdfService {
     const totalHeight = 50;
     const totalBoxHeight = infoHeight + totalHeight;
     
-    // Box principal
     doc.roundedRect(margin, y, contentWidth, totalBoxHeight, 4)
        .strokeColor('#d1d5db')
        .lineWidth(1)
        .stroke();
     
-    // Seção de informações de pagamento
     const thirdWidth = (contentWidth - 2 * padding - 20) / 3;
     const col1X = margin + padding;
     const col2X = margin + padding + thirdWidth + 10;
     const col3X = margin + padding + 2 * (thirdWidth + 10);
     
-    // Forma de Pagamento
     doc.fontSize(6)
        .font('Helvetica-Bold')
        .fillColor('#6b7280')
@@ -520,7 +520,6 @@ class PdfService {
          align: 'left' 
        });
     
-    // Divisor vertical 1
     const divider1X = col1X + thirdWidth + 5;
     doc.moveTo(divider1X, y + padding)
        .lineTo(divider1X, y + infoHeight - padding)
@@ -528,7 +527,6 @@ class PdfService {
        .lineWidth(0.5)
        .stroke();
     
-    // Condições de Pagamento
     doc.fontSize(6)
        .font('Helvetica-Bold')
        .fillColor('#6b7280')
@@ -542,7 +540,6 @@ class PdfService {
          align: 'left' 
        });
     
-    // Divisor vertical 2
     const divider2X = col2X + thirdWidth + 5;
     doc.moveTo(divider2X, y + padding)
        .lineTo(divider2X, y + infoHeight - padding)
@@ -550,7 +547,6 @@ class PdfService {
        .lineWidth(0.5)
        .stroke();
     
-    // Prazo de Entrega
     doc.fontSize(6)
        .font('Helvetica-Bold')
        .fillColor('#6b7280')
@@ -564,15 +560,15 @@ class PdfService {
          align: 'left' 
        });
     
-    // Linha divisória horizontal
     y += infoHeight;
     doc.moveTo(margin, y)
        .lineTo(pageWidth - margin, y)
-       .strokeColor('#d1d5db')
+       .strokeColor
+
+  ('#d1d5db')
        .lineWidth(1)
        .stroke();
     
-    // Seção de valor total
     let totalGeral = 0;
     
     data.materiais.forEach(mat => {

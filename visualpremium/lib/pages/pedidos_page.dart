@@ -83,6 +83,7 @@ class _PedidosPageState extends State<PedidosPage> {
   final _api = OrcamentosApiRepository();
   bool _loading = true;
   List<PedidoItem> _items = const [];
+  List<ProdutoItem> _produtos = const [];
   String _searchQuery = '';
   int? _downloadingId;
   SortOption _sortOption = SortOption.newestFirst;
@@ -98,9 +99,11 @@ class _PedidosPageState extends State<PedidosPage> {
     setState(() => _loading = true);
     try {
       final items = await _api.fetchPedidos();
+      final produtos = await _api.fetchProdutos();
       if (!mounted) return;
       setState(() {
         _items = items;
+         _produtos = produtos;
         _loading = false;
       });
     } catch (e) {
@@ -131,7 +134,7 @@ class _PedidosPageState extends State<PedidosPage> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Pedido salvo'),
+            content: Text('Pedido salvo com sucesso'),
             duration: Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
           ),
@@ -140,11 +143,8 @@ class _PedidosPageState extends State<PedidosPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao finalizar pedido: $e')),
-        );
-      });
+      // ✅ Não mostra erro aqui, pois já é tratado no diálogo
+      rethrow;
     }
   }
 
@@ -307,21 +307,21 @@ class _PedidosPageState extends State<PedidosPage> {
       },
     );
   }
+  
   Future<void> _showPedidoEditor(PedidoItem initial) async {
-    final result = await showDialog<PedidoItem>(
+    await showDialog<void>(  // ✅ Mudado de <PedidoItem> para <void>
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
         return PedidoEditorSheet(
           initial: initial,
           existingPedidos: _items,
+          onSave: (item) async {  // ✅ Novo callback
+            await _upsert(item);
+          },
         );
       },
     );
-
-    if (result != null) {
-      await _upsert(result);
-    }
   }
 
   Future<void> _showFilterDialog() async {
@@ -394,10 +394,22 @@ class _PedidosPageState extends State<PedidosPage> {
         filtered.sort((a, b) => b.cliente.toLowerCase().compareTo(a.cliente.toLowerCase()));
         break;
       case SortOption.numeroAsc:
-        filtered.sort((a, b) => a.numero!.compareTo(b.numero as num));
+        filtered.sort((a, b) {
+          // Null primeiro quando ordenar por menor
+          if (a.numero == null && b.numero == null) return 0;
+          if (a.numero == null) return -1;
+          if (b.numero == null) return 1;
+          return a.numero!.compareTo(b.numero!);
+        });
         break;
       case SortOption.numeroDesc:
-        filtered.sort((a, b) => b.numero!.compareTo(a.numero as num));
+        filtered.sort((a, b) {
+          // Null por último quando ordenar por maior
+          if (a.numero == null && b.numero == null) return 0;
+          if (a.numero == null) return 1;
+          if (b.numero == null) return -1;
+          return b.numero!.compareTo(a.numero!);
+        });
         break;
       case SortOption.produtoAsc:
         filtered.sort((a, b) => a.produtoNome.toLowerCase().compareTo(b.produtoNome.toLowerCase()));
@@ -519,7 +531,22 @@ class _PedidosPageState extends State<PedidosPage> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Pedidos', style: theme.textTheme.headlineMedium),
+                            Row(  
+                              children: [
+                                Icon(
+                                  Icons.shopping_cart_outlined,
+                                  size: 32,
+                                  color: theme.colorScheme.primary,
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Pedidos', 
+                                  style: theme.textTheme.headlineMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
                             ExcludeFocus(
                               child: IconButton(
                                 onPressed: _load,
@@ -626,9 +653,16 @@ class _PedidosPageState extends State<PedidosPage> {
                                       },
                                     )),
                                 ..._filters.produtoIds.map((produtoId) {
-                                  final produto = _items.firstWhere((item) => item.produtoId == produtoId);
+                                  final produto = _produtos.firstWhere(
+                                    (p) => p.id == produtoId,
+                                    orElse: () => ProdutoItem(
+                                      id: produtoId,
+                                      nome: 'Produto #$produtoId',
+                                      materiais: const [],
+                                    ),
+                                  );
                                   return _FilterChip(
-                                    label: produto.produtoNome,
+                                    label: produto.nome,
                                     onDeleted: () {
                                       setState(() {
                                         final newProdutos = Set<int>.from(_filters.produtoIds)..remove(produtoId);
@@ -2092,11 +2126,13 @@ class _PedidoCard extends StatelessWidget {
 class PedidoEditorSheet extends StatefulWidget {
   final PedidoItem initial;
   final List<PedidoItem> existingPedidos;
+  final Future<void> Function(PedidoItem) onSave;  // ✅ Novo parâmetro
 
   const PedidoEditorSheet({
     super.key,
     required this.initial,
     required this.existingPedidos,
+    required this.onSave,  // ✅ Novo parâmetro
   });
   
   @override
@@ -2247,6 +2283,7 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
   final Map<int, TextEditingController> _quantityControllers = {};
   final Map<int, FocusNode> _quantityFocusNodes = {};
   bool _loading = true;
+  bool _saving = false;  // ✅ Novo estado para controlar salvamento
   bool _isShowingDiscardDialog = false;
   String _produtoSearchQuery = '';
   String? _selectedFormaPagamento;
@@ -2591,25 +2628,27 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
   }
 
   String? _validateNumeroPedido(String? value) {
-    if ((value == null || value.trim().isEmpty)) {
-      return null;
+    if (value == null || value.trim().isEmpty) {
+      // Se o pedido já existia sem número, pode continuar sem número
+      if (widget.initial.numero == null) {
+        return null; 
+      }
+      return 'Informe o número';
     }
     
-    if (value.trim().isNotEmpty) {
-      final trimmedNumero = value.trim();
-      final numero = int.tryParse(trimmedNumero);
-      
-      if (numero == null) {
-        return 'Número inválido';
-      }
-      
-      final isDuplicate = widget.existingPedidos.any((pedido) =>
-          pedido.numero == numero &&
-          pedido.id != widget.initial.id);
-      
-      if (isDuplicate) {
-        return 'Já existe um pedido\ncom este número';
-      }
+    final trimmedNumero = value.trim();
+    final numero = int.tryParse(trimmedNumero);
+    
+    if (numero == null) {
+      return 'Número inválido';
+    }
+    
+    final isDuplicate = widget.existingPedidos.any((pedido) =>
+        pedido.numero == numero &&
+        pedido.id != widget.initial.id);
+    
+    if (isDuplicate) {
+      return 'Já existe um pedido\ncom este número';
     }
     
     return null;
@@ -2664,92 +2703,117 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
     return result ?? false;
   }
 
-  void _save() {
+  // ✅ MÉTODO _save CORRIGIDO - Mantém diálogo aberto durante salvamento
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-
-    final materiais = <PedidoMaterialItem>[];
     
-    for(final mat in _selectedProduto!.materiais) {
-      final controller = _quantityControllers[mat.materialId];
-      if (controller == null) continue;
+    // ✅ Ativar estado de salvamento
+    setState(() => _saving = true);
+
+    try {
+      final materiais = <PedidoMaterialItem>[];
       
-      final qty = controller.text.trim();
-      if (qty.isEmpty) continue;
+      for(final mat in _selectedProduto!.materiais) {
+        final controller = _quantityControllers[mat.materialId];
+        if (controller == null) continue;
+        
+        final qty = controller.text.trim();
+        if (qty.isEmpty) continue;
+        
+        final qtyValue = double.tryParse(qty.replaceAll(',', '.'));
+        if (qtyValue == null || qtyValue < 0) continue;
+        
+        materiais.add(PedidoMaterialItem(
+          id: widget.initial.materiais
+                  .firstWhere((m) => m.materialId == mat.materialId,
+                      orElse: () => const PedidoMaterialItem(
+                          id: 0,
+                          materialId: 0,
+                          materialNome: '',
+                          materialUnidade: '',
+                          materialCusto: 0,
+                          quantidade: '0'))
+                  .id,
+          materialId: mat.materialId,
+          materialNome: mat.materialNome,
+          materialUnidade: mat.materialUnidade,
+          materialCusto: mat.materialCusto,
+          quantidade: qty.replaceAll(',', '.'),
+        ));
+      }
+
+      final despesas = <PedidoDespesaAdicionalItem>[];
+      for (int i = 0; i < _despesaDescControllers.length; i++) {
+        final desc = _despesaDescControllers[i].text.trim();
+        final valorText = _despesaValorControllers[i].text.trim();
+        
+        if (desc.isEmpty || valorText.isEmpty) continue;
+        
+        final valor = double.tryParse(valorText.replaceAll(',', '.'));
+        if (valor == null || valor <= 0) continue;
+        
+        despesas.add(PedidoDespesaAdicionalItem(
+          id: i < widget.initial.despesasAdicionais.length 
+              ? widget.initial.despesasAdicionais[i].id 
+              : 0,
+          descricao: desc,
+          valor: valor,
+        ));
+      }
+
+      final formaPagamento = _formaPagamentoCtrl.text.trim();
+      final condicoesPagamento = _selectedCondicaoPagamento == 'Outras'
+          ? _condicoesPagamentoOutrasCtrl.text.trim()
+          : _condicoesPagamentoCtrl.text.trim();
+
+      final numeroText = _numeroCtrl.text.trim();
+      final numero = numeroText.isEmpty ? null : int.tryParse(numeroText);
+
+      final item = widget.initial.copyWith(
+        cliente: _clienteCtrl.text.trim(),
+        numero: numero,
+        produtoId: _selectedProduto!.id,
+        produtoNome: _selectedProduto!.nome,
+        materiais: materiais,
+        despesasAdicionais: despesas,
+        frete: _frete ?? false,
+        freteDesc: _frete == true ? _freteDescCtrl.text.trim() : null,
+        freteValor: _frete == true 
+            ? double.tryParse(_freteValorCtrl.text.replaceAll(',', '.'))
+            : null,
+        caminhaoMunck: _caminhaoMunck ?? false,
+        caminhaoMunckHoras: _caminhaoMunck == true 
+            ? double.tryParse(_munckHorasCtrl.text.replaceAll(',', '.'))
+            : null,
+        caminhaoMunckValorHora: _caminhaoMunck == true 
+            ? double.tryParse(_munckValorHoraCtrl.text.replaceAll(',', '.'))
+            : null,
+        formaPagamento: formaPagamento,
+        condicoesPagamento: condicoesPagamento,
+        prazoEntrega: _prazoEntregaCtrl.text.trim(),
+      );
+
+      // ✅ Chamar callback de salvamento
+      await widget.onSave(item);
       
-      final qtyValue = double.tryParse(qty.replaceAll(',', '.'));
-      if (qtyValue == null || qtyValue < 0) continue;
-      
-      materiais.add(PedidoMaterialItem(
-        id: widget.initial.materiais
-                .firstWhere((m) => m.materialId == mat.materialId,
-                    orElse: () => const PedidoMaterialItem(
-                        id: 0,
-                        materialId: 0,
-                        materialNome: '',
-                        materialUnidade: '',
-                        materialCusto: 0,
-                        quantidade: '0'))
-                .id,
-        materialId: mat.materialId,
-        materialNome: mat.materialNome,
-        materialUnidade: mat.materialUnidade,
-        materialCusto: mat.materialCusto,
-        quantidade: qty.replaceAll(',', '.'),
-      ));
+      // ✅ Fechar diálogo apenas após sucesso
+      if (mounted && context.mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      // ✅ Em caso de erro, desativar estado de salvamento e manter diálogo aberto
+      if (mounted) {
+        setState(() => _saving = false);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao salvar pedido: $e'),
+            duration: const Duration(seconds: 4),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
     }
-
-    final despesas = <PedidoDespesaAdicionalItem>[];
-    for (int i = 0; i < _despesaDescControllers.length; i++) {
-      final desc = _despesaDescControllers[i].text.trim();
-      final valorText = _despesaValorControllers[i].text.trim();
-      
-      if (desc.isEmpty || valorText.isEmpty) continue;
-      
-      final valor = double.tryParse(valorText.replaceAll(',', '.'));
-      if (valor == null || valor <= 0) continue;
-      
-      despesas.add(PedidoDespesaAdicionalItem(
-        id: i < widget.initial.despesasAdicionais.length 
-            ? widget.initial.despesasAdicionais[i].id 
-            : 0,
-        descricao: desc,
-        valor: valor,
-      ));
-    }
-
-    final formaPagamento = _formaPagamentoCtrl.text.trim();
-    final condicoesPagamento = _selectedCondicaoPagamento == 'Outras'
-        ? _condicoesPagamentoOutrasCtrl.text.trim()
-        : _condicoesPagamentoCtrl.text.trim();
-
-    final numeroText = _numeroCtrl.text.trim();
-    final numero = numeroText.isEmpty ? 0 : int.parse(numeroText);
-
-    final item = widget.initial.copyWith(
-      cliente: _clienteCtrl.text.trim(),
-      numero: numero,
-      produtoId: _selectedProduto!.id,
-      produtoNome: _selectedProduto!.nome,
-      materiais: materiais,
-      despesasAdicionais: despesas,
-      frete: _frete ?? false,
-      freteDesc: _frete == true ? _freteDescCtrl.text.trim() : null,
-      freteValor: _frete == true 
-          ? double.tryParse(_freteValorCtrl.text.replaceAll(',', '.'))
-          : null,
-      caminhaoMunck: _caminhaoMunck ?? false,
-      caminhaoMunckHoras: _caminhaoMunck == true 
-          ? double.tryParse(_munckHorasCtrl.text.replaceAll(',', '.'))
-          : null,
-      caminhaoMunckValorHora: _caminhaoMunck == true 
-          ? double.tryParse(_munckValorHoraCtrl.text.replaceAll(',', '.'))
-          : null,
-      formaPagamento: formaPagamento,
-      condicoesPagamento: condicoesPagamento,
-      prazoEntrega: _prazoEntregaCtrl.text.trim(),
-    );
-
-    Navigator.of(context).pop(item);
   }
 
   List<ProdutoItem> get _filteredProdutos {
@@ -3142,7 +3206,6 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                     ? const Center(child: CircularProgressIndicator())
                     : Row(
                         children: [
-                          // Painel de produtos - desabilitar quando editando
                           Opacity(
                             opacity: _isEditing ? 0.5 : 1.0,
                             child: IgnorePointer(
@@ -3199,11 +3262,11 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                                 child: Padding(
                                                   padding: const EdgeInsets.all(16),
                                                   child: Text(
-                                                    'Nenhum produto encontrado',
-                                                    style: theme.textTheme.bodySmall?.copyWith(
+                                                    'Nenhum pedido encontrado',
+                                                    textAlign: TextAlign.center,  // ✅ CORRETO - parâmetro do Text
+                                                    style: theme.textTheme.titleMedium?.copyWith(
                                                       color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                                                     ),
-                                                    textAlign: TextAlign.center,
                                                   ),
                                                 ),
                                               )
@@ -3290,7 +3353,7 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                                       ),
                                                     ),
                                                   );
-                                                },
+                                                }
                                               ),
                                       ),
                                     ),
@@ -3323,7 +3386,7 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                         ),
                                         ExcludeFocus(
                                           child: IconButton(
-                                            onPressed: () async {
+                                            onPressed: _saving ? null : () async {
                                               final shouldClose = await _onWillPop();
                                               if (shouldClose && context.mounted) {
                                                 Navigator.of(context).pop();
@@ -3370,7 +3433,7 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                                 child: TextFormField(
                                                   controller: _numeroCtrl,
                                                   focusNode: _numeroFocusNode,
-                                                  enabled: true,
+                                                  enabled: !_saving,
                                                   keyboardType: TextInputType.number,
                                                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                                   style: const TextStyle(fontSize: 13),
@@ -3393,8 +3456,6 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                               style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
                                             ),
                                             const SizedBox(height: 8),
-                                            
-                                            // CORREÇÃO: Envolver materiais em Opacity e IgnorePointer
                                             Opacity(
                                               opacity: 0.5,
                                               child: IgnorePointer(
@@ -3603,7 +3664,6 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                             
                                             const SizedBox(height: 16),
                                             
-                                            // CORREÇÃO: Envolver forma e condições de pagamento em Opacity e IgnorePointer
                                             Opacity(
                                               opacity: 0.5,
                                               child: IgnorePointer(
@@ -3734,7 +3794,7 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                             Expanded(
                                               child: ExcludeFocus(
                                                 child: OutlinedButton(
-                                                  onPressed: () async {
+                                                  onPressed: _saving ? null : () async {
                                                     final shouldClose = await _onWillPop();
                                                     if (shouldClose && context.mounted) {
                                                       Navigator.of(context).pop();
@@ -3748,8 +3808,17 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                             Expanded(
                                               child: ExcludeFocus(
                                                 child: ElevatedButton(
-                                                  onPressed: _save,
-                                                  child: const Text('Finalizar'),
+                                                  onPressed: _saving ? null : _save,
+                                                  child: _saving
+                                                      ? const SizedBox(
+                                                          width: 16,
+                                                          height: 16,
+                                                          child: CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                                          ),
+                                                        )
+                                                      : const Text('Finalizar'),
                                                 ),
                                               ),
                                             ),

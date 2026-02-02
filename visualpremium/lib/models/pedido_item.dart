@@ -241,23 +241,31 @@ class PedidoItem {
         updatedAt: updatedAt ?? this.updatedAt,
       );
 
-  Map<String, Object?> toMap() => {
-        'cliente': cliente,
-        'numero': numero,
-        'status': status,
-        'produtoId': produtoId,
-        'materiais': materiais.map((e) => e.toMap()).toList(),
-        'despesasAdicionais': despesasAdicionais.map((e) => e.toMap()).toList(),
-        'frete': frete,
-        'freteDesc': frete ? freteDesc : null,
-        'freteValor': frete ? freteValor : null,
-        'caminhaoMunck': caminhaoMunck,
-        'caminhaoMunckHoras': caminhaoMunck ? caminhaoMunckHoras : null,
-        'caminhaoMunckValorHora': caminhaoMunck ? caminhaoMunckValorHora : null,
-        'formaPagamento': formaPagamento,
-        'condicoesPagamento': condicoesPagamento,
-        'prazoEntrega': prazoEntrega,
-      };
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{
+      'cliente': cliente,
+      'status': status,
+      'produtoId': produtoId,
+      'materiais': materiais.map((e) => e.toMap()).toList(),
+      'despesasAdicionais': despesasAdicionais.map((e) => e.toMap()).toList(),
+      'frete': frete,
+      'freteDesc': frete ? freteDesc : null,
+      'freteValor': frete ? freteValor : null,
+      'caminhaoMunck': caminhaoMunck,
+      'caminhaoMunckHoras': caminhaoMunck ? caminhaoMunckHoras : null,
+      'caminhaoMunckValorHora': caminhaoMunck ? caminhaoMunckValorHora : null,
+      'formaPagamento': formaPagamento,
+      'condicoesPagamento': condicoesPagamento,
+      'prazoEntrega': prazoEntrega,
+    };
+    
+    // ✅ Só adiciona numero se não for null
+    if (numero != null) {
+      map['numero'] = numero;
+    }
+    
+    return map;
+  }
 
   static PedidoItem? tryFromMap(Map<String, Object?> map) {
     try {

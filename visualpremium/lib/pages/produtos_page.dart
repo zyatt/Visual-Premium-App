@@ -16,6 +16,48 @@ enum SortOption {
   materialsDesc,
 }
 
+class ProductFilters {
+  final Set<int> materialIds;
+  final int? minMaterials;
+  final int? maxMaterials;
+
+  const ProductFilters({
+    this.materialIds = const {},
+    this.minMaterials,
+    this.maxMaterials,
+  });
+
+  bool get hasActiveFilters =>
+      materialIds.isNotEmpty ||
+      minMaterials != null ||
+      maxMaterials != null;
+
+  int get activeFilterCount {
+    int count = 0;
+    if (materialIds.isNotEmpty) count++;
+    if (minMaterials != null || maxMaterials != null) count++;
+    return count;
+  }
+
+  ProductFilters copyWith({
+    Set<int>? materialIds,
+    int? minMaterials,
+    int? maxMaterials,
+    bool clearMinMaterials = false,
+    bool clearMaxMaterials = false,
+  }) {
+    return ProductFilters(
+      materialIds: materialIds ?? this.materialIds,
+      minMaterials: clearMinMaterials ? null : (minMaterials ?? this.minMaterials),
+      maxMaterials: clearMaxMaterials ? null : (maxMaterials ?? this.maxMaterials),
+    );
+  }
+
+  ProductFilters clear() {
+    return const ProductFilters();
+  }
+}
+
 class ProductsPage extends StatefulWidget {
   const ProductsPage({super.key});
 
@@ -31,6 +73,7 @@ class _ProductsPageState extends State<ProductsPage> {
   List<MaterialItem> _availableMaterials = const [];
   String _searchQuery = '';
   SortOption _sortOption = SortOption.newestFirst;
+  ProductFilters _filters = const ProductFilters();
 
   Future<void> _showProductEditor(ProductItem? initial) async {
     final result = await showDialog<ProductItem>(
@@ -68,6 +111,25 @@ class _ProductsPageState extends State<ProductsPage> {
     );
   }
 
+  Future<void> _showFilterDialog() async {
+    final result = await showDialog<ProductFilters>(
+      context: context,
+      builder: (dialogContext) {
+        return _FilterDialog(
+          currentFilters: _filters,
+          allItems: _items,
+          availableMaterials: _availableMaterials,
+        );
+      },
+    );
+
+    if (result != null) {
+      setState(() {
+        _filters = result;
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -102,8 +164,9 @@ class _ProductsPageState extends State<ProductsPage> {
   Future<void> _upsert(ProductItem item) async {
     setState(() => _loading = true);
     try {
+      final isUpdate = _items.any((e) => e.id == item.id);
       ProductItem updated;
-      if (_items.any((e) => e.id == item.id)) {
+      if (isUpdate) {
         updated = await _api.updateProduct(item);
       } else {
         updated = await _api.createProduct(item);
@@ -119,6 +182,15 @@ class _ProductsPageState extends State<ProductsPage> {
       setState(() {
         _items = next;
         _loading = false;
+      });
+       WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isUpdate ? 'Produto salvo' : 'Produto cadastrado'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       });
     } catch (e) {
       if (!mounted) return;
@@ -249,6 +321,23 @@ class _ProductsPageState extends State<ProductsPage> {
   List<ProductItem> get _filteredAndSortedItems {
     var filtered = _items;
     
+    // Filtro por materiais específicos
+    if (_filters.materialIds.isNotEmpty) {
+      filtered = filtered.where((item) {
+        return item.materials.any((m) => _filters.materialIds.contains(m.materialId));
+      }).toList();
+    }
+    
+    // Filtro por quantidade de materiais
+    if (_filters.minMaterials != null) {
+      filtered = filtered.where((item) => item.materials.length >= _filters.minMaterials!).toList();
+    }
+    
+    if (_filters.maxMaterials != null) {
+      filtered = filtered.where((item) => item.materials.length <= _filters.maxMaterials!).toList();
+    }
+    
+    // Busca por texto
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
       filtered = filtered.where((item) {
@@ -259,6 +348,7 @@ class _ProductsPageState extends State<ProductsPage> {
       filtered = List.from(filtered);
     }
     
+    // Ordenação
     switch (_sortOption) {
       case SortOption.newestFirst:
         filtered.sort((a, b) {
@@ -393,24 +483,139 @@ class _ProductsPageState extends State<ProductsPage> {
                           ],
                         ),
                         const SizedBox(height: 32),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: theme.cardTheme.color,
-                            borderRadius: BorderRadius.circular(AppRadius.md),
-                            border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-                          ),
-                          child: TextField(
-                            onChanged: (value) => setState(() => _searchQuery = value),
-                            decoration: InputDecoration(
-                              hintText: 'Buscar por nome ou material',
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              icon: Icon(Icons.search, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                decoration: BoxDecoration(
+                                  color: theme.cardTheme.color,
+                                  borderRadius: BorderRadius.circular(AppRadius.md),
+                                  border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                                ),
+                                child: TextField(
+                                  onChanged: (value) => setState(() => _searchQuery = value),
+                                  decoration: InputDecoration(
+                                    hintText: 'Buscar por nome ou material',
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    icon: Icon(Icons.search, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            ExcludeFocus(
+                              child: Stack(
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: _filters.hasActiveFilters
+                                          ? theme.colorScheme.primary.withValues(alpha: 0.1)
+                                          : theme.cardTheme.color,
+                                      borderRadius: BorderRadius.circular(AppRadius.md),
+                                      border: Border.all(
+                                        color: _filters.hasActiveFilters
+                                            ? theme.colorScheme.primary.withValues(alpha: 0.3)
+                                            : theme.dividerColor.withValues(alpha: 0.1),
+                                      ),
+                                    ),
+                                    child: IconButton(
+                                      onPressed: _showFilterDialog,
+                                      icon: Icon(
+                                        Icons.filter_list,
+                                        color: _filters.hasActiveFilters
+                                            ? theme.colorScheme.primary
+                                            : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                      ),
+                                      tooltip: 'Filtrar',
+                                    ),
+                                  ),
+                                  if (_filters.hasActiveFilters)
+                                    Positioned(
+                                      right: 6,
+                                      top: 6,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: theme.colorScheme.primary,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        constraints: const BoxConstraints(
+                                          minWidth: 18,
+                                          minHeight: 18,
+                                        ),
+                                        child: Text(
+                                          '${_filters.activeFilterCount}',
+                                          style: TextStyle(
+                                            color: theme.colorScheme.onPrimary,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_filters.hasActiveFilters) ...[
+                          const SizedBox(height: 12),
+                          ExcludeFocus(
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                ..._filters.materialIds.map((materialId) {
+                                  final material = _availableMaterials.firstWhere(
+                                    (m) => m.id == materialId.toString(),
+                                    orElse: () => MaterialItem(id: materialId.toString(), name: 'Material $materialId', unit: '', costCents: 0,  quantity: '0', createdAt: DateTime.now()),
+                                  );
+                                  return _FilterChip(
+                                    label: material.name,
+                                    onDeleted: () {
+                                      setState(() {
+                                        final newMaterials = Set<int>.from(_filters.materialIds)..remove(materialId);
+                                        _filters = _filters.copyWith(materialIds: newMaterials);
+                                      });
+                                    },
+                                  );
+                                }),
+                                if (_filters.minMaterials != null || _filters.maxMaterials != null)
+                                  _FilterChip(
+                                    label: _filters.minMaterials != null && _filters.maxMaterials != null
+                                        ? '${_filters.minMaterials}-${_filters.maxMaterials} materiais'
+                                        : _filters.minMaterials != null
+                                            ? 'Mín. ${_filters.minMaterials} materiais'
+                                            : 'Máx. ${_filters.maxMaterials} materiais',
+                                    onDeleted: () {
+                                      setState(() {
+                                        _filters = _filters.copyWith(
+                                          clearMinMaterials: true,
+                                          clearMaxMaterials: true,
+                                        );
+                                      });
+                                    },
+                                  ),
+                                TextButton.icon(
+                                  onPressed: () {
+                                    setState(() {
+                                      _filters = _filters.clear();
+                                    });
+                                  },
+                                  icon: const Icon(Icons.clear_all, size: 16),
+                                  label: const Text('Limpar filtros'),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
+                        ],
                         const SizedBox(height: 24),
                         if (_loading)
                           Padding(
@@ -425,7 +630,7 @@ class _ProductsPageState extends State<ProductsPage> {
                           )
                         else if (filteredItems.isEmpty)
                           _EmptyProductsState(
-                            hasSearch: _searchQuery.isNotEmpty,
+                            hasSearch: _searchQuery.isNotEmpty || _filters.hasActiveFilters,
                             onCreate: () => _showProductEditor(null),
                           )
                         else
@@ -480,6 +685,373 @@ class _ProductsPageState extends State<ProductsPage> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onDeleted;
+
+  const _FilterChip({
+    required this.label,
+    required this.onDeleted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return Chip(
+      label: Text(label),
+      deleteIcon: const Icon(Icons.close, size: 16),
+      onDeleted: onDeleted,
+      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+      side: BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.3)),
+      labelStyle: TextStyle(
+        color: theme.colorScheme.primary,
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+      ),
+    );
+  }
+}
+
+class _FilterDialog extends StatefulWidget {
+  final ProductFilters currentFilters;
+  final List<ProductItem> allItems;
+  final List<MaterialItem> availableMaterials;
+
+  const _FilterDialog({
+    required this.currentFilters,
+    required this.allItems,
+    required this.availableMaterials,
+  });
+
+  @override
+  State<_FilterDialog> createState() => _FilterDialogState();
+}
+
+class _FilterDialogState extends State<_FilterDialog> {
+  late Set<int> _selectedMaterialIds;
+  late int? _minMaterials;
+  late int? _maxMaterials;
+  
+  final TextEditingController _materialSearchCtrl = TextEditingController();
+  final TextEditingController _minMaterialsCtrl = TextEditingController();
+  final TextEditingController _maxMaterialsCtrl = TextEditingController();
+  String _materialSearchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedMaterialIds = Set.from(widget.currentFilters.materialIds);
+    _minMaterials = widget.currentFilters.minMaterials;
+    _maxMaterials = widget.currentFilters.maxMaterials;
+    
+    if (_minMaterials != null) {
+      _minMaterialsCtrl.text = _minMaterials.toString();
+    }
+    if (_maxMaterials != null) {
+      _maxMaterialsCtrl.text = _maxMaterials.toString();
+    }
+    
+    _materialSearchCtrl.addListener(() {
+      setState(() {
+        _materialSearchQuery = _materialSearchCtrl.text.toLowerCase();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _materialSearchCtrl.dispose();
+    _minMaterialsCtrl.dispose();
+    _maxMaterialsCtrl.dispose();
+    super.dispose();
+  }
+
+  List<MaterialItem> get _filteredMaterials {
+    if (_materialSearchQuery.isEmpty) {
+      return [];
+    }
+    
+    final materials = widget.availableMaterials
+        .where((m) => m.name.toLowerCase().contains(_materialSearchQuery))
+        .toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    return materials;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Icon(Icons.filter_list, color: theme.colorScheme.primary),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Filtrar Produtos',
+                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Materiais',
+                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _materialSearchCtrl,
+                      decoration: InputDecoration(
+                        hintText: 'Buscar material...',
+                        isDense: true,
+                        prefixIcon: const Icon(Icons.search, size: 20),
+                        suffixIcon: _materialSearchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 18),
+                                onPressed: () {
+                                  _materialSearchCtrl.clear();
+                                },
+                              )
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_selectedMaterialIds.isNotEmpty) ...[
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _selectedMaterialIds.map((materialId) {
+                          final material = widget.availableMaterials.firstWhere(
+                            (m) => m.id == materialId.toString(),
+                            orElse: () => MaterialItem(
+                              id: materialId.toString(),
+                              name: 'Material $materialId',
+                              unit: '',
+                              costCents: 0,
+                              quantity: '0',
+                              createdAt: DateTime.now(),
+                            ),
+                          );
+                          return FilterChip(
+                            label: Text(material.name),
+                            selected: true,
+                            onSelected: (selected) {
+                              setState(() {
+                                _selectedMaterialIds.remove(materialId);
+                              });
+                            },
+                            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.2),
+                            selectedColor: theme.colorScheme.primary.withValues(alpha: 0.2),
+                            checkmarkColor: theme.colorScheme.primary,
+                            side: BorderSide(
+                              color: theme.colorScheme.primary.withValues(alpha: 0.5),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    if (_materialSearchQuery.isNotEmpty) ...[
+                      if (_filteredMaterials.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                size: 20,
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Nenhum material encontrado',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _filteredMaterials.map((material) {
+                            final materialId = int.parse(material.id);
+                            final isSelected = _selectedMaterialIds.contains(materialId);
+                            return FilterChip(
+                              label: Text(material.name),
+                              selected: isSelected,
+                              onSelected: (selected) {
+                                setState(() {
+                                  if (selected) {
+                                    _selectedMaterialIds.add(materialId);
+                                  } else {
+                                    _selectedMaterialIds.remove(materialId);
+                                  }
+                                });
+                              },
+                              backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                              selectedColor: theme.colorScheme.primary.withValues(alpha: 0.2),
+                              checkmarkColor: theme.colorScheme.primary,
+                              side: BorderSide(
+                                color: isSelected
+                                    ? theme.colorScheme.primary.withValues(alpha: 0.5)
+                                    : theme.dividerColor.withValues(alpha: 0.2),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                    ] else
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 20,
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Digite para buscar materiais',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Quantidade de Materiais',
+                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _minMaterialsCtrl,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            decoration: const InputDecoration(
+                              labelText: 'Mínimo',
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              hintText: 'Ex: 1',
+                            ),
+                            onChanged: (value) {
+                              setState(() {
+                                _minMaterials = value.isEmpty ? null : int.tryParse(value);
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _maxMaterialsCtrl,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            decoration: const InputDecoration(
+                              labelText: 'Máximo',
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              hintText: 'Ex: 10',
+                            ),
+                            onChanged: (value) {
+                              setState(() {
+                                _maxMaterials = value.isEmpty ? null : int.tryParse(value);
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        setState(() {
+                          _selectedMaterialIds.clear();
+                          _minMaterials = null;
+                          _maxMaterials = null;
+                          _minMaterialsCtrl.clear();
+                          _maxMaterialsCtrl.clear();
+                        });
+                      },
+                      child: const Text('Limpar'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop(
+                          ProductFilters(
+                            materialIds: _selectedMaterialIds,
+                            minMaterials: _minMaterials,
+                            maxMaterials: _maxMaterials,
+                          ),
+                        );
+                      },
+                      child: const Text('Aplicar'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -730,7 +1302,7 @@ class _ProductCard extends StatelessWidget {
                   onDelete();
                 }
               },
-              tooltip: 'Filtrar',
+              tooltip: 'Opções',
               itemBuilder: (context) => [
                 const PopupMenuItem(
                   value: 'delete',

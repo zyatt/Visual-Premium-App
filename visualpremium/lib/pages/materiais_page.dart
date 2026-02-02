@@ -19,6 +19,61 @@ enum SortOption {
   priceDesc,
 }
 
+class MaterialFilters {
+  final Set<String> units;
+  final double? minPrice;
+  final double? maxPrice;
+  final double? minQuantity;
+  final double? maxQuantity;
+
+  const MaterialFilters({
+    this.units = const {},
+    this.minPrice,
+    this.maxPrice,
+    this.minQuantity,
+    this.maxQuantity,
+  });
+
+  bool get hasActiveFilters =>
+      units.isNotEmpty ||
+      minPrice != null ||
+      maxPrice != null ||
+      minQuantity != null ||
+      maxQuantity != null;
+
+  int get activeFilterCount {
+    int count = 0;
+    if (units.isNotEmpty) count++;
+    if (minPrice != null || maxPrice != null) count++;
+    if (minQuantity != null || maxQuantity != null) count++;
+    return count;
+  }
+
+  MaterialFilters copyWith({
+    Set<String>? units,
+    double? minPrice,
+    double? maxPrice,
+    double? minQuantity,
+    double? maxQuantity,
+    bool clearMinPrice = false,
+    bool clearMaxPrice = false,
+    bool clearMinQuantity = false,
+    bool clearMaxQuantity = false,
+  }) {
+    return MaterialFilters(
+      units: units ?? this.units,
+      minPrice: clearMinPrice ? null : (minPrice ?? this.minPrice),
+      maxPrice: clearMaxPrice ? null : (maxPrice ?? this.maxPrice),
+      minQuantity: clearMinQuantity ? null : (minQuantity ?? this.minQuantity),
+      maxQuantity: clearMaxQuantity ? null : (maxQuantity ?? this.maxQuantity),
+    );
+  }
+
+  MaterialFilters clear() {
+    return const MaterialFilters();
+  }
+}
+
 class MaterialsPage extends StatefulWidget {
   const MaterialsPage({super.key});
 
@@ -32,6 +87,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
   List<MaterialItem> _items = const [];
   String _searchQuery = '';
   SortOption _sortOption = SortOption.newestFirst;
+  MaterialFilters _filters = const MaterialFilters();
 
   Future<void> _showMaterialEditor(MaterialItem? initial) async {
     final result = await showDialog<MaterialItem>(
@@ -47,6 +103,23 @@ class _MaterialsPageState extends State<MaterialsPage> {
 
     if (result != null) {
       await _upsert(result);
+    }
+  }
+
+  Future<void> _showFilterDialog() async {
+    final result = await showDialog<MaterialFilters>(
+      context: context,
+      builder: (dialogContext) {
+        return _FilterDialog(
+          currentFilters: _filters,
+        );
+      },
+    );
+
+    if (result != null) {
+      setState(() {
+        _filters = result;
+      });
     }
   }
 
@@ -88,6 +161,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
         _items = items;
         _loading = false;
       });
+
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
@@ -100,8 +174,9 @@ class _MaterialsPageState extends State<MaterialsPage> {
   Future<void> _upsert(MaterialItem item) async {
     setState(() => _loading = true);
     try {
+      final isUpdate = _items.any((e) => e.id == item.id);
       MaterialItem updated;
-      if (_items.any((e) => e.id == item.id)) {
+      if (isUpdate) {
         updated = await _api.updateMaterial(item);
       } else {
         updated = await _api.createMaterial(item);
@@ -117,6 +192,15 @@ class _MaterialsPageState extends State<MaterialsPage> {
       setState(() {
         _items = next;
         _loading = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isUpdate ? 'Material salvo' : 'Material cadastrado'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       });
     } catch (e) {
       if (!mounted) return;
@@ -242,6 +326,31 @@ class _MaterialsPageState extends State<MaterialsPage> {
 
   List<MaterialItem> get _filteredAndSortedItems {
     var filtered = _items;
+    
+    // Filtro por unidade
+    if (_filters.units.isNotEmpty) {
+      filtered = filtered.where((item) => _filters.units.contains(item.unit)).toList();
+    }
+    
+    // Filtro por preço
+    if (_filters.minPrice != null || _filters.maxPrice != null) {
+      filtered = filtered.where((item) {
+        final price = item.costCents / 100.0;
+        if (_filters.minPrice != null && price < _filters.minPrice!) return false;
+        if (_filters.maxPrice != null && price > _filters.maxPrice!) return false;
+        return true;
+      }).toList();
+    }
+    
+    // Filtro por quantidade
+    if (_filters.minQuantity != null || _filters.maxQuantity != null) {
+      filtered = filtered.where((item) {
+        final qty = double.tryParse(item.quantity) ?? 0;
+        if (_filters.minQuantity != null && qty < _filters.minQuantity!) return false;
+        if (_filters.maxQuantity != null && qty > _filters.maxQuantity!) return false;
+        return true;
+      }).toList();
+    }
     
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
@@ -374,131 +483,260 @@ class _MaterialsPageState extends State<MaterialsPage> {
       backgroundColor: Colors.transparent,
       body: Stack(
         children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(32.0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.construction,
-                                size: 32,
-                                color: theme.colorScheme.primary,
-                              ),
-                              const SizedBox(width: 12),
-                              Text(
-                                'Materiais',
-                                style: theme.textTheme.headlineMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
+          RefreshIndicator(
+            onRefresh: _load,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(32.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.construction,
+                                  size: 32,
+                                  color: theme.colorScheme.primary,
                                 ),
-                              ),
-                            ],
-                          ),
-                          Row(
-                            children: [
-                              ExcludeFocus(
-                                child: IconButton(
-                                  onPressed: _load,
-                                  icon: const Icon(Icons.refresh),
-                                  tooltip: 'Atualizar',
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Materiais',
+                                  style: theme.textTheme.headlineMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              ExcludeFocus(
-                                child: ElevatedButton.icon(
-                                  onPressed: () => _showMaterialEditor(null),
-                                  icon: const Icon(Icons.add),
-                                  label: const Text('Novo Material'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: theme.colorScheme.primary,
-                                    foregroundColor: theme.colorScheme.onPrimary,
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                ExcludeFocus(
+                                  child: IconButton(
+                                    onPressed: _load,
+                                    icon: const Icon(Icons.refresh),
+                                    tooltip: 'Atualizar',
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ExcludeFocus(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => _showMaterialEditor(null),
+                                    icon: const Icon(Icons.add),
+                                    label: const Text('Novo Material'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: theme.colorScheme.primary,
+                                      foregroundColor: theme.colorScheme.onPrimary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 32),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                decoration: BoxDecoration(
+                                  color: theme.cardTheme.color,
+                                  borderRadius: BorderRadius.circular(AppRadius.md),
+                                  border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                                ),
+                                child: TextField(
+                                  onChanged: (value) => setState(() => _searchQuery = value),
+                                  decoration: InputDecoration(
+                                    hintText: 'Buscar por nome',
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    icon: Icon(Icons.search, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
                                   ),
                                 ),
                               ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 32),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: theme.cardTheme.color,
-                          borderRadius: BorderRadius.circular(AppRadius.md),
-                          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                            ),
+                            const SizedBox(width: 12),
+                            ExcludeFocus(
+                              child: Stack(
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: _filters.hasActiveFilters
+                                          ? theme.colorScheme.primary.withValues(alpha: 0.1)
+                                          : theme.cardTheme.color,
+                                      borderRadius: BorderRadius.circular(AppRadius.md),
+                                      border: Border.all(
+                                        color: _filters.hasActiveFilters
+                                            ? theme.colorScheme.primary.withValues(alpha: 0.3)
+                                            : theme.dividerColor.withValues(alpha: 0.1),
+                                      ),
+                                    ),
+                                    child: IconButton(
+                                      onPressed: _showFilterDialog,
+                                      icon: Icon(
+                                        Icons.filter_list,
+                                        color: _filters.hasActiveFilters
+                                            ? theme.colorScheme.primary
+                                            : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                      ),
+                                      tooltip: 'Filtrar',
+                                    ),
+                                  ),
+                                  if (_filters.hasActiveFilters)
+                                    Positioned(
+                                      right: 6,
+                                      top: 6,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: theme.colorScheme.primary,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        constraints: const BoxConstraints(
+                                          minWidth: 18,
+                                          minHeight: 18,
+                                        ),
+                                        child: Text(
+                                          '${_filters.activeFilterCount}',
+                                          style: TextStyle(
+                                            color: theme.colorScheme.onPrimary,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        child: TextField(
-                          onChanged: (value) => setState(() => _searchQuery = value),
-                          decoration: InputDecoration(
-                            hintText: 'Buscar por nome',
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            icon: Icon(Icons.search, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      if (_loading)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 48),
-                          child: Center(
-                            child: SizedBox(
-                              width: 28,
-                              height: 28,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.primary),
+                        if (_filters.hasActiveFilters) ...[
+                          const SizedBox(height: 12),
+                          ExcludeFocus(
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                ..._filters.units.map((unit) => _FilterChip(
+                                      label: unit,
+                                      onDeleted: () {
+                                        setState(() {
+                                          final newUnits = Set<String>.from(_filters.units)..remove(unit);
+                                          _filters = _filters.copyWith(units: newUnits);
+                                        });
+                                      },
+                                    )),
+                                if (_filters.minPrice != null || _filters.maxPrice != null)
+                                  _FilterChip(
+                                    label: _filters.minPrice != null && _filters.maxPrice != null
+                                        ? 'R\$ ${_filters.minPrice!.toStringAsFixed(2)} - R\$ ${_filters.maxPrice!.toStringAsFixed(2)}'
+                                        : _filters.minPrice != null
+                                            ? 'Preço ≥ R\$ ${_filters.minPrice!.toStringAsFixed(2)}'
+                                            : 'Preço ≤ R\$ ${_filters.maxPrice!.toStringAsFixed(2)}',
+                                    onDeleted: () {
+                                      setState(() {
+                                        _filters = _filters.copyWith(
+                                          clearMinPrice: true,
+                                          clearMaxPrice: true,
+                                        );
+                                      });
+                                    },
+                                  ),
+                                if (_filters.minQuantity != null || _filters.maxQuantity != null)
+                                  _FilterChip(
+                                    label: _filters.minQuantity != null && _filters.maxQuantity != null
+                                        ? 'Qtd: ${_filters.minQuantity!.toStringAsFixed(0)} - ${_filters.maxQuantity!.toStringAsFixed(0)}'
+                                        : _filters.minQuantity != null
+                                            ? 'Qtd ≥ ${_filters.minQuantity!.toStringAsFixed(0)}'
+                                            : 'Qtd ≤ ${_filters.maxQuantity!.toStringAsFixed(0)}',
+                                    onDeleted: () {
+                                      setState(() {
+                                        _filters = _filters.copyWith(
+                                          clearMinQuantity: true,
+                                          clearMaxQuantity: true,
+                                        );
+                                      });
+                                    },
+                                  ),
+                                TextButton.icon(
+                                  onPressed: () {
+                                    setState(() {
+                                      _filters = _filters.clear();
+                                    });
+                                  },
+                                  icon: const Icon(Icons.clear_all, size: 16),
+                                  label: const Text('Limpar filtros'),
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        )
-                      else if (filteredItems.isEmpty)
-                        _EmptyMaterialsState(
-                          hasSearch: _searchQuery.isNotEmpty,
-                          onCreate: () => _showMaterialEditor(null),
-                        )
-                      else
-                        ExcludeFocus(
-                          child: ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: filteredItems.length,
-                            separatorBuilder: (context, index) => const SizedBox(height: 12),
-                            itemBuilder: (context, index) {
-                              final item = filteredItems[index];
-                              return _MaterialCard(
-                                item: item,
-                                formattedCost: currency.format(item.costCents / 100.0),
-                                onTap: () => _showMaterialEditor(item),
-                                onDelete: () async {
-                                  final ok = await _showConfirmDelete(item.name);
-                                  if (ok == true) await _delete(item);
-                                },
-                              );
-                            },
+                        ],
+                        const SizedBox(height: 24),
+                        if (_loading)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 48),
+                            child: Center(
+                              child: SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: theme.colorScheme.primary),
+                              ),
+                            ),
+                          )
+                        else if (filteredItems.isEmpty)
+                          _EmptyMaterialsState(
+                            hasSearch: _searchQuery.isNotEmpty || _filters.hasActiveFilters,
+                            onCreate: () => _showMaterialEditor(null),
+                          )
+                        else
+                          ExcludeFocus(
+                            child: ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: filteredItems.length,
+                              separatorBuilder: (context, index) => const SizedBox(height: 12),
+                              itemBuilder: (context, index) {
+                                final item = filteredItems[index];
+                                return _MaterialCard(
+                                  item: item,
+                                  formattedCost: currency.format(item.costCents / 100.0),
+                                  onTap: () => _showMaterialEditor(item),
+                                  onDelete: () async {
+                                    final ok = await _showConfirmDelete(item.name);
+                                    if (ok == true) await _delete(item);
+                                  },
+                                );
+                              },
+                            ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 24),
-                ExcludeFocus(
-                  child: _FilterPanel(
-                    sortOption: _sortOption,
-                    onToggleDateSort: _toggleDateSort,
-                    onToggleNameSort: _toggleNameSort,
-                    onToggleUnitSort: _toggleUnitSort,
-                    onToggleQuantitySort: _toggleQuantitySort,
-                    onTogglePriceSort: _togglePriceSort,
+                  const SizedBox(width: 24),
+                  ExcludeFocus(
+                    child: _FilterPanel(
+                      sortOption: _sortOption,
+                      onToggleDateSort: _toggleDateSort,
+                      onToggleNameSort: _toggleNameSort,
+                      onToggleUnitSort: _toggleUnitSort,
+                      onToggleQuantitySort: _toggleQuantitySort,
+                      onTogglePriceSort: _togglePriceSort,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           if (_loading)
@@ -517,6 +755,315 @@ class _MaterialsPageState extends State<MaterialsPage> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onDeleted;
+
+  const _FilterChip({
+    required this.label,
+    required this.onDeleted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return Chip(
+      label: Text(label),
+      deleteIcon: const Icon(Icons.close, size: 16),
+      onDeleted: onDeleted,
+      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+      side: BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.3)),
+      labelStyle: TextStyle(
+        color: theme.colorScheme.primary,
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+      ),
+    );
+  }
+}
+
+class _FilterDialog extends StatefulWidget {
+  final MaterialFilters currentFilters;
+
+  const _FilterDialog({
+    required this.currentFilters,
+  });
+
+  @override
+  State<_FilterDialog> createState() => _FilterDialogState();
+}
+
+class _FilterDialogState extends State<_FilterDialog> {
+  late Set<String> _selectedUnits;
+  late TextEditingController _minPriceCtrl;
+  late TextEditingController _maxPriceCtrl;
+  late TextEditingController _minQuantityCtrl;
+  late TextEditingController _maxQuantityCtrl;
+
+  static const List<String> _unitOptions = ['Kg', 'm²', 'm/l', 'Unidade', 'Altura', 'Hora', '%', 'L'];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedUnits = Set.from(widget.currentFilters.units);
+    _minPriceCtrl = TextEditingController(
+      text: widget.currentFilters.minPrice?.toStringAsFixed(2) ?? '',
+    );
+    _maxPriceCtrl = TextEditingController(
+      text: widget.currentFilters.maxPrice?.toStringAsFixed(2) ?? '',
+    );
+    _minQuantityCtrl = TextEditingController(
+      text: widget.currentFilters.minQuantity?.toStringAsFixed(0) ?? '',
+    );
+    _maxQuantityCtrl = TextEditingController(
+      text: widget.currentFilters.maxQuantity?.toStringAsFixed(0) ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _minPriceCtrl.dispose();
+    _maxPriceCtrl.dispose();
+    _minQuantityCtrl.dispose();
+    _maxQuantityCtrl.dispose();
+    super.dispose();
+  }
+
+  double? _parsePrice(String text) {
+    if (text.trim().isEmpty) return null;
+    final value = double.tryParse(text.replaceAll(',', '.'));
+    if (value == null || value < 0) return null;
+    return value;
+  }
+
+  double? _parseQuantity(String text) {
+    if (text.trim().isEmpty) return null;
+    final value = double.tryParse(text.replaceAll(',', '.'));
+    if (value == null || value < 0) return null;
+    return value;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Icon(Icons.filter_list, color: theme.colorScheme.primary),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Filtrar Materiais',
+                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Unidade de Medida',
+                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _unitOptions.map((unit) {
+                        final isSelected = _selectedUnits.contains(unit);
+                        return FilterChip(
+                          label: Text(unit),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                _selectedUnits.add(unit);
+                              } else {
+                                _selectedUnits.remove(unit);
+                              }
+                            });
+                          },
+                          backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                          selectedColor: theme.colorScheme.primary.withValues(alpha: 0.2),
+                          checkmarkColor: theme.colorScheme.primary,
+                          side: BorderSide(
+                            color: isSelected
+                                ? theme.colorScheme.primary.withValues(alpha: 0.5)
+                                : theme.dividerColor.withValues(alpha: 0.2),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Faixa de Preço (R\$)',
+                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _minPriceCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                            ],
+                            decoration: const InputDecoration(
+                              labelText: 'Mínimo',
+                              isDense: true,
+                              prefixText: 'R\$ ',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _maxPriceCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                            ],
+                            decoration: const InputDecoration(
+                              labelText: 'Máximo',
+                              isDense: true,
+                              prefixText: 'R\$ ',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Faixa de Quantidade',
+                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _minQuantityCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                            ],
+                            decoration: const InputDecoration(
+                              labelText: 'Mínimo',
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _maxQuantityCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                            ],
+                            decoration: const InputDecoration(
+                              labelText: 'Máximo',
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        setState(() {
+                          _selectedUnits.clear();
+                          _minPriceCtrl.clear();
+                          _maxPriceCtrl.clear();
+                          _minQuantityCtrl.clear();
+                          _maxQuantityCtrl.clear();
+                        });
+                      },
+                      child: const Text('Limpar'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        final minPrice = _parsePrice(_minPriceCtrl.text);
+                        final maxPrice = _parsePrice(_maxPriceCtrl.text);
+                        final minQuantity = _parseQuantity(_minQuantityCtrl.text);
+                        final maxQuantity = _parseQuantity(_maxQuantityCtrl.text);
+
+                        if (minPrice != null && maxPrice != null && minPrice > maxPrice) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('O preço mínimo não pode ser maior que o máximo'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                          return;
+                        }
+
+                        if (minQuantity != null && maxQuantity != null && minQuantity > maxQuantity) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('A quantidade mínima não pode ser maior que a máxima'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                          return;
+                        }
+
+                        Navigator.of(context).pop(
+                          MaterialFilters(
+                            units: _selectedUnits,
+                            minPrice: minPrice,
+                            maxPrice: maxPrice,
+                            minQuantity: minQuantity,
+                            maxQuantity: maxQuantity,
+                          ),
+                        );
+                      },
+                      child: const Text('Aplicar'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

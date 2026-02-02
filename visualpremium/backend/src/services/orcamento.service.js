@@ -449,7 +449,7 @@ class OrcamentoService {
     return orcamento;
   }
 
-  async atualizarStatus(id, status) {
+  async atualizarStatus(id, status, dadosAdicionais = {}) {
     const orcamento = await prisma.orcamento.findUnique({
       where: { id },
       include: {
@@ -475,9 +475,9 @@ class OrcamentoService {
     if (status === 'Aprovado' && !orcamento.pedido) {
       const pedidoData = {
         cliente: orcamento.cliente,
-        numero: null,
+        numero: null, // ✅ Campo vazio como solicitado
         status: 'Em Andamento',
-        produtoId: orcamento.produtoId,  // ✅ CORREÇÃO: usar produtoId diretamente
+        produtoId: orcamento.produtoId,
         frete: orcamento.frete,
         freteDesc: orcamento.freteDesc,
         freteValor: orcamento.freteValor,

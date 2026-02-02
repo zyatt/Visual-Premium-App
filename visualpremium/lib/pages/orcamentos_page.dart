@@ -82,6 +82,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
   final _api = OrcamentosApiRepository();
   bool _loading = true;
   List<OrcamentoItem> _items = const [];
+  List<ProdutoItem> _allProdutos = [];
   String _searchQuery = '';
   int? _downloadingId;
   SortOption _sortOption = SortOption.newestFirst;
@@ -91,6 +92,19 @@ class _BudgetsPageState extends State<BudgetsPage> {
   void initState() {
     super.initState();
     _load();
+    _loadProdutos();
+  }
+
+   Future<void> _loadProdutos() async {
+    try {
+      final produtos = await _api.fetchProdutos();
+      if (!mounted) return;
+      setState(() {
+        _allProdutos = produtos;
+      });
+    } catch (e) {
+      //
+    }
   }
 
   Future<void> _load() async {
@@ -155,11 +169,14 @@ class _BudgetsPageState extends State<BudgetsPage> {
     }
   }
 
-    Future<void> _updateStatus(OrcamentoItem item, String newStatus) async {
+
+  Future<void> _updateStatus(OrcamentoItem item, String newStatus) async {
     setState(() => _loading = true);
     try {
-      final updated = await _api.updateStatus(item.id, newStatus);
-      final idx = _items.indexWhere((e) => e.id == item.id); // Use item.id ao invés de updated.id
+      // ✅ MUDANÇA: Agora passa o item completo, não apenas o ID
+      final updated = await _api.updateStatus(item, newStatus);
+      
+      final idx = _items.indexWhere((e) => e.id == item.id);
       
       if (!mounted) return;
       final next = [..._items];
@@ -174,11 +191,31 @@ class _BudgetsPageState extends State<BudgetsPage> {
         _loading = false;
       });
       
-    } catch (e, stackTrace) {
+      // Adicionar feedback de sucesso
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Orçamento: $newStatus'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      });
       
+    } catch (e) {
+      // Adicionar tratamento de erro
       if (!mounted) return;
       setState(() => _loading = false);
-
+      
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao atualizar status: $e'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      });
     }
   }
 
@@ -529,7 +566,22 @@ class _BudgetsPageState extends State<BudgetsPage> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Orçamentos', style: theme.textTheme.headlineMedium),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.attach_money_rounded,
+                                  size: 32,
+                                  color: theme.colorScheme.primary,
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Orçamentos',
+                                  style: theme.textTheme.headlineMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
                             Row(
                               children: [
                                 ExcludeFocus(
@@ -543,12 +595,11 @@ class _BudgetsPageState extends State<BudgetsPage> {
                                 ExcludeFocus(
                                   child: ElevatedButton.icon(
                                     onPressed: () => _showOrcamentoEditor(null),
-                                    icon: const Icon(Icons.add, size: 20),
+                                    icon: const Icon(Icons.add),
                                     label: const Text('Novo Orçamento'),
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: theme.colorScheme.primary,
                                       foregroundColor: theme.colorScheme.onPrimary,
-                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                                     ),
                                   ),
                                 ),
@@ -652,10 +703,19 @@ class _BudgetsPageState extends State<BudgetsPage> {
                                         });
                                       },
                                     )),
+                                // ✅ CORRIGIR esta parte
                                 ..._filters.produtoIds.map((produtoId) {
-                                  final produto = _items.firstWhere((item) => item.produtoId == produtoId);
+                                  // Busca na lista de todos os produtos ao invés dos orçamentos
+                                  final produto = _allProdutos.firstWhere(
+                                    (p) => p.id == produtoId,
+                                    orElse: () => ProdutoItem(
+                                      id: produtoId,
+                                      nome: 'Produto #$produtoId',
+                                      materiais: [],
+                                    ),
+                                  );
                                   return _FilterChip(
-                                    label: produto.produtoNome,
+                                    label: produto.nome,
                                     onDeleted: () {
                                       setState(() {
                                         final newProdutos = Set<int>.from(_filters.produtoIds)..remove(produtoId);
@@ -698,6 +758,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
                             ),
                           ),
                         ],
+
                         const SizedBox(height: 24),
                         if (_loading)
                           Padding(
