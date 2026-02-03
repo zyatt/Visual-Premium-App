@@ -8,11 +8,12 @@ import 'pages/orcamentos_page.dart';
 import 'pages/pedidos_page.dart';
 import 'pages/produtos_page.dart';
 import 'pages/materiais_page.dart';
-import 'pages/admin_page.dart';
-import 'pages/usuarios_page.dart';
-import 'pages/splash_page.dart';
-import 'pages/login_page.dart';
-import 'pages/logs_page.dart';
+import 'pages/admin/admin_page.dart';
+import 'pages/admin/usuarios_page.dart';
+import 'pages/admin/almoxarifado_page.dart';
+import 'pages/loading/splash_page.dart';
+import 'pages/login/login_page.dart';
+import 'pages/admin/logs_page.dart';
 
 class AppRouter {
   static final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -32,7 +33,7 @@ class AppRouter {
 
         final isGoingToLogin = location == '/login';
         final isGoingToSplash = location == '/splash';
-        final isGoingToAdmin = location.startsWith('/admin');
+        final isGoingToAdmin = location.startsWith('/admin') || location.startsWith('/almoxarifado');
 
         // Splash sempre pode permanecer — ela navega sozinha após animação
         if (isGoingToSplash) return null;
@@ -129,6 +130,13 @@ class AppRouter {
               name: 'logs',
               pageBuilder: (context, state) => NoTransitionPage(
                 child: const LogsPage(),
+              ),
+            ),
+            GoRoute(
+              path: AppRoutes.almoxarifado,
+              name: 'almoxarifado',
+              pageBuilder: (context, state) => NoTransitionPage(
+                child: const AlmoxarifadoPage(),
               ),
             ),
           ],

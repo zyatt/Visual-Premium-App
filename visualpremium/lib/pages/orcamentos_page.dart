@@ -2250,13 +2250,13 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
 
   final List<String> _formaPagamentoOptions = [
     'A COMBINAR',
-    'Boleto',
-    'Cartão Crédito',
-    'Cartão Débito',
-    'Cheque',
-    'Depósito',
-    'Dinheiro',
-    'Permuta',
+    'BOLETO',
+    'CARTÃO CRÉDITO',
+    'CARTÃO DÉBITO',
+    'CHEQUE',
+    'DEPÓSITO',
+    'DINHEIRO',
+    'PERMUTA',
     'PIX',
     'SEM VALOR',
   ];
@@ -2267,29 +2267,29 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     '10 DIAS',
     '10X NO BOLETO',
     '10X NO CARTÃO DE CRÉDITO',
-    '120 dias',
+    '120 DIAS',
     '12x NO CARTÃO COM JUROS',
     '14 DIAS',
-    '14 e 28 dias',
+    '14 E 28 DIAS',
     '14, 21 E 28 DIAS',
     '14, 28 E 56 DIAS',
-    '14, 28, 42, 56, 70 E 84 dias',
+    '14, 28, 42, 56, 70 E 84 DIAS',
     '14/28/42/56',
-    '15 dias',
+    '15 DIAS',
     '15/30/45 DIAS',
     '20 DIAS',
-    '20, 40, 60, 80, 100 e 120 dias',
+    '20, 40, 60, 80, 100 e 120 DIAS',
     '21 DIAS',
-    '28 dias',
+    '28 DIAS',
     '28 E 42 DIAS',
     '28 E 56 DIAS',
-    '28, 42 e 56 do pedido',
+    '28, 42 E 56 DO PEDIDO',
     '28, 56 E 84 DIAS DIRETO',
     '2X NO CARTÃO DE CRÉDITO',
     '30 + 60 DIAS',
-    '30 dias',
+    '30 DIAS',
     '30/45/60',
-    '35 dias',
+    '35 DIAS',
     '3X NO CARTÃO DE CRÉDITO',
     '4 DIAS',
     '45 DIAS',
@@ -2299,23 +2299,23 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     '50% DE ENTRADA NO PEDIDO + 50% NA RETIRADA',
     '5X NO CARTÃO DE CRÉDITO',
     '60 DIAS',
-    '60% pagamento via pix e 40% permuta',
+    '60% PAGAMENTO VIA PIX E 40% PERMUTA',
     '6X NO CARTÃO DE CRÉDITO',
-    '7 dias',
-    '7, 14 e 28 dias',
+    '7 DIAS',
+    '7, 14 E 28 DIAS',
     '7x CARTÃO DE CREDITO',
     '8x',
     '90 DIAS',
-    'À Vista',
-    'BOLETO 14, 28 e 42 dias',
+    'À VISTA',
+    'BOLETO 14, 28 e 42 DIAS',
     'CRÉDITO À VISTA',
-    'ENTRADA + 15 + 30 dias',
+    'ENTRADA + 15 + 30 DIAS',
     'ENTRADA + 24 + 42 + 56',
     'ENTRADA + 28 DIAS',
     'ENTRADA + 28, 42 E 56 DIAS',
     'ENTRADA + 28, 56, 84 E 112 DO PEDIDO',
     'ENTRADA + 28/42 DIAS',
-    'ENTRADA + 28/56 dias',
+    'ENTRADA + 28/56 DIAS',
     'ENTRADA + 28/56/84 dias',
     'ENTRADA + 30 + 60 DIAS',
     'ENTRADA + 42 + 56 DIAS',
@@ -2324,9 +2324,9 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     'ENTRADA + MEDIÇÕES + 5% PARA 28 DIAS APÓS TÉRMINO',
     'ENTRADA DE 30% + 28, 42, 56 E 70 DIAS DO PEDIDO',
     'ENTRADA DE 30% + MEDIÇÕES',
-    'entrada de 35% + boleto 14, 28 e 42 dias',
+    'ENTRADA de 35% + BOLETO 14, 28 E 42 DIAS',
     'SEM VALOR',
-    'Outras',
+    'OUTROS',
   ];
 
   void _updateTotal() {
@@ -2401,8 +2401,8 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         _condicoesPagamentoCtrl = TextEditingController(text: _initialCondicoesPagamento);
         _condicoesPagamentoOutrasCtrl = TextEditingController();
       } else {
-        _selectedCondicaoPagamento = 'Outras';
-        _condicoesPagamentoCtrl = TextEditingController(text: 'Outras');
+        _selectedCondicaoPagamento = 'OUTROS';
+        _condicoesPagamentoCtrl = TextEditingController(text: 'OUTROS');
         _condicoesPagamentoOutrasCtrl = TextEditingController(text: _initialCondicoesPagamento);
       }
     } else {
@@ -2499,7 +2499,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     final currentFormaPagamento = _formaPagamentoCtrl.text.trim();
     if (currentFormaPagamento != _initialFormaPagamento) return true;
     
-    final currentCondicao = _selectedCondicaoPagamento == 'Outras' 
+    final currentCondicao = _selectedCondicaoPagamento == 'OUTROS' 
         ? _condicoesPagamentoOutrasCtrl.text.trim() 
         : _condicoesPagamentoCtrl.text.trim();
     if (currentCondicao != _initialCondicoesPagamento) return true;
@@ -2816,7 +2816,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     }
 
     final formaPagamento = _formaPagamentoCtrl.text.trim();
-    final condicoesPagamento = _selectedCondicaoPagamento == 'Outras'
+    final condicoesPagamento = _selectedCondicaoPagamento == 'OUTROS'
         ? _condicoesPagamentoOutrasCtrl.text.trim()
         : _condicoesPagamentoCtrl.text.trim();
 
@@ -3733,17 +3733,17 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                         onChanged: (value) {
                                                           setState(() {
                                                             _selectedCondicaoPagamento = value;
-                                                            if (value != null && value != 'Outras') {
+                                                            if (value != null && value != 'OUTROS') {
                                                               _condicoesPagamentoCtrl.text = value;
                                                               _condicoesPagamentoOutrasCtrl.clear();
-                                                            } else if (value == 'Outras') {
-                                                              _condicoesPagamentoCtrl.text = 'Outras';
+                                                            } else if (value == 'OUTROS') {
+                                                              _condicoesPagamentoCtrl.text = 'OUTROS';
                                                             }
                                                           });
                                                         },
                                                         validator: (v) => (v == null || v.trim().isEmpty) ? 'Selecione' : null,
                                                       ),
-                                                      if (_selectedCondicaoPagamento == 'Outras') ...[
+                                                      if (_selectedCondicaoPagamento == 'OUTROS') ...[
                                                         const SizedBox(height: 10),
                                                         TextFormField(
                                                           controller: _condicoesPagamentoOutrasCtrl,

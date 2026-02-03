@@ -5,13 +5,14 @@ import '../config/config.dart';
 import '../models/log_item.dart';
 
 class LogsRepository {
+  /// ✅ Método atualizado para buscar o token e incluir no header
   Future<Map<String, String>> _getHeaders() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
     
     return {
       'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
+      if (token != null) 'Authorization': 'Bearer $token', // ✅ Envia o token
     };
   }
 
@@ -36,7 +37,7 @@ class LogsRepository {
         queryParameters: queryParams,
       );
 
-      final headers = await _getHeaders();
+      final headers = await _getHeaders(); // ✅ Inclui o token
       final response = await http.get(uri, headers: headers);
 
       if (response.statusCode == 200) {
@@ -51,11 +52,13 @@ class LogsRepository {
           'page': data['page'],
           'totalPages': data['totalPages'],
         };
+      } else if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
       } else {
         throw Exception('Erro HTTP ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
-      rethrow; // Propaga o erro original
+      rethrow;
     }
   }
 }

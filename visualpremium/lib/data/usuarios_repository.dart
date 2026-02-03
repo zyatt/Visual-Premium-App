@@ -1,16 +1,35 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../config/config.dart';
 import '../models/usuario_item.dart';
 
 class UsuariosApiRepository {
   String get baseUrl => Config.baseUrl;
 
+  // ✅ Método para obter headers com token
+  Future<Map<String, String>> _getHeaders() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
   Future<List<UsuarioItem>> fetchUsuarios() async {
     try {
+      final headers= await _getHeaders(); // ✅ Inclui token
+      
       final response = await http.get(
         Uri.parse('${Config.baseUrl}/usuarios'),
+        headers: headers,
       );
+
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
+      }
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -25,11 +44,17 @@ class UsuariosApiRepository {
 
   Future<UsuarioItem> createUsuario(Map<String, dynamic> data) async {
     try {
+      final headers = await _getHeaders(); // ✅ Inclui token
+      
       final response = await http.post(
         Uri.parse('${Config.baseUrl}/usuarios'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: jsonEncode(data),
       );
+
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
+      }
 
       if (response.statusCode == 201) {
         return UsuarioItem.fromJson(jsonDecode(response.body));
@@ -44,11 +69,17 @@ class UsuariosApiRepository {
 
   Future<UsuarioItem> updateUsuario(int id, Map<String, dynamic> data) async {
     try {
+      final headers = await _getHeaders(); // ✅ Inclui token
+      
       final response = await http.put(
         Uri.parse('${Config.baseUrl}/usuarios/$id'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: jsonEncode(data),
       );
+
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
+      }
 
       if (response.statusCode == 200) {
         return UsuarioItem.fromJson(jsonDecode(response.body));
@@ -63,8 +94,13 @@ class UsuariosApiRepository {
 
   Future<void> deleteUsuario(int id) async {
     try {
+      final headers = await _getHeaders(); // ✅ Inclui token
       final url = Uri.parse('$baseUrl/usuarios/$id');
-      final response = await http.delete(url);
+      final response = await http.delete(url, headers: headers);
+
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
+      }
 
       if (response.statusCode != 204) {
         final error = jsonDecode(response.body);

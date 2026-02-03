@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../data/usuarios_repository.dart';
-import '../models/usuario_item.dart';
+import '../../../data/usuarios_repository.dart';
+import '../../../models/usuario_item.dart';
 
 class UsuariosPage extends StatefulWidget {
   const UsuariosPage({super.key});

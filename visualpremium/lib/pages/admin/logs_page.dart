@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import '../models/log_item.dart';
-import '../data/logs_repository.dart';
-import '../theme.dart';
+import '../../../models/log_item.dart';
+import '../../../data/logs_repository.dart';
+import '../../../theme.dart';
 
 class LogsPage extends StatefulWidget {
   const LogsPage({super.key});
@@ -83,6 +84,12 @@ class _LogsPageState extends State<LogsPage> {
             padding: const EdgeInsets.all(32.0),
             child: Row(
               children: [
+                IconButton(
+                  onPressed: () => context.go('/admin'),
+                  icon: const Icon(Icons.arrow_back),
+                  tooltip: 'Voltar para Admin',
+                ),
+                const SizedBox(width: 8),
                 Icon(
                   Icons.history_outlined,
                   size: 32,

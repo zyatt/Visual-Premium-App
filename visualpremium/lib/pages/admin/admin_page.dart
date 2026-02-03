@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
-import '../routes.dart';
-import '../theme.dart';
+import '../../../providers/auth_provider.dart';
+import '../../../routes.dart';
+import '../../../theme.dart';
 
 class AdminPage extends StatelessWidget {
   const AdminPage({super.key});
@@ -126,14 +126,12 @@ class AdminPage extends StatelessWidget {
                       },
                     ),
                     _AdminFeatureCard(
-                      icon: Icons.settings_outlined,
-                      title: 'Configurações Avançadas',
-                      description: 'Configurar parâmetros do sistema',
-                      color: Colors.purple,
+                      icon: Icons.inventory_2_outlined,
+                      title: 'Almoxarifado',
+                      description: 'Gerenciar estoque e materiais',
+                      color: Colors.indigo,
                       onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Funcionalidade em desenvolvimento')),
-                        );
+                        context.go(AppRoutes.almoxarifado);
                       },
                     ),
                     _AdminFeatureCard(
@@ -176,6 +174,17 @@ class AdminPage extends StatelessWidget {
                       color: Colors.teal,
                       onTap: () {
                         context.go(AppRoutes.logs);
+                      },
+                    ),
+                    _AdminFeatureCard(
+                      icon: Icons.settings_outlined,
+                      title: 'Configurações Avançadas',
+                      description: 'Configurar parâmetros do sistema',
+                      color: Colors.purple,
+                      onTap: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Funcionalidade em desenvolvimento')),
+                        );
                       },
                     ),
                   ],

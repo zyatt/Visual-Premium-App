@@ -1,15 +1,32 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:visualpremium/models/product_item.dart';
 import 'package:visualpremium/config/config.dart';
 
 class ProductsApiRepository {
   String get baseUrl => Config.baseUrl;
 
+  // ✅ Método para obter headers com token
+  Future<Map<String, String>> _getHeaders() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
   Future<List<ProductItem>> fetchProducts() async {
     try {
       final url = Uri.parse('$baseUrl/produtos');
-      final response = await http.get(url);
+      final headers = await _getHeaders(); // ✅ Inclui token
+      final response = await http.get(url, headers: headers);
+      
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
+      }
       
       if (response.statusCode == 200) {
         final List<dynamic> jsonList = jsonDecode(response.body);
@@ -28,13 +45,18 @@ class ProductsApiRepository {
   Future<ProductItem> createProduct(ProductItem item) async {
     try {
       final url = Uri.parse('$baseUrl/produtos');
+      final headers = await _getHeaders(); // ✅ Inclui token
       final body = item.toMap();
             
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: jsonEncode(body),
       );
+      
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
+      }
             
       if (response.statusCode == 200) {
         final created = ProductItem.tryFromMap(jsonDecode(response.body));
@@ -52,11 +74,18 @@ class ProductsApiRepository {
 
   Future<ProductItem> updateProduct(ProductItem item) async {
     final url = Uri.parse('$baseUrl/produtos/${item.id}');
+    final headers = await _getHeaders(); // ✅ Inclui token
+    
     final response = await http.put(
       url,
-      headers: {'Content-Type': 'application/json'},
+      headers: headers,
       body: jsonEncode(item.toMap()),
     );
+    
+    if (response.statusCode == 401) {
+      throw Exception('Não autorizado - faça login novamente');
+    }
+    
     if (response.statusCode == 200) {
       final updated = ProductItem.tryFromMap(jsonDecode(response.body));
       if (updated == null) {
@@ -71,13 +100,16 @@ class ProductsApiRepository {
   Future<void> deleteProduct(String id) async {
     try {
       final url = Uri.parse('$baseUrl/produtos/$id');
-      final response = await http.delete(url);
+      final headers = await _getHeaders(); // ✅ Inclui token
+      final response = await http.delete(url, headers: headers);
+      
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
+      }
       
       if (response.statusCode == 200 || response.statusCode == 204) {
-        // Sucesso - não precisa retornar nada
         return;
       } else if (response.statusCode == 400) {
-        // Erro de validação do backend
         final errorData = jsonDecode(response.body);
         throw Exception(errorData['error'] ?? 'Erro ao deletar produto');
       } else {

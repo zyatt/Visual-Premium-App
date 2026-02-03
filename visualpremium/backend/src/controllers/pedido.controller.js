@@ -12,7 +12,7 @@ class PedidoController {
 
   async buscarPorId(req, res) {
     try {
-      const pedido = await service.buscarPorId(+req.params.id);
+      const pedido = await service.buscarPorId(+req.params.id, req.user);
       res.json(pedido);
     } catch (e) {
       res.status(404).json({ error: e.message });
@@ -21,7 +21,7 @@ class PedidoController {
 
   async atualizar(req, res) {
     try {
-      const pedido = await service.atualizar(+req.params.id, req.body);
+      const pedido = await service.atualizar(+req.params.id, req.body, req.user); // ✅ PASSAR req.user
       res.json(pedido);
     } catch (e) {
       res.status(400).json({ error: e.message });
@@ -31,7 +31,7 @@ class PedidoController {
   async atualizarStatus(req, res) {
     try {
       const { status } = req.body;
-      const pedido = await service.atualizarStatus(+req.params.id, status);
+      const pedido = await service.atualizarStatus(+req.params.id, status, req.user); // ✅ PASSAR req.user
       res.json(pedido);
     } catch (e) {
       res.status(400).json({ error: e.message });
@@ -40,7 +40,7 @@ class PedidoController {
 
   async deletar(req, res) {
     try {
-      await service.deletar(+req.params.id);
+      await service.deletar(+req.params.id, req.user); // ✅ PASSAR req.user
       res.json({ message: 'Pedido deletado com sucesso' });
     } catch (e) {
       res.status(400).json({ error: e.message });

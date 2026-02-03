@@ -1,15 +1,32 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:visualpremium/models/material_item.dart';
 import 'package:visualpremium/config/config.dart';
 
 class MaterialsApiRepository {
   String get baseUrl => Config.baseUrl;
 
+  // ✅ Método para obter headers com token
+  Future<Map<String, String>> _getHeaders() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
   Future<List<MaterialItem>> fetchMaterials() async {
     try {
       final url = Uri.parse('$baseUrl/materiais');
-      final response = await http.get(url);
+      final headers = await _getHeaders(); // ✅ Inclui token
+      final response = await http.get(url, headers: headers);
+      
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
+      }
       
       if (response.statusCode == 200) {
         final List<dynamic> jsonList = jsonDecode(response.body);
@@ -28,13 +45,18 @@ class MaterialsApiRepository {
   Future<MaterialItem> createMaterial(MaterialItem item) async {
     try {
       final url = Uri.parse('$baseUrl/materiais');
+      final headers = await _getHeaders(); // ✅ Inclui token
       final body = item.toMap();
             
       final response = await http.post(
         url,
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: jsonEncode(body),
       );
+      
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
+      }
             
       if (response.statusCode == 200) {
         final created = MaterialItem.tryFromMap(jsonDecode(response.body));
@@ -52,11 +74,18 @@ class MaterialsApiRepository {
 
   Future<MaterialItem> updateMaterial(MaterialItem item) async {
     final url = Uri.parse('$baseUrl/materiais/${item.id}');
+    final headers = await _getHeaders(); // ✅ Inclui token
+    
     final response = await http.put(
       url,
-      headers: {'Content-Type': 'application/json'},
+      headers: headers,
       body: jsonEncode(item.toMap()),
     );
+    
+    if (response.statusCode == 401) {
+      throw Exception('Não autorizado - faça login novamente');
+    }
+    
     if (response.statusCode == 200) {
       final updated = MaterialItem.tryFromMap(jsonDecode(response.body));
       if (updated == null) {
@@ -70,12 +99,17 @@ class MaterialsApiRepository {
 
   Future<void> deleteMaterial(String id) async {
     final url = Uri.parse('$baseUrl/materiais/$id');
-    final response = await http.delete(url);
+    final headers = await _getHeaders(); // ✅ Inclui token
+    
+    final response = await http.delete(url, headers: headers);
+    
+    if (response.statusCode == 401) {
+      throw Exception('Não autorizado - faça login novamente');
+    }
     
     if (response.statusCode == 200) {
       return;
     } else if (response.statusCode == 400) {
-      // Tenta parsear a mensagem de erro
       try {
         final error = jsonDecode(response.body);
         throw Exception(error['message'] ?? 'Material em uso');

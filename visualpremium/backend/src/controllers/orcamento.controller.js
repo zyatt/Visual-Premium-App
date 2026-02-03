@@ -12,7 +12,7 @@ class OrcamentoController {
 
   async buscarPorId(req, res) {
     try {
-      const orcamento = await service.buscarPorId(+req.params.id);
+      const orcamento = await service.buscarPorId(+req.params.id, req.user);
       res.json(orcamento);
     } catch (e) {
       res.status(404).json({ error: e.message });
@@ -21,7 +21,7 @@ class OrcamentoController {
 
   async criar(req, res) {
     try {
-      const orcamento = await service.criar(req.body);
+      const orcamento = await service.criar(req.body, req.user); // ✅ PASSAR req.user
       res.json(orcamento);
     } catch (e) {
       res.status(400).json({ error: e.message });
@@ -30,7 +30,7 @@ class OrcamentoController {
 
   async atualizar(req, res) {
     try {
-      const orcamento = await service.atualizar(+req.params.id, req.body);
+      const orcamento = await service.atualizar(+req.params.id, req.body, req.user); // ✅ PASSAR req.user
       res.json(orcamento);
     } catch (e) {
       res.status(400).json({ error: e.message });
@@ -41,15 +41,15 @@ class OrcamentoController {
     try {
       const { status, produtoId, cliente, numero } = req.body;
       
-      // Validação básica
       if (!status) {
         return res.status(400).json({ error: 'Status é obrigatório' });
       }
       
       const orcamento = await service.atualizarStatus(
-        +req.params.id, 
+        +req.params.id,
         status,
-        { produtoId, cliente, numero }
+        { produtoId, cliente, numero },
+        req.user // ✅ PASSAR req.user
       );
       
       res.json(orcamento);
@@ -60,7 +60,7 @@ class OrcamentoController {
 
   async deletar(req, res) {
     try {
-      await service.deletar(+req.params.id);
+      await service.deletar(+req.params.id, req.user); // ✅ PASSAR req.user
       res.json({ message: 'Orçamento deletado com sucesso' });
     } catch (e) {
       res.status(400).json({ error: e.message });

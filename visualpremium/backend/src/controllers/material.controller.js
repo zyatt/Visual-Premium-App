@@ -6,19 +6,19 @@ class MaterialController {
   }
 
   criar(req, res) {
-    return service.criar(req.body)
+    return service.criar(req.body, req.user)
       .then(res.json.bind(res))
       .catch(e => res.status(400).json({ error: e.message }));
   }
 
   atualizar(req, res) {
-    return service.atualizar(+req.params.id, req.body)
+    return service.atualizar(+req.params.id, req.body, req.user)
       .then(res.json.bind(res))
       .catch(e => res.status(400).json({ error: e.message }));
   }
 
   deletar(req, res) {
-    return service.deletar(+req.params.id)
+    return service.deletar(+req.params.id, req.user)
       .then(res.json.bind(res))
       .catch(e => res.status(400).json(e));
   }

@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const logService = require('./log.service');
 
 class ProdutoService {
   listar() {
@@ -7,8 +8,7 @@ class ProdutoService {
     });
   }
 
-  async criar({ nome, materiais }) {
-    // Validar nome duplicado
+  async criar({ nome, materiais }, user) { // ✅ ADICIONAR PARÂMETRO user
     const nomeNormalizado = nome.trim().toLowerCase();
     const existente = await prisma.produto.findFirst({
       where: {
@@ -23,7 +23,6 @@ class ProdutoService {
       throw new Error('Já existe um produto com este nome');
     }
 
-    // Validar materiais duplicados
     if (materiais && materiais.length > 0) {
       const materialIds = materiais.map(m => +m.materialId);
       const uniqueIds = new Set(materialIds);
@@ -33,7 +32,7 @@ class ProdutoService {
       }
     }
 
-    return prisma.produto.create({
+    const produto = await prisma.produto.create({
       data: {
         nome: nome.trim(),
         materiais: {
@@ -44,10 +43,31 @@ class ProdutoService {
       },
       include: { materiais: { include: { material: true } } },
     });
+
+    // ✅ USAR DADOS DO USUÁRIO AUTENTICADO
+    await logService.registrar({
+      usuarioId: user?.id || 1,
+      usuarioNome: user?.nome || 'Sistema',
+      acao: 'CRIAR',
+      entidade: 'PRODUTO',
+      entidadeId: produto.id,
+      descricao: `Criou o produto "${produto.nome}"`,
+      detalhes: produto,
+    });
+
+    return produto;
   }
 
-  async atualizar(id, { nome, materiais }) {
-    // Validar nome duplicado (exceto o próprio produto)
+  async atualizar(id, { nome, materiais }, user) { // ✅ ADICIONAR PARÂMETRO user
+    const produtoAntigo = await prisma.produto.findUnique({
+      where: { id },
+      include: { materiais: { include: { material: true } } },
+    });
+
+    if (!produtoAntigo) {
+      throw new Error('Produto não encontrado');
+    }
+
     const nomeNormalizado = nome.trim().toLowerCase();
     const existente = await prisma.produto.findFirst({
       where: {
@@ -65,7 +85,6 @@ class ProdutoService {
       throw new Error('Já existe um produto com este nome');
     }
 
-    // Validar materiais duplicados
     if (materiais && materiais.length > 0) {
       const materialIds = materiais.map(m => +m.materialId);
       const uniqueIds = new Set(materialIds);
@@ -77,7 +96,7 @@ class ProdutoService {
 
     await prisma.produtoMaterial.deleteMany({ where: { produtoId: id } });
 
-    return prisma.produto.update({
+    const produto = await prisma.produto.update({
       where: { id },
       data: {
         nome: nome.trim(),
@@ -89,11 +108,35 @@ class ProdutoService {
       },
       include: { materiais: { include: { material: true } } },
     });
+
+    // ✅ USAR DADOS DO USUÁRIO AUTENTICADO
+    await logService.registrar({
+      usuarioId: user?.id || 1,
+      usuarioNome: user?.nome || 'Sistema',
+      acao: 'EDITAR',
+      entidade: 'PRODUTO',
+      entidadeId: id,
+      descricao: `Editou o produto "${produto.nome}"`,
+      detalhes: {
+        antes: produtoAntigo,
+        depois: produto,
+      },
+    });
+
+    return produto;
   }
 
-  async deletar(id) {
+  async deletar(id, user) { // ✅ ADICIONAR PARÂMETRO user
+    const produto = await prisma.produto.findUnique({
+      where: { id },
+      include: { materiais: { include: { material: true } } },
+    });
+
+    if (!produto) {
+      throw new Error('Produto não encontrado');
+    }
+
     try {
-      // Verificar se o produto está sendo usado em orçamentos
       const produtoComOrcamentos = await prisma.produto.findUnique({
         where: { id },
         include: {
@@ -106,7 +149,20 @@ class ProdutoService {
       }
 
       await prisma.produtoMaterial.deleteMany({ where: { produtoId: id } });
-      return prisma.produto.delete({ where: { id } });
+      await prisma.produto.delete({ where: { id } });
+
+      // ✅ USAR DADOS DO USUÁRIO AUTENTICADO
+      await logService.registrar({
+        usuarioId: user?.id || 1,
+        usuarioNome: user?.nome || 'Sistema',
+        acao: 'DELETAR',
+        entidade: 'PRODUTO',
+        entidadeId: id,
+        descricao: `Excluiu o produto "${produto.nome}"`,
+        detalhes: produto,
+      });
+
+      return produto;
     } catch (error) {
       if (error.code === 'P2003') {
         throw new Error('Não é possível deletar este produto pois ele está sendo usado em outros registros');

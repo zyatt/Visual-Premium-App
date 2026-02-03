@@ -3,24 +3,29 @@ import 'package:google_fonts/google_fonts.dart';
 
 class WelcomeToast {
   static void show(BuildContext context, String nome) {
-    final overlay = Overlay.of(context);
-    late OverlayEntry overlayEntry;
+    final overlay = Overlay.of(context, rootOverlay: true);
+
+    OverlayEntry? overlayEntry;
+    bool isRemoved = false;
+
+    void dismiss() {
+      if (isRemoved) return;
+      isRemoved = true;
+      overlayEntry?.remove();
+      overlayEntry = null;
+    }
 
     overlayEntry = OverlayEntry(
-      builder: (context) => _WelcomeToastWidget(
+      builder: (_) => _WelcomeToastWidget(
         nome: nome,
-        onDismiss: () => overlayEntry.remove(),
+        onDismiss: dismiss,
       ),
     );
 
-    overlay.insert(overlayEntry);
+    overlay.insert(overlayEntry!); // ✅ Usar ! porque sabemos que não é null aqui
 
-    // Remove automaticamente após 4 segundos
-    Future.delayed(const Duration(seconds: 4), () {
-      if (overlayEntry.mounted) {
-        overlayEntry.remove();
-      }
-    });
+    // Auto dismiss após 4 segundos
+    Future.delayed(const Duration(seconds: 4), dismiss);
   }
 }
 
@@ -39,13 +44,15 @@ class _WelcomeToastWidget extends StatefulWidget {
 
 class _WelcomeToastWidgetState extends State<_WelcomeToastWidget>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<Offset> _slideAnimation;
-  late Animation<double> _fadeAnimation;
+  late final AnimationController _controller;
+  late final Animation<Offset> _slideAnimation;
+  late final Animation<double> _fadeAnimation;
+  bool _isDismissing = false;
 
   @override
   void initState() {
     super.initState();
+
     _controller = AnimationController(
       duration: const Duration(milliseconds: 400),
       vsync: this,
@@ -57,6 +64,7 @@ class _WelcomeToastWidgetState extends State<_WelcomeToastWidget>
     ).animate(CurvedAnimation(
       parent: _controller,
       curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
     ));
 
     _fadeAnimation = Tween<double>(
@@ -65,9 +73,13 @@ class _WelcomeToastWidgetState extends State<_WelcomeToastWidget>
     ).animate(CurvedAnimation(
       parent: _controller,
       curve: Curves.easeIn,
+      reverseCurve: Curves.easeOut,
     ));
 
     _controller.forward();
+
+    // Inicia saída automaticamente
+    Future.delayed(const Duration(milliseconds: 3500), _dismiss);
   }
 
   @override
@@ -77,6 +89,9 @@ class _WelcomeToastWidgetState extends State<_WelcomeToastWidget>
   }
 
   Future<void> _dismiss() async {
+    if (_isDismissing || !mounted) return;
+    _isDismissing = true;
+
     await _controller.reverse();
     widget.onDismiss();
   }
@@ -146,7 +161,8 @@ class _WelcomeToastWidgetState extends State<_WelcomeToastWidget>
                           widget.nome,
                           style: GoogleFonts.inter(
                             fontSize: 13,
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                            color: theme.colorScheme.onSurface
+                                .withValues(alpha: 0.7),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,

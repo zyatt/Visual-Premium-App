@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const logService = require('./log.service');
 
 class PedidoService {
   async listar() {
@@ -19,7 +20,7 @@ class PedidoService {
           }
         },
         despesasAdicionais: true,
-        orcamento: {  // ✅ NOVO - Incluir orçamento relacionado
+        orcamento: {
           select: {
             id: true,
             numero: true
@@ -51,7 +52,7 @@ class PedidoService {
           }
         },
         despesasAdicionais: true,
-        orcamento: {  // ✅ NOVO - Incluir orçamento relacionado
+        orcamento: {
           select: {
             id: true,
             numero: true
@@ -96,7 +97,7 @@ class PedidoService {
     return total;
   }
 
-  async atualizar(id, data) {
+  async atualizar(id, data, user) {
     const { 
       cliente, 
       numero, 
@@ -115,8 +116,8 @@ class PedidoService {
       prazoEntrega
     } = data;
 
-    // Verificar se o pedido existe
-    const pedidoExistente = await prisma.pedido.findUnique({
+    // Verificar se o pedido existe e buscar dados antigos
+    const pedidoAntigo = await prisma.pedido.findUnique({
       where: { id },
       include: {
         materiais: {
@@ -124,11 +125,12 @@ class PedidoService {
             material: true
           }
         },
-        despesasAdicionais: true
+        despesasAdicionais: true,
+        produto: true
       }
     });
 
-    if (!pedidoExistente) {
+    if (!pedidoAntigo) {
       throw new Error('Pedido não encontrado');
     }
 
@@ -206,7 +208,7 @@ class PedidoService {
 
     // Buscar produto se necessário
     let produto;
-    if (produtoId && produtoId !== pedidoExistente.produtoId) {
+    if (produtoId && produtoId !== pedidoAntigo.produtoId) {
       produto = await prisma.produto.findUnique({
         where: { id: produtoId },
         include: {
@@ -223,7 +225,7 @@ class PedidoService {
       }
     } else {
       produto = await prisma.produto.findUnique({
-        where: { id: pedidoExistente.produtoId },
+        where: { id: pedidoAntigo.produtoId },
         include: {
           materiais: {
             include: {
@@ -349,7 +351,7 @@ class PedidoService {
     }
 
     // ✅ BUSCAR E RETORNAR PEDIDO COMPLETO ATUALIZADO
-    return await prisma.pedido.findUnique({
+    const pedidoAtualizado = await prisma.pedido.findUnique({
       where: { id },
       include: {
         produto: {
@@ -367,7 +369,7 @@ class PedidoService {
           }
         },
         despesasAdicionais: true,
-        orcamento: {  // ✅ NOVO - Incluir orçamento relacionado
+        orcamento: {
           select: {
             id: true,
             numero: true
@@ -375,10 +377,25 @@ class PedidoService {
         }
       }
     });
+
+    // REGISTRAR LOG DE EDIÇÃO
+    await logService.registrar({
+      usuarioId: user?.id || 1,
+      usuarioNome: user?.nome || 'Sistema',
+      acao: 'EDITAR',
+      entidade: 'PEDIDO',
+      entidadeId: id,
+      descricao: `Editou o pedido "${pedidoAtualizado.numero ? `#${pedidoAtualizado.numero}"` : `(ID: ${id})`}`,
+      detalhes: {
+        antes: pedidoAntigo,
+        depois: pedidoAtualizado,
+      },
+    });
+
+    return pedidoAtualizado;
   }
 
-
-  async atualizarStatus(id, status) {
+  async atualizarStatus(id, status, user) {
     const pedido = await prisma.pedido.findUnique({
       where: { id }
     });
@@ -391,7 +408,8 @@ class PedidoService {
       throw new Error('Status inválido');
     }
 
-    return prisma.pedido.update({
+    const statusAnterior = pedido.status;
+    const pedidoAtualizado = await prisma.pedido.update({
       where: { id },
       data: { status },
       include: {
@@ -410,7 +428,7 @@ class PedidoService {
           }
         },
         despesasAdicionais: true,
-        orcamento: {  // ✅ NOVO - Incluir orçamento relacionado
+        orcamento: {
           select: {
             id: true,
             numero: true
@@ -418,11 +436,33 @@ class PedidoService {
         }
       }
     });
+
+    // REGISTRAR LOG DE MUDANÇA DE STATUS
+    await logService.registrar({
+      usuarioId: user?.id || 1,
+      usuarioNome: user?.nome || 'Sistema',
+      acao: 'EDITAR',
+      entidade: 'PEDIDO',
+      entidadeId: id,
+      descricao: `Alterou o status do pedido "${pedido.numero ? `#${pedido.numero}"` : `(ID: ${id})`} de "${statusAnterior}" para "${status}"`,
+      detalhes: {
+        statusAnterior,
+        statusNovo: status
+      },
+    });
+
+    return pedidoAtualizado;
   }
 
-  async deletar(id) {
+  async deletar(id, user) {
+    // Buscar dados antes de deletar
     const pedido = await prisma.pedido.findUnique({
-      where: { id }
+      where: { id },
+      include: {
+        materiais: { include: { material: true } },
+        despesasAdicionais: true,
+        produto: true
+      }
     });
 
     if (!pedido) {
@@ -437,9 +477,23 @@ class PedidoService {
       where: { pedidoId: id }
     });
 
-    return prisma.pedido.delete({
+    await prisma.pedido.delete({
       where: { id }
     });
+
+    // REGISTRAR LOG DE EXCLUSÃO
+    await logService.registrar({
+      usuarioId: user?.id || 1,
+      usuarioNome: user?.nome || 'Sistema',
+      acao: 'DELETAR',
+      entidade: 'PEDIDO',
+      entidadeId: id,
+      descricao: `Excluiu o pedido ${pedido.numero ? `#${pedido.numero}` : `(ID: ${id})`}`,
+      detalhes: pedido,
+    });
+
+
+    return pedido;
   }
 }
 

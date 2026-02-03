@@ -44,12 +44,16 @@ class User {
 
 class AuthProvider extends ChangeNotifier {
   static const String _userKey = 'logged_user';
+  static const String _tokenKey = 'auth_token'; // ✅ Chave para o token
+  
   User? _currentUser;
+  String? _token; // ✅ Armazena o token
   bool _isLoading = true;
   bool _shouldShowWelcome = false;
 
   User? get currentUser => _currentUser;
-  bool get isAuthenticated => _currentUser != null;
+  String? get token => _token; // ✅ Getter para o token
+  bool get isAuthenticated => _currentUser != null && _token != null;
   bool get isAdmin => _currentUser?.role == UserRole.admin;
   bool get isLoading => _isLoading;
   bool get shouldShowWelcome => _shouldShowWelcome;
@@ -65,15 +69,17 @@ class AuthProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userData = prefs.getString(_userKey);
+      final token = prefs.getString(_tokenKey); // ✅ Carrega o token
       
-      if (userData != null) {
+      if (userData != null && token != null) {
         final Map<String, dynamic> json = jsonDecode(userData);
         _currentUser = User.fromJson(json);
-        // ✅ Ao carregar usuário de sessão anterior, NÃO mostra welcome
+        _token = token; // ✅ Restaura o token
         _shouldShowWelcome = false;
       }
     } catch (e) {
       _currentUser = null;
+      _token = null;
       _shouldShowWelcome = false;
     } finally {
       _isLoading = false;
@@ -95,11 +101,12 @@ class AuthProvider extends ChangeNotifier {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         _currentUser = User.fromJson(data);
-        // ✅ Define que deve mostrar welcome após login manual
+        _token = data['token']; // ✅ Salva o token recebido
         _shouldShowWelcome = true;
 
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_userKey, jsonEncode(_currentUser!.toJson()));
+        await prefs.setString(_tokenKey, _token!); // ✅ Persiste o token
 
         notifyListeners();
         return {'success': true};
@@ -130,16 +137,19 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     try {
       _currentUser = null;
+      _token = null; // ✅ Limpa o token
       _shouldShowWelcome = false;
       
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_userKey);
+      await prefs.remove(_tokenKey); // ✅ Remove o token do storage
       
       notifyListeners();
       
       await Future.delayed(const Duration(milliseconds: 100));
     } catch (e) {
       _currentUser = null;
+      _token = null;
       _shouldShowWelcome = false;
       notifyListeners();
     }

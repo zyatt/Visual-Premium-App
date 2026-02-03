@@ -1,11 +1,12 @@
 const { Router } = require('express');
 const controller = require('../controllers/produto.controller');
+const { authMiddleware } = require('../middlewares/auth.middleware');
 
 const router = Router();
 
-router.get('/', controller.listar);
-router.post('/', controller.criar);
-router.put('/:id', controller.atualizar);
-router.delete('/:id', controller.deletar);
+router.get('/', authMiddleware, controller.listar);
+router.post('/', authMiddleware, controller.criar);
+router.put('/:id', authMiddleware, controller.atualizar);
+router.delete('/:id', authMiddleware, controller.deletar);
 
 module.exports = router;

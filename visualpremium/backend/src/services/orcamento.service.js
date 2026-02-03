@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const logService = require('./log.service');
 
 class OrcamentoService {
   async listar() {
@@ -55,7 +56,7 @@ class OrcamentoService {
     return orcamento;
   }
 
-  async criar(data) {
+  async criar(data, user) {
     const { 
       cliente, 
       numero, 
@@ -230,10 +231,24 @@ class OrcamentoService {
       }
     });
 
+    // ✅ USAR DADOS DO USUÁRIO AUTENTICADO
+     await logService.registrar({
+      usuarioId: user?.id || 1,
+      usuarioNome: user?.nome || 'Sistema',
+      acao: 'EDITAR',
+      entidade: 'ORCAMENTO',
+      entidadeId: id,
+      descricao: `Editou o orçamento #${orcamento.numero}`,
+      detalhes: {
+        antes: orcamentoAntigo,
+        depois: orcamento,
+      },
+    });
+
     return orcamento;
   }
 
-  async atualizar(id, data) {
+  async atualizar(id, data, user) {
     const { 
       cliente, 
       numero, 
@@ -252,12 +267,17 @@ class OrcamentoService {
       prazoEntrega
     } = data;
 
-    // Verificar se o orçamento existe
-    const orcamentoExistente = await prisma.orcamento.findUnique({
-      where: { id }
+    // Verificar se o orçamento existe e buscar dados antigos
+    const orcamentoAntigo = await prisma.orcamento.findUnique({
+      where: { id },
+      include: {
+        produto: true,
+        materiais: { include: { material: true } },
+        despesasAdicionais: true
+      }
     });
 
-    if (!orcamentoExistente) {
+    if (!orcamentoAntigo) {
       throw new Error('Orçamento não encontrado');
     }
 
@@ -317,7 +337,7 @@ class OrcamentoService {
 
     // Buscar produto se necessário
     let produto;
-    if (produtoId && produtoId !== orcamentoExistente.produtoId) {
+    if (produtoId && produtoId !== orcamentoAntigo.produtoId) {
       produto = await prisma.produto.findUnique({
         where: { id: produtoId },
         include: {
@@ -334,7 +354,7 @@ class OrcamentoService {
       }
     } else {
       produto = await prisma.produto.findUnique({
-        where: { id: orcamentoExistente.produtoId },
+        where: { id: orcamentoAntigo.produtoId },
         include: {
           materiais: {
             include: {
@@ -446,10 +466,24 @@ class OrcamentoService {
       }
     });
 
+    // REGISTRAR LOG DE EDIÇÃO
+    await logService.registrar({
+      usuarioId: 1,
+      usuarioNome: user?.nome || 'Sistema',
+      acao: 'EDITAR',
+      entidade: 'ORCAMENTO',
+      entidadeId: id,
+      descricao: `Editou o orçamento "#${orcamento.numero}"`,
+      detalhes: {
+        antes: orcamentoAntigo,
+        depois: orcamento,
+      },
+    });
+
     return orcamento;
   }
 
-  async atualizarStatus(id, status, dadosAdicionais = {}) {
+  async atualizarStatus(id, status, dadosAdicionais = {}, user) {
     const orcamento = await prisma.orcamento.findUnique({
       where: { id },
       include: {
@@ -475,7 +509,7 @@ class OrcamentoService {
     if (status === 'Aprovado' && !orcamento.pedido) {
       const pedidoData = {
         cliente: orcamento.cliente,
-        numero: null, // ✅ Campo vazio como solicitado
+        numero: null,
         status: 'Em Andamento',
         produtoId: orcamento.produtoId,
         frete: orcamento.frete,
@@ -513,12 +547,12 @@ class OrcamentoService {
       // Criar o pedido em uma transação junto com a atualização do status
       return await prisma.$transaction(async (tx) => {
         // Criar o pedido
-        await tx.pedido.create({
+        const pedidoCriado = await tx.pedido.create({
           data: pedidoData
         });
 
         // Atualizar o status do orçamento
-        return await tx.orcamento.update({
+        const orcamentoAtualizado = await tx.orcamento.update({
           where: { id },
           data: { status },
           include: {
@@ -539,11 +573,29 @@ class OrcamentoService {
             despesasAdicionais: true
           }
         });
+
+        // REGISTRAR LOG DE APROVAÇÃO E CRIAÇÃO DE PEDIDO
+        await logService.registrar({
+          usuarioId: user?.id || 1,
+          usuarioNome: user?.nome || 'Sistema',
+          acao: 'EDITAR',
+          entidade: 'ORCAMENTO',
+          entidadeId: id,
+          descricao: `Aprovou o orçamento "#${orcamento.numero}" e um pedido foi criado`,
+          detalhes: {
+            statusAnterior: orcamento.status,
+            statusNovo: status,
+            pedidoCriado: pedidoCriado.id
+          },
+        });
+
+        return orcamentoAtualizado;
       });
     }
 
     // Caso contrário, apenas atualizar o status
-    return prisma.orcamento.update({
+    const statusAnterior = orcamento.status;
+    const orcamentoAtualizado = await prisma.orcamento.update({
       where: { id },
       data: { status },
       include: {
@@ -564,11 +616,33 @@ class OrcamentoService {
         despesasAdicionais: true
       }
     });
+
+    // REGISTRAR LOG DE MUDANÇA DE STATUS
+    await logService.registrar({
+      usuarioId: 1,
+      usuarioNome: user?.nome || 'Sistema',
+      acao: 'EDITAR',
+      entidade: 'ORCAMENTO',
+      entidadeId: id,
+      descricao: `Alterou o status do orçamento "#${orcamento.numero}" de "${statusAnterior}" para "${status}"`,
+      detalhes: {
+        statusAnterior,
+        statusNovo: status
+      },
+    });
+
+    return orcamentoAtualizado;
   }
 
-  async deletar(id) {
+  async deletar(id, user) {
+    // Buscar dados antes de deletar
     const orcamento = await prisma.orcamento.findUnique({
-      where: { id }
+      where: { id },
+      include: {
+        produto: true,
+        materiais: { include: { material: true } },
+        despesasAdicionais: true
+      }
     });
 
     if (!orcamento) {
@@ -583,9 +657,21 @@ class OrcamentoService {
       where: { orcamentoId: id }
     });
 
-    return prisma.orcamento.delete({
+    await prisma.orcamento.delete({
       where: { id }
     });
+
+    // REGISTRAR LOG DE EXCLUSÃO
+    await logService.registrar({
+      usuarioId: user?.id || 1,
+      usuarioNome: user?.nome || 'Sistema',
+      acao: 'DELETAR',
+      entidade: 'ORCAMENTO',
+      entidadeId: id,
+      descricao: `Excluiu o orçamento "#${orcamento.numero}"`,
+      detalhes: orcamento,
+    });
+    return orcamento;
   }
 
   async listarProdutos() {
@@ -604,4 +690,4 @@ class OrcamentoService {
   }
 }
 
-module.exports = new OrcamentoService()
+module.exports = new OrcamentoService();
