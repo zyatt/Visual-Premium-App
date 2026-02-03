@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../routes.dart';
 import '../theme.dart';
 
 class AdminPage extends StatelessWidget {
@@ -75,7 +77,7 @@ class AdminPage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Bem-vindo, ${authProvider.currentUser?.username}!',
+                          'Bem-vindo, ${authProvider.currentUser?.nome}!',
                           style: theme.textTheme.titleLarge?.copyWith(
                             color: theme.colorScheme.onPrimary,
                             fontWeight: FontWeight.w700,
@@ -120,9 +122,7 @@ class AdminPage extends StatelessWidget {
                       description: 'Adicionar, editar e remover usuários do sistema',
                       color: Colors.blue,
                       onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Funcionalidade em desenvolvimento')),
-                        );
+                        context.go(AppRoutes.usuarios);
                       },
                     ),
                     _AdminFeatureCard(
@@ -175,9 +175,7 @@ class AdminPage extends StatelessWidget {
                       description: 'Visualizar histórico de ações',
                       color: Colors.teal,
                       onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Funcionalidade em desenvolvimento')),
-                        );
+                        context.go(AppRoutes.logs);
                       },
                     ),
                   ],

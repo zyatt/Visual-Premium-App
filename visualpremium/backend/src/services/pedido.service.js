@@ -18,7 +18,13 @@ class PedidoService {
             material: true
           }
         },
-        despesasAdicionais: true
+        despesasAdicionais: true,
+        orcamento: {  // ✅ NOVO - Incluir orçamento relacionado
+          select: {
+            id: true,
+            numero: true
+          }
+        }
       },
       orderBy: {
         createdAt: 'desc'
@@ -44,7 +50,13 @@ class PedidoService {
             material: true
           }
         },
-        despesasAdicionais: true
+        despesasAdicionais: true,
+        orcamento: {  // ✅ NOVO - Incluir orçamento relacionado
+          select: {
+            id: true,
+            numero: true
+          }
+        }
       }
     });
 
@@ -354,7 +366,13 @@ class PedidoService {
             material: true
           }
         },
-        despesasAdicionais: true
+        despesasAdicionais: true,
+        orcamento: {  // ✅ NOVO - Incluir orçamento relacionado
+          select: {
+            id: true,
+            numero: true
+          }
+        }
       }
     });
   }
@@ -391,7 +409,13 @@ class PedidoService {
             material: true
           }
         },
-        despesasAdicionais: true
+        despesasAdicionais: true,
+        orcamento: {  // ✅ NOVO - Incluir orçamento relacionado
+          select: {
+            id: true,
+            numero: true
+          }
+        }
       }
     });
   }

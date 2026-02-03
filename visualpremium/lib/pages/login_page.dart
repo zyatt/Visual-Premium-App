@@ -17,6 +17,7 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  String? _loginError;
 
   @override
   void dispose() {
@@ -26,12 +27,14 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _handleLogin() async {
+    setState(() => _loginError = null);
+    
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final success = await authProvider.login(
+    final result = await authProvider.login(
       _usernameController.text.trim(),
       _passwordController.text,
     );
@@ -40,15 +43,12 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _isLoading = false);
 
-    if (success) {
+    if (result['success'] == true) {
       context.go('/');
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Usuário ou senha incorretos'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      setState(() {
+        _loginError = result['message'] ?? 'Usuário ou senha incorretos';
+      });
     }
   }
 
@@ -94,7 +94,6 @@ class _LoginPageState extends State<LoginPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Logo
                         Image.asset(
                           'assets/images/logo.png',
                           width: 80,
@@ -102,8 +101,6 @@ class _LoginPageState extends State<LoginPage> {
                           fit: BoxFit.contain,
                         ),
                         const SizedBox(height: 24),
-
-                        // Título
                         Text(
                           'Visual Premium',
                           style: theme.textTheme.headlineMedium?.copyWith(
@@ -118,8 +115,41 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         const SizedBox(height: 32),
-
-                        // Campo de usuário
+                        
+                        // Mensagem de erro única acima dos campos
+                        if (_loginError != null) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.errorContainer,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: theme.colorScheme.error.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.error_outline,
+                                  color: theme.colorScheme.error,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _loginError!,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: theme.colorScheme.onErrorContainer,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                        
                         TextFormField(
                           controller: _usernameController,
                           decoration: const InputDecoration(
@@ -133,10 +163,13 @@ class _LoginPageState extends State<LoginPage> {
                             return null;
                           },
                           textInputAction: TextInputAction.next,
+                          onChanged: (_) {
+                            if (_loginError != null) {
+                              setState(() => _loginError = null);
+                            }
+                          },
                         ),
                         const SizedBox(height: 16),
-
-                        // Campo de senha
                         TextFormField(
                           controller: _passwordController,
                           obscureText: _obscurePassword,
@@ -163,10 +196,13 @@ class _LoginPageState extends State<LoginPage> {
                             return null;
                           },
                           onFieldSubmitted: (_) => _handleLogin(),
+                          onChanged: (_) {
+                            if (_loginError != null) {
+                              setState(() => _loginError = null);
+                            }
+                          },
                         ),
                         const SizedBox(height: 32),
-
-                        // Botão de login
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
@@ -186,45 +222,6 @@ class _LoginPageState extends State<LoginPage> {
                                 : const Text('Entrar'),
                           ),
                         ),
-                        const SizedBox(height: 24),
-
-                        // Informações de teste
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                            borderRadius: BorderRadius.circular(AppRadius.sm),
-                            border: Border.all(
-                              color: theme.dividerColor.withValues(alpha: 0.1),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.info_outline,
-                                    size: 16,
-                                    color: theme.colorScheme.primary,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Credenciais de teste',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                      color: theme.colorScheme.primary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              _buildCredentialRow(theme, 'Admin', 'admin / admin123'),
-                              const SizedBox(height: 4),
-                              _buildCredentialRow(theme, 'Usuário', 'user / user123'),
-                            ],
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -234,37 +231,6 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildCredentialRow(ThemeData theme, String label, String credentials) {
-    return Row(
-      children: [
-        Container(
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primary.withValues(alpha: 0.5),
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          '$label: ',
-          style: theme.textTheme.bodySmall?.copyWith(
-            fontWeight: FontWeight.w600,
-            fontSize: 11,
-          ),
-        ),
-        Text(
-          credentials,
-          style: theme.textTheme.bodySmall?.copyWith(
-            fontFamily: 'monospace',
-            fontSize: 11,
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-          ),
-        ),
-      ],
     );
   }
 }

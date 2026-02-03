@@ -1,17 +1,45 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:window_manager/window_manager.dart';
 import 'theme.dart';
 import 'theme_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/data_provider.dart';
 import 'nav.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Configurar tamanho mínimo da janela (Desktop)
+  await windowManager.ensureInitialized();
+  
+  WindowOptions windowOptions = const WindowOptions(
+    size: Size(1240, 720),
+    minimumSize: Size(1240, 720), // Tamanho mínimo
+    center: true,
+    backgroundColor: Colors.transparent,
+    skipTaskbar: false,
+    titleBarStyle: TitleBarStyle.normal,
+  );
+  
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
+  
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  GoRouter? _router;
 
   @override
   Widget build(BuildContext context) {
@@ -21,15 +49,18 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => DataProvider()),
       ],
-      child: Consumer2<ThemeProvider, AuthProvider>(
-        builder: (context, themeProvider, authProvider, child) {
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          _router ??= AppRouter.createRouter(
+            Provider.of<AuthProvider>(context, listen: false),
+          );
           return MaterialApp.router(
             title: 'Visual Premium',
             debugShowCheckedModeBanner: false,
             theme: lightTheme,
             darkTheme: darkTheme,
             themeMode: themeProvider.themeMode,
-            routerConfig: AppRouter.createRouter(authProvider),
+            routerConfig: _router!,
           );
         },
       ),

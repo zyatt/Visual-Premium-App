@@ -151,6 +151,8 @@ class PedidoItem {
   final String prazoEntrega;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final int? orcamentoId;        // ✅ NOVO
+  final int? orcamentoNumero;    // ✅ NOVO
 
   const PedidoItem({
     required this.id,
@@ -172,6 +174,8 @@ class PedidoItem {
     required this.prazoEntrega,
     required this.createdAt,
     required this.updatedAt,
+    this.orcamentoId,        // ✅ NOVO
+    this.orcamentoNumero,    // ✅ NOVO
   });
 
   double get totalMateriais {
@@ -218,6 +222,8 @@ class PedidoItem {
     String? prazoEntrega,
     DateTime? createdAt,
     DateTime? updatedAt,
+    int? orcamentoId,        // ✅ NOVO
+    int? orcamentoNumero,    // ✅ NOVO
   }) =>
       PedidoItem(
         id: id ?? this.id,
@@ -239,6 +245,8 @@ class PedidoItem {
         prazoEntrega: prazoEntrega ?? this.prazoEntrega,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
+        orcamentoId: orcamentoId ?? this.orcamentoId,              // ✅ NOVO
+        orcamentoNumero: orcamentoNumero ?? this.orcamentoNumero,  // ✅ NOVO
       );
 
   Map<String, Object?> toMap() {
@@ -289,6 +297,15 @@ class PedidoItem {
       final caminhaoMunck = map['caminhaoMunck'] as bool? ?? false;
       final caminhaoMunckHoras = map['caminhaoMunckHoras'];
       final caminhaoMunckValorHora = map['caminhaoMunckValorHora'];
+      
+      // ✅ NOVO - Extrair dados do orçamento
+      final orcamentoId = map['orcamentoId'];
+      final orcamentoData = map['orcamento'];
+      int? orcamentoNumero;
+      if (orcamentoData != null && orcamentoData is Map) {
+        final orcMap = orcamentoData as Map<String, dynamic>;
+        orcamentoNumero = orcMap['numero'] != null ? int.tryParse(orcMap['numero'].toString()) : null;
+      }
 
       if (id == null || cliente is! String || status is! String || 
         produtoId == null || produtoData == null || formaPagamento is! String ||
@@ -347,6 +364,8 @@ class PedidoItem {
         prazoEntrega: prazoEntrega.trim(),
         createdAt: createdAt != null ? DateTime.parse(createdAt.toString()) : DateTime.now(),
         updatedAt: updatedAt != null ? DateTime.parse(updatedAt.toString()) : DateTime.now(),
+        orcamentoId: orcamentoId != null ? int.tryParse(orcamentoId.toString()) : null,  // ✅ NOVO
+        orcamentoNumero: orcamentoNumero,  // ✅ NOVO
       );
     } catch (e) {
       return null;

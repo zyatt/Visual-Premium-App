@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:visualpremium/providers/auth_provider.dart';
 import 'package:visualpremium/providers/data_provider.dart';
 import 'package:visualpremium/models/material_item.dart';
 import 'package:visualpremium/models/product_item.dart';
 import 'package:visualpremium/models/orcamento_item.dart';
 import 'package:visualpremium/models/pedido_item.dart';
 import 'package:visualpremium/theme.dart';
+import 'package:visualpremium/components/welcome_toast.dart';
 
 const double estoqueBaixo = 10;
 
@@ -19,10 +21,25 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with RouteAware {
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (authProvider.shouldShowWelcome) {
+        WelcomeToast.show(context, authProvider.currentUser!.nome);
+        authProvider.markWelcomeAsShown();
+      }
+    });
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final dataProvider = Provider.of<DataProvider>(context, listen: false);
+
       if (dataProvider.isLoaded && !dataProvider.isLoading) {
         dataProvider.refreshData();
       } else if (!dataProvider.isLoaded && !dataProvider.isLoading) {

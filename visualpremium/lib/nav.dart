@@ -9,8 +9,10 @@ import 'pages/pedidos_page.dart';
 import 'pages/produtos_page.dart';
 import 'pages/materiais_page.dart';
 import 'pages/admin_page.dart';
+import 'pages/usuarios_page.dart';
 import 'pages/splash_page.dart';
 import 'pages/login_page.dart';
+import 'pages/logs_page.dart';
 
 class AppRouter {
   static final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -25,30 +27,30 @@ class AppRouter {
         final isLoading = authProvider.isLoading;
         final isAuthenticated = authProvider.isAuthenticated;
         final isAdmin = authProvider.isAdmin;
-        
-        final isGoingToLogin = state.uri.toString() == '/login';
-        final isGoingToSplash = state.uri.toString() == '/splash';
-        final isGoingToAdmin = state.uri.toString() == '/admin';
 
-        // Aguarda carregamento
-        if (isLoading && !isGoingToSplash) {
-          return '/splash';
+        final location = state.uri.toString();
+
+        final isGoingToLogin = location == '/login';
+        final isGoingToSplash = location == '/splash';
+        final isGoingToAdmin = location.startsWith('/admin');
+
+        // Splash sempre pode permanecer — ela navega sozinha após animação
+        if (isGoingToSplash) return null;
+
+        // Durante carregamento inicial, força splash
+        if (isLoading) return '/splash';
+
+        // Não autenticado → login
+        if (!isAuthenticated) {
+          if (!isGoingToLogin) return '/login';
+          return null;
         }
 
-        // Redireciona para login se não autenticado
-        if (!isAuthenticated && !isGoingToLogin && !isGoingToSplash) {
-          return '/login';
-        }
+        // Autenticado
+        if (isGoingToLogin) return '/';
 
-        // Redireciona para home se já autenticado e tentando acessar login
-        if (isAuthenticated && isGoingToLogin) {
-          return '/';
-        }
-
-        // Protege rota admin
-        if (isGoingToAdmin && !isAdmin) {
-          return '/';
-        }
+        // Protege todas as rotas admin
+        if (isGoingToAdmin && !isAdmin) return '/';
 
         return null;
       },
@@ -113,6 +115,20 @@ class AppRouter {
               name: 'admin',
               pageBuilder: (context, state) => NoTransitionPage(
                 child: const AdminPage(),
+              ),
+            ),
+            GoRoute(
+              path: AppRoutes.usuarios,
+              name: 'usuarios',
+              pageBuilder: (context, state) => NoTransitionPage(
+                child: const UsuariosPage(),
+              ),
+            ),
+            GoRoute(
+              path: AppRoutes.logs,
+              name: 'logs',
+              pageBuilder: (context, state) => NoTransitionPage(
+                child: const LogsPage(),
               ),
             ),
           ],

@@ -1,8 +1,9 @@
   import 'package:flutter/material.dart';
   import 'package:go_router/go_router.dart';
   import 'package:provider/provider.dart';
-import 'package:visualpremium/providers/auth_provider.dart';
+  import 'package:visualpremium/providers/auth_provider.dart';
   import 'package:visualpremium/providers/data_provider.dart';
+  
   import 'dart:math' as math;
 
   class SplashPage extends StatefulWidget {
@@ -13,7 +14,7 @@ import 'package:visualpremium/providers/auth_provider.dart';
   }
 
   class _SplashPageState extends State<SplashPage>
-      with TickerProviderStateMixin {
+    with TickerProviderStateMixin {
     late AnimationController _logoController;
     late AnimationController _fadeController;
     late AnimationController _progressController;
@@ -140,14 +141,12 @@ import 'package:visualpremium/providers/auth_provider.dart';
     }
 
     void _checkAndNavigate() {
-      // Só navega quando ambos estiverem completos
       if (_dataLoaded && _animationsComplete && mounted) {
-        // Pequeno delay para suavizar a transição
         Future.delayed(const Duration(milliseconds: 300), () {
           if (mounted) {
-            // ✅ Mudança: verifica autenticação antes de navegar
             final authProvider = Provider.of<AuthProvider>(context, listen: false);
             if (authProvider.isAuthenticated) {
+              authProvider.setWelcomePending();
               context.go('/');
             } else {
               context.go('/login');
@@ -156,6 +155,7 @@ import 'package:visualpremium/providers/auth_provider.dart';
         });
       }
     }
+
 
     @override
     void dispose() {

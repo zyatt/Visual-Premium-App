@@ -1971,7 +1971,7 @@ class _PedidoCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Pedido ${item.numero != null ? "#${item.numero}" : "(sem número)"}',
+                    'Pedido ${item.numero != null ? "#${item.numero}" : "#"}',
                     style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 2),
@@ -1999,6 +1999,28 @@ class _PedidoCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                  // ✅ NOVO - Mostrar orçamento de origem
+                  if (item.orcamentoNumero != null) ...[
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.description_outlined,
+                          size: 14,
+                          color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Orçamento #${item.orcamentoNumero}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.primary.withValues(alpha: 0.8),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),

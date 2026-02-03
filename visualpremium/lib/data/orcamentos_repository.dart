@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:visualpremium/models/orcamento_item.dart';
 import 'package:visualpremium/models/pedido_item.dart';
-import 'package:visualpremium/data/config.dart';
+import 'package:visualpremium/config/config.dart';
 
 class OrcamentosApiRepository {
   String get baseUrl => Config.baseUrl;

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:visualpremium/models/material_item.dart';
-import 'package:visualpremium/data/config.dart';
+import 'package:visualpremium/config/config.dart';
 
 class MaterialsApiRepository {
   String get baseUrl => Config.baseUrl;

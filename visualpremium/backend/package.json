@@ -6,9 +6,10 @@
   "type": "commonjs",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
+    "dev": "nodemon src/server.js",
+    "prisma:generate": "npx prisma generate",
+    "prisma:migrate": "npx prisma migrate dev",
+    "prisma:seed": "npx prisma db seed",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -17,14 +18,19 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.3.0",
     "@prisma/client": "^7.3.0",
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "pdfkit": "^0.17.2",
-    "pg": "^8.17.2"
+    "pg": "^8.18.0"
   },
   "devDependencies": {
+    "@types/node": "^25.2.0",
     "nodemon": "^3.1.0",
     "prisma": "^7.3.0"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   }
 }

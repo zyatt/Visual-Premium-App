@@ -74,7 +74,6 @@ class PdfController {
       pdfStream.pipe(res);
       
     } catch (e) {
-      console.error('Erro ao gerar PDF:', e);
       res.status(500).json({ error: 'Erro ao gerar PDF: ' + e.message });
     }
   }
@@ -162,7 +161,6 @@ class PdfController {
       pdfStream.pipe(res);
       
     } catch (e) {
-      console.error('Erro ao gerar PDF do pedido:', e);
       res.status(500).json({ error: 'Erro ao gerar PDF: ' + e.message });
     }
   }
