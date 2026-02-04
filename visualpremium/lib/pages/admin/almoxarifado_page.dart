@@ -118,7 +118,7 @@ class _AlmoxarifadoPageState extends State<AlmoxarifadoPage> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Registre os custos reais dos materiais dos orçamentos aprovados',
+                'Registre os custos dos materiais dos orçamentos aprovados',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 ),

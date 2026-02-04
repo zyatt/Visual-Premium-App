@@ -128,6 +128,11 @@ class _Sidebar extends StatelessWidget {
                     ),
                   ),
                   _NavItem(
+                    icon: Icons.inventory_2,
+                    label: 'Almoxarifado',
+                    route: '/almoxarifado',
+                  ),
+                  _NavItem(
                     icon: Icons.admin_panel_settings,
                     label: 'Painel Admin',
                     route: '/admin',

@@ -126,15 +126,6 @@ class AdminPage extends StatelessWidget {
                       },
                     ),
                     _AdminFeatureCard(
-                      icon: Icons.inventory_2_outlined,
-                      title: 'Almoxarifado',
-                      description: 'Gerenciar estoque e materiais',
-                      color: Colors.indigo,
-                      onTap: () {
-                        context.go(AppRoutes.almoxarifado);
-                      },
-                    ),
-                    _AdminFeatureCard(
                       icon: Icons.analytics_outlined,
                       title: 'Relatórios',
                       description: 'Visualizar relatórios e estatísticas',
