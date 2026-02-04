@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import '../../../models/log_item.dart';
+import '../../models/log_item.dart';
 import '../../../data/logs_repository.dart';
 import '../../../theme.dart';
 
