@@ -13,6 +13,7 @@ class PdfController {
         return res.status(404).json({ error: 'Orçamento não encontrado' });
       }
       
+      // Calcular total dos materiais
       const totalMateriais = orcamento.materiais.reduce((sum, mat) => {
         const qty = parseFloat(mat.quantidade.toString().replace(',', '.'));
         return sum + (qty * mat.material.custo);
@@ -20,16 +21,17 @@ class PdfController {
       
       let totalGeral = totalMateriais;
       
+      // Adicionar despesas adicionais
       if (orcamento.despesasAdicionais && orcamento.despesasAdicionais.length > 0) {
         totalGeral += orcamento.despesasAdicionais.reduce((sum, despesa) => sum + despesa.valor, 0);
       }
       
-      if (orcamento.frete && orcamento.freteValor) {
-        totalGeral += orcamento.freteValor;
-      }
-      
-      if (orcamento.caminhaoMunck && orcamento.caminhaoMunckHoras && orcamento.caminhaoMunckValorHora) {
-        totalGeral += orcamento.caminhaoMunckHoras * orcamento.caminhaoMunckValorHora;
+      // Adicionar opções extras
+      if (orcamento.opcoesExtras && orcamento.opcoesExtras.length > 0) {
+        orcamento.opcoesExtras.forEach(opcao => {
+          if (opcao.valorFloat1) totalGeral += opcao.valorFloat1;
+          if (opcao.valorFloat2) totalGeral += opcao.valorFloat2;
+        });
       }
       
       const dadosPdf = {
@@ -51,16 +53,17 @@ class PdfController {
               valor: d.valor
             }))
           : [],
+        opcoesExtras: orcamento.opcoesExtras && orcamento.opcoesExtras.length > 0
+          ? orcamento.opcoesExtras.map(o => ({
+              nome: o.produtoOpcao.nome,
+              tipo: o.produtoOpcao.tipo,
+              valorString: o.valorString,
+              valorFloat1: o.valorFloat1,
+              valorFloat2: o.valorFloat2
+            }))
+          : [],
         total: totalGeral,
-        createdAt: orcamento.createdAt,
-        
-        frete: orcamento.frete || false,
-        freteDesc: orcamento.freteDesc,
-        freteValor: orcamento.freteValor,
-        
-        caminhaoMunck: orcamento.caminhaoMunck || false,
-        caminhaoMunckHoras: orcamento.caminhaoMunckHoras,
-        caminhaoMunckValorHora: orcamento.caminhaoMunckValorHora
+        createdAt: orcamento.createdAt
       };
       
       const pdfStream = pdfService.gerarDocumento(dadosPdf, 'orcamento');
@@ -97,21 +100,33 @@ class PdfController {
       // Calcular total geral
       let totalGeral = totalMateriais;
       
+      // Adicionar despesas adicionais
       if (pedido.despesasAdicionais && pedido.despesasAdicionais.length > 0) {
         totalGeral += pedido.despesasAdicionais.reduce((sum, despesa) => sum + despesa.valor, 0);
       }
       
+      // Adicionar opções extras
+      if (pedido.opcoesExtras && pedido.opcoesExtras.length > 0) {
+        pedido.opcoesExtras.forEach(opcao => {
+          if (opcao.valorFloat1) totalGeral += opcao.valorFloat1;
+          if (opcao.valorFloat2) totalGeral += opcao.valorFloat2;
+        });
+      }
+      
+      // Adicionar frete
       if (pedido.frete && pedido.freteValor) {
         totalGeral += pedido.freteValor;
       }
       
+      // Adicionar caminhão munck
       if (pedido.caminhaoMunck && pedido.caminhaoMunckHoras && pedido.caminhaoMunckValorHora) {
-        totalGeral += pedido.caminhaoMunckHoras * pedido.caminhaoMunckValorHora;
+        const horasConvertidas = pedido.caminhaoMunckHoras / 60; // ✅ CONVERTER MINUTOS PARA HORAS
+        totalGeral += horasConvertidas * pedido.caminhaoMunckValorHora;
       }
       
       // Preparar dados para o PDF
       const dadosPdf = {
-        numero: pedido.numero || 'S/N', // Se não tiver número, mostra "S/N"
+        numero: pedido.numero || 'S/N',
         cliente: pedido.cliente,
         produtoNome: pedido.produto.nome,
         formaPagamento: pedido.formaPagamento,
@@ -129,6 +144,15 @@ class PdfController {
               valor: d.valor
             }))
           : [],
+        opcoesExtras: pedido.opcoesExtras && pedido.opcoesExtras.length > 0
+          ? pedido.opcoesExtras.map(o => ({
+              nome: o.produtoOpcao.nome,
+              tipo: o.produtoOpcao.tipo,
+              valorString: o.valorString,
+              valorFloat1: o.valorFloat1,
+              valorFloat2: o.valorFloat2
+            }))
+          : [],
         total: totalGeral,
         createdAt: pedido.createdAt,
         
@@ -137,7 +161,7 @@ class PdfController {
         freteValor: pedido.freteValor,
         
         caminhaoMunck: pedido.caminhaoMunck || false,
-        caminhaoMunckHoras: pedido.caminhaoMunckHoras,
+        caminhaoMunckHoras: pedido.caminhaoMunckHoras, // Mantém em minutos
         caminhaoMunckValorHora: pedido.caminhaoMunckValorHora
       };
       

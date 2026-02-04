@@ -321,14 +321,12 @@ class _ProductsPageState extends State<ProductsPage> {
   List<ProductItem> get _filteredAndSortedItems {
     var filtered = _items;
     
-    // Filtro por materiais específicos
     if (_filters.materialIds.isNotEmpty) {
       filtered = filtered.where((item) {
         return item.materials.any((m) => _filters.materialIds.contains(m.materialId));
       }).toList();
     }
     
-    // Filtro por quantidade de materiais
     if (_filters.minMaterials != null) {
       filtered = filtered.where((item) => item.materials.length >= _filters.minMaterials!).toList();
     }
@@ -337,7 +335,6 @@ class _ProductsPageState extends State<ProductsPage> {
       filtered = filtered.where((item) => item.materials.length <= _filters.maxMaterials!).toList();
     }
     
-    // Busca por texto
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
       filtered = filtered.where((item) {
@@ -348,7 +345,6 @@ class _ProductsPageState extends State<ProductsPage> {
       filtered = List.from(filtered);
     }
     
-    // Ordenação
     switch (_sortOption) {
       case SortOption.newestFirst:
         filtered.sort((a, b) {
@@ -1286,11 +1282,30 @@ class _ProductCard extends StatelessWidget {
                     item.name,
                     style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
                   ),
-                  Text(
-                    '${item.materials.length} ${item.materials.length == 1 ? 'material' : 'materiais'}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                    ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        '${item.materials.length} ${item.materials.length == 1 ? 'material' : 'materiais'}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      if (item.opcoesExtras.isNotEmpty) ...[
+                        Text(
+                          ' • ',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        Text(
+                          '${item.opcoesExtras.length} ${item.opcoesExtras.length == 1 ? 'Outro' : 'Outros'}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
@@ -1408,12 +1423,14 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameCtrl;
   final Set<int> _selectedMaterialIds = {};
+  final List<ProductOpcaoExtra> _opcoesExtras = [];
   final FocusNode _dialogFocusNode = FocusNode();
   final FocusNode _nameFocusNode = FocusNode();
   bool _isShowingDiscardDialog = false;
   
   late final String _initialName;
   late final Set<int> _initialMaterialIds;
+  late final List<ProductOpcaoExtra> _initialOpcoesExtras;
 
   @override
   void initState() {
@@ -1425,9 +1442,11 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
       for (final pm in widget.initial!.materials) {
         _selectedMaterialIds.add(pm.materialId);
       }
+      _opcoesExtras.addAll(widget.initial!.opcoesExtras);
     }
     
     _initialMaterialIds = Set.from(_selectedMaterialIds);
+    _initialOpcoesExtras = List.from(_opcoesExtras);
     
     _nameFocusNode.addListener(_onFieldFocusChange);
     
@@ -1451,8 +1470,28 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
       return true;
     }
     
-    return !_selectedMaterialIds.containsAll(_initialMaterialIds) || 
-           !_initialMaterialIds.containsAll(_selectedMaterialIds);
+    if (!_selectedMaterialIds.containsAll(_initialMaterialIds) || 
+        !_initialMaterialIds.containsAll(_selectedMaterialIds)) {
+      return true;
+    }
+    
+    if (_opcoesExtras.length != _initialOpcoesExtras.length) {
+      return true;
+    }
+    
+    for (int i = 0; i < _opcoesExtras.length; i++) {
+      final current = _opcoesExtras[i];
+      final initial = _initialOpcoesExtras.firstWhere(
+        (o) => o.id == current.id,
+        orElse: () => ProductOpcaoExtra(id: -1, nome: '', tipo: TipoOpcaoExtra.stringFloat),
+      );
+      
+      if (initial.id == -1 || current.nome != initial.nome || current.tipo != initial.tipo) {
+        return true;
+      }
+    }
+    
+    return false;
   }
 
   @override
@@ -1485,6 +1524,40 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
   void _removeMaterial(int materialId) {
     setState(() {
       _selectedMaterialIds.remove(materialId);
+    });
+  }
+
+  Future<void> _showOpcaoExtraEditor([ProductOpcaoExtra? initial]) async {
+    final result = await showDialog<ProductOpcaoExtra>(
+      context: context,
+      builder: (dialogContext) {
+        return _OpcaoExtraEditorDialog(
+          initial: initial,
+          existingNames: _opcoesExtras
+              .where((o) => initial == null || o.id != initial.id)
+              .map((o) => o.nome.toLowerCase())
+              .toSet(),
+        );
+      },
+    );
+    
+    if (result != null) {
+      setState(() {
+        if (initial != null) {
+          final index = _opcoesExtras.indexWhere((o) => o.id == initial.id);
+          if (index != -1) {
+            _opcoesExtras[index] = result;
+          }
+        } else {
+          _opcoesExtras.add(result);
+        }
+      });
+    }
+  }
+
+  void _removeOpcaoExtra(int id) {
+    setState(() {
+      _opcoesExtras.removeWhere((o) => o.id == id);
     });
   }
 
@@ -1704,6 +1777,113 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
                                   }).toList(),
                                 ),
                               ),
+                            const SizedBox(height: 24),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Outros',
+                                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                                ),
+                                ExcludeFocus(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () => _showOpcaoExtraEditor(),
+                                    icon: const Icon(Icons.add, size: 18),
+                                    label: const Text('Adicionar opção'),
+                                    style: ElevatedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (_opcoesExtras.isEmpty)
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    'Nenhuma opção extra cadastrada',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                    ),
+                                  ),
+                                ),
+                              )
+                            else
+                              ExcludeFocus(
+                                child: Column(
+                                  children: _opcoesExtras.map((opcao) {
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 8),
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: Icon(
+                                              opcao.tipo == TipoOpcaoExtra.stringFloat
+                                                  ? Icons.text_fields
+                                                  : Icons.calculate_outlined,
+                                              size: 18,
+                                              color: theme.colorScheme.onSecondaryContainer,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  opcao.nome,
+                                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  opcao.tipo == TipoOpcaoExtra.stringFloat
+                                                      ? 'Descrição + Valor'
+                                                      : 'Tempo + Valor',
+                                                  style: theme.textTheme.bodySmall?.copyWith(
+                                                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          IconButton(
+                                            onPressed: () => _showOpcaoExtraEditor(opcao),
+                                            icon: const Icon(Icons.edit_outlined, size: 18),
+                                            tooltip: 'Editar',
+                                            color: theme.colorScheme.primary,
+                                          ),
+                                          IconButton(
+                                            onPressed: () => _removeOpcaoExtra(opcao.id),
+                                            icon: const Icon(Icons.delete_outline, size: 18),
+                                            tooltip: 'Remover',
+                                            color: theme.colorScheme.error,
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -1754,11 +1934,13 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
                                             id: now.microsecondsSinceEpoch.toString(),
                                             name: '',
                                             materials: const [],
+                                            opcoesExtras: const [],
                                             createdAt: now,
                                           ))
                                       .copyWith(
                                     name: _nameCtrl.text.trim(),
                                     materials: validMaterials,
+                                    opcoesExtras: _opcoesExtras,
                                   );
                                   context.pop(item);
                                 },
@@ -1771,6 +1953,194 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
                     ],
                   ),
                 ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OpcaoExtraEditorDialog extends StatefulWidget {
+  final ProductOpcaoExtra? initial;
+  final Set<String> existingNames;
+
+  const _OpcaoExtraEditorDialog({
+    required this.initial,
+    required this.existingNames,
+  });
+
+  @override
+  State<_OpcaoExtraEditorDialog> createState() => _OpcaoExtraEditorDialogState();
+}
+
+class _OpcaoExtraEditorDialogState extends State<_OpcaoExtraEditorDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nomeCtrl;
+  late TipoOpcaoExtra _tipo;
+  final FocusNode _dialogFocusNode = FocusNode();
+  final FocusNode _nomeFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _nomeCtrl = TextEditingController(text: widget.initial?.nome ?? '');
+    _tipo = widget.initial?.tipo ?? TipoOpcaoExtra.stringFloat;
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _nomeFocusNode.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _nomeCtrl.dispose();
+    _dialogFocusNode.dispose();
+    _nomeFocusNode.dispose();
+    super.dispose();
+  }
+
+  String? _validateNome(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Informe o nome da opção';
+    }
+    
+    final trimmedName = value.trim().toLowerCase();
+    if (widget.existingNames.contains(trimmedName)) {
+      return 'Já existe uma opção com este nome';
+    }
+    
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      backgroundColor: theme.colorScheme.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Focus(
+          focusNode: _dialogFocusNode,
+          onKeyEvent: (node, event) {
+            if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
+              Navigator.of(context).pop();
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.initial == null ? 'Nova opção extra' : 'Editar opção extra',
+                          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      ExcludeFocus(
+                        child: IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.close),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                          tooltip: 'Fechar (Esc)',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: _nomeCtrl,
+                    focusNode: _nomeFocusNode,
+                    decoration: const InputDecoration(
+                      labelText: 'Nome da opção',
+                      hintText: 'Ex: Frete, Cor',
+                    ),
+                    validator: _validateNome,
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Tipo de dados',
+                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 12),
+                  ExcludeFocus(
+                    child: Column(
+                      children: [
+                        RadioGroup<TipoOpcaoExtra>(
+                          groupValue: _tipo,
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setState(() => _tipo = value);
+                          },
+                          child: Column(
+                            children: [
+                              RadioListTile<TipoOpcaoExtra>(
+                                value: TipoOpcaoExtra.stringFloat,
+                                title: const Text('Descrição + Valor'),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                              RadioListTile<TipoOpcaoExtra>(
+                                value: TipoOpcaoExtra.floatFloat,
+                                title: const Text('Tempo + Valor'),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            ],
+                          ),
+                        )
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ExcludeFocus(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                              side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
+                              foregroundColor: theme.colorScheme.onSurface,
+                            ),
+                            child: const Text('Cancelar'),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ExcludeFocus(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              if (!_formKey.currentState!.validate()) return;
+                              
+                              final opcao = ProductOpcaoExtra(
+                                id: widget.initial?.id ?? DateTime.now().microsecondsSinceEpoch,
+                                nome: _nomeCtrl.text.trim(),
+                                tipo: _tipo,
+                              );
+                              
+                              Navigator.of(context).pop(opcao);
+                            },
+                            child: Text(widget.initial == null ? 'Adicionar' : 'Salvar'),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),

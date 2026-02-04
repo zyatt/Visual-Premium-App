@@ -11,7 +11,8 @@ class PedidoService {
               include: {
                 material: true
               }
-            }
+            },
+            opcoesExtras: true
           }
         },
         materiais: {
@@ -20,6 +21,11 @@ class PedidoService {
           }
         },
         despesasAdicionais: true,
+        opcoesExtras: {
+          include: {
+            produtoOpcao: true
+          }
+        },
         orcamento: {
           select: {
             id: true,
@@ -43,7 +49,8 @@ class PedidoService {
               include: {
                 material: true
               }
-            }
+            },
+            opcoesExtras: true
           }
         },
         materiais: {
@@ -52,6 +59,11 @@ class PedidoService {
           }
         },
         despesasAdicionais: true,
+        opcoesExtras: {
+          include: {
+            produtoOpcao: true
+          }
+        },
         orcamento: {
           select: {
             id: true,
@@ -68,33 +80,277 @@ class PedidoService {
     return pedido;
   }
 
-  _calculateTotal(materiais, despesasAdicionais, frete, freteValor, caminhaoMunck, caminhaoMunckHoras, caminhaoMunckValorHora) {
-    let total = 0;
+  async criar(data, user) {
+    const { 
+      cliente, 
+      numero, 
+      produtoId, 
+      materiais,
+      despesasAdicionais,
+      opcoesExtras,
+      frete,
+      freteDesc,
+      freteValor,
+      caminhaoMunck,
+      caminhaoMunckHoras,
+      caminhaoMunckValorHora,
+      formaPagamento,
+      condicoesPagamento,
+      prazoEntrega,
+      orcamentoId
+    } = data;
 
-    // Somar materiais - suporta tanto materiais do banco quanto novos materiais
-    for (const mat of materiais) {
-      const quantidade = parseFloat(mat.quantidade);
-      // Tentar pegar custo de diferentes estruturas
-      const custo = mat.material?.custo ?? mat.custo ?? 0;
-      total += custo * quantidade;
+    // Validações básicas
+    if (!cliente || !produtoId) {
+      throw new Error('Cliente e produto são obrigatórios');
     }
 
-    // Somar despesas adicionais
-    for (const desp of despesasAdicionais) {
-      total += desp.valor;
+    // Validar número se fornecido
+    if (numero !== undefined && numero !== null) {
+      if (typeof numero !== 'number' || numero <= 0) {
+        throw new Error('Número do pedido inválido');
+      }
+      
+      const pedidoDuplicado = await prisma.pedido.findFirst({
+        where: { numero: numero }
+      });
+      
+      if (pedidoDuplicado) {
+        throw new Error('Já existe um pedido com este número');
+      }
     }
 
-    // Somar frete
-    if (frete && freteValor) {
-      total += freteValor;
+    if (!formaPagamento || formaPagamento.trim() === '') {
+      throw new Error('Forma de pagamento é obrigatória');
     }
 
-    // Somar caminhão munck
-    if (caminhaoMunck && caminhaoMunckHoras && caminhaoMunckValorHora) {
-      total += caminhaoMunckHoras * caminhaoMunckValorHora;
+    if (!condicoesPagamento || condicoesPagamento.trim() === '') {
+      throw new Error('Condições de pagamento são obrigatórias');
     }
 
-    return total;
+    if (!prazoEntrega || prazoEntrega.trim() === '') {
+      throw new Error('Prazo de entrega é obrigatório');
+    }
+
+    // Verificar se o produto existe
+    const produto = await prisma.produto.findUnique({
+      where: { id: produtoId },
+      include: {
+        materiais: {
+          include: {
+            material: true
+          }
+        },
+        opcoesExtras: true
+      }
+    });
+
+    if (!produto) {
+      throw new Error('Produto não encontrado');
+    }
+
+    // Validações condicionais
+    const freteBool = frete === true || frete === 'true';
+    const caminhaoMunckBool = caminhaoMunck === true || caminhaoMunck === 'true';
+
+    if (freteBool) {
+      if (!freteDesc || freteDesc.trim() === '') {
+        throw new Error('Descrição do frete é obrigatória');
+      }
+      if (!freteValor || freteValor <= 0) {
+        throw new Error('Valor do frete deve ser maior que zero');
+      }
+    }
+
+    if (caminhaoMunckBool) {
+      if (!caminhaoMunckHoras || caminhaoMunckHoras <= 0) {
+        throw new Error('Quantidade de minutos do caminhão munck deve ser maior que zero');
+      }
+      if (!caminhaoMunckValorHora || caminhaoMunckValorHora <= 0) {
+        throw new Error('Valor por hora do caminhão munck deve ser maior que zero');
+      }
+    }
+
+    // Validar despesas adicionais
+    const despesasValidadas = [];
+    if (despesasAdicionais && Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
+      for (const despesa of despesasAdicionais) {
+        if (!despesa.descricao || despesa.descricao.trim() === '') {
+          throw new Error('Descrição da despesa adicional é obrigatória');
+        }
+        if (!despesa.valor || despesa.valor <= 0) {
+          throw new Error('Valor da despesa adicional deve ser maior que zero');
+        }
+        despesasValidadas.push({
+          descricao: despesa.descricao.trim(),
+          valor: parseFloat(despesa.valor)
+        });
+      }
+    }
+
+    // Validar materiais
+    const materiaisValidados = [];
+    if (materiais && materiais.length > 0) {
+      for (const m of materiais) {
+        const material = produto.materiais.find(pm => pm.materialId === m.materialId);
+        if (!material) {
+          throw new Error(`Material ${m.materialId} não pertence ao produto`);
+        }
+
+        const unidade = material.material.unidade;
+        let quantidadeNum;
+
+        if (unidade === 'Kg') {
+          quantidadeNum = parseFloat(m.quantidade);
+          if (isNaN(quantidadeNum) || quantidadeNum < 0) {
+            throw new Error(`Quantidade inválida para material ${material.material.nome}`);
+          }
+        } else {
+          const qty = parseFloat(m.quantidade);
+          if (isNaN(qty) || qty < 0) {
+            throw new Error(`Quantidade inválida para material ${material.material.nome}`);
+          }
+          quantidadeNum = qty;
+        }
+
+        materiaisValidados.push({
+          materialId: m.materialId,
+          quantidade: quantidadeNum
+        });
+      }
+    }
+
+    // Validar opções extras
+    const opcoesExtrasValidadas = [];
+    if (opcoesExtras && Array.isArray(opcoesExtras) && opcoesExtras.length > 0) {
+      for (const opcaoValor of opcoesExtras) {
+        const opcaoExtra = produto.opcoesExtras.find(o => o.id === opcaoValor.produtoOpcaoId);
+        
+        if (!opcaoExtra) {
+          throw new Error(`Opção extra ${opcaoValor.produtoOpcaoId} não pertence ao produto`);
+        }
+
+        // Validar valores baseado no tipo
+        if (opcaoExtra.tipo === 'STRING_FLOAT') {
+          if (!opcaoValor.valorString || opcaoValor.valorString.trim() === '') {
+            throw new Error(`Valor texto é obrigatório para a opção "${opcaoExtra.nome}"`);
+          }
+          const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
+          if (isNaN(valorFloat1) || valorFloat1 < 0) {
+            throw new Error(`Valor numérico inválido para a opção "${opcaoExtra.nome}"`);
+          }
+          opcoesExtrasValidadas.push({
+            produtoOpcaoId: opcaoValor.produtoOpcaoId,
+            valorString: opcaoValor.valorString.trim(),
+            valorFloat1: valorFloat1,
+            valorFloat2: null
+          });
+        } else if (opcaoExtra.tipo === 'FLOAT_FLOAT') {
+          const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
+          const valorFloat2 = parseFloat(opcaoValor.valorFloat2);
+          
+          if (isNaN(valorFloat1) || valorFloat1 < 0) {
+            throw new Error(`Primeiro valor numérico inválido para a opção "${opcaoExtra.nome}"`);
+          }
+          if (isNaN(valorFloat2) || valorFloat2 < 0) {
+            throw new Error(`Segundo valor numérico inválido para a opção "${opcaoExtra.nome}"`);
+          }
+          
+          opcoesExtrasValidadas.push({
+            produtoOpcaoId: opcaoValor.produtoOpcaoId,
+            valorString: null,
+            valorFloat1: valorFloat1,
+            valorFloat2: valorFloat2
+          });
+        }
+      }
+    }
+
+    // Preparar dados para criação
+    const createData = {
+      cliente: cliente.trim(),
+      numero: numero || null,
+      status: 'Em Andamento',
+      produtoId,
+      formaPagamento: formaPagamento.trim(),
+      condicoesPagamento: condicoesPagamento.trim(),
+      prazoEntrega: prazoEntrega.trim(),
+      frete: freteBool,
+      freteDesc: freteBool ? freteDesc?.trim() : null,
+      freteValor: freteBool ? parseFloat(freteValor) : null,
+      caminhaoMunck: caminhaoMunckBool,
+      caminhaoMunckHoras: caminhaoMunckBool ? parseFloat(caminhaoMunckHoras) / 60 : null,
+      caminhaoMunckValorHora: caminhaoMunckBool ? parseFloat(caminhaoMunckValorHora) : null,
+      orcamentoId: orcamentoId || null
+    };
+
+    // Adicionar materiais apenas se houver
+    if (materiaisValidados.length > 0) {
+      createData.materiais = {
+        create: materiaisValidados
+      };
+    }
+
+    // Adicionar despesas apenas se houver
+    if (despesasValidadas.length > 0) {
+      createData.despesasAdicionais = {
+        create: despesasValidadas
+      };
+    }
+
+    // Adicionar opções extras apenas se houver
+    if (opcoesExtrasValidadas.length > 0) {
+      createData.opcoesExtras = {
+        create: opcoesExtrasValidadas
+      };
+    }
+
+    // Criar pedido
+    const pedido = await prisma.pedido.create({
+      data: createData,
+      include: {
+        produto: {
+          include: {
+            materiais: {
+              include: {
+                material: true
+              }
+            },
+            opcoesExtras: true
+          }
+        },
+        materiais: {
+          include: {
+            material: true
+          }
+        },
+        despesasAdicionais: true,
+        opcoesExtras: {
+          include: {
+            produtoOpcao: true
+          }
+        },
+        orcamento: {
+          select: {
+            id: true,
+            numero: true
+          }
+        }
+      }
+    });
+
+    // Registrar log de criação
+    await logService.registrar({
+      usuarioId: user?.id || 1,
+      usuarioNome: user?.nome || 'Sistema',
+      acao: 'CRIAR',
+      entidade: 'PEDIDO',
+      entidadeId: pedido.id,
+      descricao: `Criou o pedido ${pedido.numero ? `#${pedido.numero}` : `(ID: ${pedido.id})`}`,
+      detalhes: pedido,
+    });
+
+    return pedido;
   }
 
   async atualizar(id, data, user) {
@@ -105,6 +361,7 @@ class PedidoService {
       materiais, 
       status,
       despesasAdicionais,
+      opcoesExtras,
       frete,
       freteDesc,
       freteValor,
@@ -120,13 +377,22 @@ class PedidoService {
     const pedidoAntigo = await prisma.pedido.findUnique({
       where: { id },
       include: {
+        produto: {
+          include: {
+            opcoesExtras: true
+          }
+        },
         materiais: {
           include: {
             material: true
           }
         },
         despesasAdicionais: true,
-        produto: true
+        opcoesExtras: {
+          include: {
+            produtoOpcao: true
+          }
+        }
       }
     });
 
@@ -186,26 +452,6 @@ class PedidoService {
       }
     }
 
-    // Validar despesas adicionais
-    let despesasValidadas;
-    if (despesasAdicionais !== undefined) {
-      despesasValidadas = [];
-      if (Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
-        for (const despesa of despesasAdicionais) {
-          if (!despesa.descricao || despesa.descricao.trim() === '') {
-            throw new Error('Descrição da despesa adicional é obrigatória');
-          }
-          if (!despesa.valor || despesa.valor <= 0) {
-            throw new Error('Valor da despesa adicional deve ser maior que zero');
-          }
-          despesasValidadas.push({
-            descricao: despesa.descricao.trim(),
-            valor: parseFloat(despesa.valor)
-          });
-        }
-      }
-    }
-
     // Buscar produto se necessário
     let produto;
     if (produtoId && produtoId !== pedidoAntigo.produtoId) {
@@ -216,7 +462,8 @@ class PedidoService {
             include: {
               material: true
             }
-          }
+          },
+          opcoesExtras: true
         }
       });
 
@@ -231,7 +478,8 @@ class PedidoService {
             include: {
               material: true
             }
-          }
+          },
+          opcoesExtras: true
         }
       });
     }
@@ -270,6 +518,75 @@ class PedidoService {
       }
     }
 
+    // Validar despesas adicionais
+    let despesasValidadas;
+    if (despesasAdicionais !== undefined) {
+      despesasValidadas = [];
+      if (Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
+        for (const despesa of despesasAdicionais) {
+          if (!despesa.descricao || despesa.descricao.trim() === '') {
+            throw new Error('Descrição da despesa adicional é obrigatória');
+          }
+          if (!despesa.valor || despesa.valor <= 0) {
+            throw new Error('Valor da despesa adicional deve ser maior que zero');
+          }
+          despesasValidadas.push({
+            descricao: despesa.descricao.trim(),
+            valor: parseFloat(despesa.valor)
+          });
+        }
+      }
+    }
+
+    // Validar opções extras
+    let opcoesExtrasValidadas;
+    if (opcoesExtras !== undefined) {
+      opcoesExtrasValidadas = [];
+      if (Array.isArray(opcoesExtras) && opcoesExtras.length > 0) {
+        for (const opcaoValor of opcoesExtras) {
+          const opcaoExtra = produto.opcoesExtras.find(o => o.id === opcaoValor.produtoOpcaoId);
+          
+          if (!opcaoExtra) {
+            throw new Error(`Opção extra ${opcaoValor.produtoOpcaoId} não pertence ao produto`);
+          }
+
+          // Validar valores baseado no tipo
+          if (opcaoExtra.tipo === 'STRING_FLOAT') {
+            if (!opcaoValor.valorString || opcaoValor.valorString.trim() === '') {
+              throw new Error(`Valor texto é obrigatório para a opção "${opcaoExtra.nome}"`);
+            }
+            const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
+            if (isNaN(valorFloat1) || valorFloat1 < 0) {
+              throw new Error(`Valor numérico inválido para a opção "${opcaoExtra.nome}"`);
+            }
+            opcoesExtrasValidadas.push({
+              produtoOpcaoId: opcaoValor.produtoOpcaoId,
+              valorString: opcaoValor.valorString.trim(),
+              valorFloat1: valorFloat1,
+              valorFloat2: null
+            });
+          } else if (opcaoExtra.tipo === 'FLOAT_FLOAT') {
+            const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
+            const valorFloat2 = parseFloat(opcaoValor.valorFloat2);
+            
+            if (isNaN(valorFloat1) || valorFloat1 < 0) {
+              throw new Error(`Primeiro valor numérico inválido para a opção "${opcaoExtra.nome}"`);
+            }
+            if (isNaN(valorFloat2) || valorFloat2 < 0) {
+              throw new Error(`Segundo valor numérico inválido para a opção "${opcaoExtra.nome}"`);
+            }
+            
+            opcoesExtrasValidadas.push({
+              produtoOpcaoId: opcaoValor.produtoOpcaoId,
+              valorString: null,
+              valorFloat1: valorFloat1,
+              valorFloat2: valorFloat2
+            });
+          }
+        }
+      }
+    }
+
     // Deletar materiais antigos se houver novos
     if (materiaisValidados) {
       await prisma.pedidoMaterial.deleteMany({
@@ -280,6 +597,13 @@ class PedidoService {
     // Deletar despesas antigas se houver novas
     if (despesasValidadas !== undefined) {
       await prisma.pedidoDespesaAdicional.deleteMany({
+        where: { pedidoId: id }
+      });
+    }
+
+    // Deletar opções extras antigas se houver novas
+    if (opcoesExtrasValidadas !== undefined) {
+      await prisma.pedidoOpcaoExtra.deleteMany({
         where: { pedidoId: id }
       });
     }
@@ -322,37 +646,31 @@ class PedidoService {
     if (condicoesPagamento !== undefined) updateData.condicoesPagamento = condicoesPagamento.trim();
     if (prazoEntrega !== undefined) updateData.prazoEntrega = prazoEntrega.trim();
 
-    // ✅ ATUALIZAR PEDIDO (sem total, será calculado automaticamente pelo Prisma)
-    await prisma.pedido.update({
-      where: { id },
-      data: updateData
-    });
-
-    // ✅ CRIAR MATERIAIS SE HOUVER
+    // Adicionar materiais apenas se houver
     if (materiaisValidados && materiaisValidados.length > 0) {
-      await prisma.pedidoMaterial.createMany({
-        data: materiaisValidados.map(m => ({
-          materialId: m.materialId,
-          quantidade: m.quantidade,
-          pedidoId: id
-        }))
-      });
+      updateData.materiais = {
+        create: materiaisValidados
+      };
     }
 
-    // ✅ CRIAR DESPESAS SE HOUVER
-    if (despesasValidadas && despesasValidadas.length > 0) {
-      await prisma.pedidoDespesaAdicional.createMany({
-        data: despesasValidadas.map(d => ({
-          descricao: d.descricao,
-          valor: d.valor,
-          pedidoId: id
-        }))
-      });
+    // Adicionar despesas apenas se houver
+    if (despesasValidadas !== undefined && despesasValidadas.length > 0) {
+      updateData.despesasAdicionais = {
+        create: despesasValidadas
+      };
     }
 
-    // ✅ BUSCAR E RETORNAR PEDIDO COMPLETO ATUALIZADO
-    const pedidoAtualizado = await prisma.pedido.findUnique({
+    // Adicionar opções extras apenas se houver
+    if (opcoesExtrasValidadas !== undefined && opcoesExtrasValidadas.length > 0) {
+      updateData.opcoesExtras = {
+        create: opcoesExtrasValidadas
+      };
+    }
+
+    // ✅ ATUALIZAR PEDIDO
+    const pedidoAtualizado = await prisma.pedido.update({
       where: { id },
+      data: updateData,
       include: {
         produto: {
           include: {
@@ -360,7 +678,8 @@ class PedidoService {
               include: {
                 material: true
               }
-            }
+            },
+            opcoesExtras: true
           }
         },
         materiais: {
@@ -369,6 +688,11 @@ class PedidoService {
           }
         },
         despesasAdicionais: true,
+        opcoesExtras: {
+          include: {
+            produtoOpcao: true
+          }
+        },
         orcamento: {
           select: {
             id: true,
@@ -385,7 +709,7 @@ class PedidoService {
       acao: 'EDITAR',
       entidade: 'PEDIDO',
       entidadeId: id,
-      descricao: `Editou o pedido "${pedidoAtualizado.numero ? `#${pedidoAtualizado.numero}"` : `(ID: ${id})`}`,
+      descricao: `Editou o pedido ${pedidoAtualizado.numero ? `#${pedidoAtualizado.numero}` : `(ID: ${id})`}`,
       detalhes: {
         antes: pedidoAntigo,
         depois: pedidoAtualizado,
@@ -419,7 +743,8 @@ class PedidoService {
               include: {
                 material: true
               }
-            }
+            },
+            opcoesExtras: true
           }
         },
         materiais: {
@@ -428,6 +753,11 @@ class PedidoService {
           }
         },
         despesasAdicionais: true,
+        opcoesExtras: {
+          include: {
+            produtoOpcao: true
+          }
+        },
         orcamento: {
           select: {
             id: true,
@@ -444,7 +774,7 @@ class PedidoService {
       acao: 'EDITAR',
       entidade: 'PEDIDO',
       entidadeId: id,
-      descricao: `Alterou o status do pedido "${pedido.numero ? `#${pedido.numero}"` : `(ID: ${id})`} de "${statusAnterior}" para "${status}"`,
+      descricao: `Alterou o status do pedido ${pedido.numero ? `#${pedido.numero}` : `(ID: ${id})`} de "${statusAnterior}" para "${status}"`,
       detalhes: {
         statusAnterior,
         statusNovo: status
@@ -459,9 +789,10 @@ class PedidoService {
     const pedido = await prisma.pedido.findUnique({
       where: { id },
       include: {
+        produto: true,
         materiais: { include: { material: true } },
         despesasAdicionais: true,
-        produto: true
+        opcoesExtras: { include: { produtoOpcao: true } }
       }
     });
 
@@ -474,6 +805,10 @@ class PedidoService {
     });
 
     await prisma.pedidoDespesaAdicional.deleteMany({
+      where: { pedidoId: id }
+    });
+
+    await prisma.pedidoOpcaoExtra.deleteMany({
       where: { pedidoId: id }
     });
 
@@ -492,8 +827,23 @@ class PedidoService {
       detalhes: pedido,
     });
 
-
     return pedido;
+  }
+
+  async listarProdutos() {
+    return prisma.produto.findMany({
+      include: {
+        materiais: {
+          include: {
+            material: true
+          }
+        },
+        opcoesExtras: true
+      },
+      orderBy: {
+        nome: 'asc'
+      }
+    });
   }
 }
 

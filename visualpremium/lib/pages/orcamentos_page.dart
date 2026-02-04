@@ -1563,18 +1563,15 @@ class _DateRangeInputDialogState extends State<_DateRangeInputDialog> {
 
   void _save() {
     if (!_formKey.currentState!.validate()) return;
-    
+
     final startDate = _parseDate(_startDateCtrl.text);
     final endDate = _parseDate(_endDateCtrl.text);
     
     if (startDate == null || endDate == null) return;
     
-    if (startDate.isAfter(endDate)) {
+    if (endDate.isBefore(startDate)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('A data inicial deve ser anterior à data final'),
-          duration: Duration(seconds: 2),
-        ),
+        const SnackBar(content: Text('A data final deve ser posterior à data inicial')),
       );
       return;
     }
@@ -2182,6 +2179,59 @@ class _OrcamentoCard extends StatelessWidget {
   }
 }
 
+class TimeInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    // Permitir apenas números e letras h/m
+    final text = newValue.text.toLowerCase();
+    final filtered = text.replaceAll(RegExp(r'[^0-9hm,.]'), '');
+    
+    return TextEditingValue(
+      text: filtered,
+      selection: TextSelection.collapsed(offset: filtered.length),
+    );
+  }
+  
+  /// Converte entrada de tempo para horas decimais
+  /// Exemplos: "2h" -> 2.0, "30m" -> 0.5, "1.5h" -> 1.5, "90m" -> 1.5
+  static double? parseToHours(String input) {
+    if (input.trim().isEmpty) return null;
+    
+    final text = input.toLowerCase().trim();
+    
+    // Detectar horas (ex: "2h", "1.5h", "2,5h")
+    final horasMatch = RegExp(r'^(\d+[,.]?\d*)\s*h?$').firstMatch(text);
+    if (horasMatch != null) {
+      final valor = horasMatch.group(1)?.replaceAll(',', '.');
+      return double.tryParse(valor ?? '');
+    }
+    
+    // Detectar minutos (ex: "30m", "90m")
+    final minutosMatch = RegExp(r'^(\d+)\s*m$').firstMatch(text);
+    if (minutosMatch != null) {
+      final minutos = int.tryParse(minutosMatch.group(1) ?? '');
+      if (minutos != null) {
+        return minutos / 60.0; // Converter para horas
+      }
+    }
+    
+    // Se for apenas número, assumir que são horas
+    final numero = double.tryParse(text.replaceAll(',', '.'));
+    return numero;
+  }
+  
+  /// Formata horas para exibição amigável
+  static String formatHours(double hours) {
+    if (hours == hours.toInt().toDouble()) {
+      return '${hours.toInt()}h';
+    }
+    return '${hours.toStringAsFixed(1)}h';
+  }
+}
+
 class OrcamentoEditorSheet extends StatefulWidget {
   final OrcamentoItem? initial;
   final List<OrcamentoItem> existingOrcamentos;
@@ -2202,51 +2252,43 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   
   late final TextEditingController _clienteCtrl;
   late final TextEditingController _numeroCtrl;
-  late final TextEditingController _freteDescCtrl;
-  late final TextEditingController _freteValorCtrl;
-  late final TextEditingController _munckHorasCtrl;
-  late final TextEditingController _munckValorHoraCtrl;
   late final TextEditingController _formaPagamentoCtrl;
   late final TextEditingController _condicoesPagamentoCtrl;
   late final TextEditingController _condicoesPagamentoOutrasCtrl;
   late final TextEditingController _prazoEntregaCtrl;
   final TextEditingController _produtoSearchCtrl = TextEditingController();
-
   final List<TextEditingController> _despesaDescControllers = [];
   final List<TextEditingController> _despesaValorControllers = [];
 
   final FocusNode _dialogFocusNode = FocusNode();
   final FocusNode _clienteFocusNode = FocusNode();
   final FocusNode _numeroFocusNode = FocusNode();
-  final FocusNode _freteDescFocusNode = FocusNode();
-  final FocusNode _freteValorFocusNode = FocusNode();
-  final FocusNode _munckHorasFocusNode = FocusNode();
-  final FocusNode _munckValorHoraFocusNode = FocusNode();
   final FocusNode _formaPagamentoFocusNode = FocusNode();
   final FocusNode _condicoesPagamentoFocusNode = FocusNode();
   final FocusNode _condicoesPagamentoOutrasFocusNode = FocusNode();
   final FocusNode _prazoEntregaFocusNode = FocusNode();
   final FocusNode _produtoSearchFocusNode = FocusNode();
-  
   final List<FocusNode> _despesaDescFocusNodes = [];
   final List<FocusNode> _despesaValorFocusNodes = [];
-
+  
   late final String _initialCliente;
   late final String _initialNumero;
-  late final String _initialFreteDesc;
-  late final String _initialFreteValor;
-  late final String _initialMunckHoras;
-  late final String _initialMunckValorHora;
   late final String _initialFormaPagamento;
   late final String _initialCondicoesPagamento;
   late final String _initialPrazoEntrega;
-  late final bool? _initialFrete;
-  late final bool? _initialCaminhaoMunck;
   late final bool? _initialDespesasAdicionais;
   late final int? _initialSelectedProdutoId;
   late final List<String> _initialDespesasDesc;
   late final List<String> _initialDespesasValor;
-  late final Map<int, String> _initialQuantities;
+  late final Map<int, double> _initialQuantities;
+
+  final Map<int, bool> _opcoesExtrasEnabled = {};
+  final Map<int, TextEditingController> _opcaoExtraStringControllers = {};
+  final Map<int, TextEditingController> _opcaoExtraFloat1Controllers = {};
+  final Map<int, TextEditingController> _opcaoExtraFloat2Controllers = {};
+  final Map<int, FocusNode> _opcaoExtraStringFocusNodes = {};
+  final Map<int, FocusNode> _opcaoExtraFloat1FocusNodes = {};
+  final Map<int, FocusNode> _opcaoExtraFloat2FocusNodes = {};
 
   final List<String> _formaPagamentoOptions = [
     'A COMBINAR',
@@ -2280,7 +2322,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     '20 DIAS',
     '20, 40, 60, 80, 100 e 120 DIAS',
     '21 DIAS',
-    '28 DIAS',
     '28 E 42 DIAS',
     '28 E 56 DIAS',
     '28, 42 E 56 DO PEDIDO',
@@ -2343,8 +2384,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   String? _selectedFormaPagamento;
   String? _selectedCondicaoPagamento;
 
-  bool? _frete;
-  bool? _caminhaoMunck;
   bool? _despesasAdicionais;
 
   @override
@@ -2353,22 +2392,49 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     
     _initialCliente = widget.initial?.cliente ?? '';
     _initialNumero = widget.initial?.numero.toString() ?? '';
-    _initialFreteDesc = widget.initial?.freteDesc ?? '';
-    _initialFreteValor = widget.initial?.freteValor?.toStringAsFixed(2) ?? '';
-    _initialMunckHoras = widget.initial?.caminhaoMunckHoras?.toStringAsFixed(1) ?? '';
-    _initialMunckValorHora = widget.initial?.caminhaoMunckValorHora?.toStringAsFixed(2) ?? '';
     _initialFormaPagamento = widget.initial?.formaPagamento ?? '';
     _initialCondicoesPagamento = widget.initial?.condicoesPagamento ?? '';
     _initialPrazoEntrega = widget.initial?.prazoEntrega ?? '';
-    _initialFrete = widget.initial?.frete;
-    _initialCaminhaoMunck = widget.initial?.caminhaoMunck;
     _initialDespesasAdicionais = widget.initial != null 
       ? (widget.initial!.despesasAdicionais.isNotEmpty ? true : false)
-      : null;    _initialSelectedProdutoId = widget.initial?.produtoId;
+      : null;
+    _initialSelectedProdutoId = widget.initial?.produtoId;
     
     _initialDespesasDesc = widget.initial?.despesasAdicionais.map((d) => d.descricao).toList() ?? [];
     _initialDespesasValor = widget.initial?.despesasAdicionais.map((d) => d.valor.toStringAsFixed(2)).toList() ?? [];
     
+    if (widget.initial != null && widget.initial!.opcoesExtras.isNotEmpty) {
+      for (final opcaoValor in widget.initial!.opcoesExtras) {
+        _opcoesExtrasEnabled[opcaoValor.produtoOpcaoId] = true;
+        
+        final stringCtrl = TextEditingController(text: opcaoValor.valorString ?? '');
+        final float1Ctrl = TextEditingController(
+          text: opcaoValor.valorFloat1 != null ? opcaoValor.valorFloat1.toString() : ''
+        );
+        final float2Ctrl = TextEditingController(
+          text: opcaoValor.valorFloat2 != null ? opcaoValor.valorFloat2.toString() : ''
+        );
+        
+        final stringFocus = FocusNode();
+        final float1Focus = FocusNode();
+        final float2Focus = FocusNode();
+        
+        stringCtrl.addListener(_updateTotal);
+        float1Ctrl.addListener(_updateTotal);
+        float2Ctrl.addListener(_updateTotal);
+        stringFocus.addListener(_onFieldFocusChange);
+        float1Focus.addListener(_onFieldFocusChange);
+        float2Focus.addListener(_onFieldFocusChange);
+        
+        _opcaoExtraStringControllers[opcaoValor.produtoOpcaoId] = stringCtrl;
+        _opcaoExtraFloat1Controllers[opcaoValor.produtoOpcaoId] = float1Ctrl;
+        _opcaoExtraFloat2Controllers[opcaoValor.produtoOpcaoId] = float2Ctrl;
+        _opcaoExtraStringFocusNodes[opcaoValor.produtoOpcaoId] = stringFocus;
+        _opcaoExtraFloat1FocusNodes[opcaoValor.produtoOpcaoId] = float1Focus;
+        _opcaoExtraFloat2FocusNodes[opcaoValor.produtoOpcaoId] = float2Focus;
+      }
+    }
+
     _initialQuantities = {};
     if (widget.initial != null) {
       for (final mat in widget.initial!.materiais) {
@@ -2378,10 +2444,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     
     _clienteCtrl = TextEditingController(text: _initialCliente);
     _numeroCtrl = TextEditingController(text: _initialNumero);
-    _freteDescCtrl = TextEditingController(text: _initialFreteDesc);
-    _freteValorCtrl = TextEditingController(text: _initialFreteValor);
-    _munckHorasCtrl = TextEditingController(text: _initialMunckHoras);
-    _munckValorHoraCtrl = TextEditingController(text: _initialMunckValorHora);
     _prazoEntregaCtrl = TextEditingController(text: _initialPrazoEntrega);
     
     if (_initialFormaPagamento.isNotEmpty) {
@@ -2410,10 +2472,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       _condicoesPagamentoOutrasCtrl = TextEditingController();
     }
     
-    _freteValorCtrl.addListener(_updateTotal);
-    _munckHorasCtrl.addListener(_updateTotal);
-    _munckValorHoraCtrl.addListener(_updateTotal);
-    
     _produtoSearchCtrl.addListener(() {
       setState(() {
         _produtoSearchQuery = _produtoSearchCtrl.text.toLowerCase();
@@ -2421,11 +2479,8 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     });
     
     if (widget.initial != null) {
-      _frete = widget.initial!.frete;
-      _caminhaoMunck = widget.initial!.caminhaoMunck;
-      _despesasAdicionais = widget.initial != null
-          ? (widget.initial!.despesasAdicionais.isNotEmpty ? true : false)
-          : null;      
+      _despesasAdicionais = widget.initial!.despesasAdicionais.isNotEmpty ? true : false;
+      
       if (widget.initial!.despesasAdicionais.isNotEmpty) {
         for (final despesa in widget.initial!.despesasAdicionais) {
           final descCtrl = TextEditingController(text: despesa.descricao);
@@ -2448,10 +2503,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     
     _clienteFocusNode.addListener(_onFieldFocusChange);
     _numeroFocusNode.addListener(_onFieldFocusChange);
-    _freteDescFocusNode.addListener(_onFieldFocusChange);
-    _freteValorFocusNode.addListener(_onFieldFocusChange);
-    _munckHorasFocusNode.addListener(_onFieldFocusChange);
-    _munckValorHoraFocusNode.addListener(_onFieldFocusChange);
     _formaPagamentoFocusNode.addListener(_onFieldFocusChange);
     _condicoesPagamentoFocusNode.addListener(_onFieldFocusChange);
     _condicoesPagamentoOutrasFocusNode.addListener(_onFieldFocusChange);
@@ -2468,10 +2519,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   void _onFieldFocusChange() {
     if (!_clienteFocusNode.hasFocus && 
         !_numeroFocusNode.hasFocus && 
-        !_freteDescFocusNode.hasFocus && 
-        !_freteValorFocusNode.hasFocus && 
-        !_munckHorasFocusNode.hasFocus && 
-        !_munckValorHoraFocusNode.hasFocus && 
         !_formaPagamentoFocusNode.hasFocus && 
         !_condicoesPagamentoFocusNode.hasFocus && 
         !_condicoesPagamentoOutrasFocusNode.hasFocus && 
@@ -2479,7 +2526,10 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         !_produtoSearchFocusNode.hasFocus &&
         !_despesaDescFocusNodes.any((node) => node.hasFocus) &&
         !_despesaValorFocusNodes.any((node) => node.hasFocus) &&
-        !_quantityFocusNodes.values.any((node) => node.hasFocus)) {
+        !_quantityFocusNodes.values.any((node) => node.hasFocus) &&
+        !_opcaoExtraStringFocusNodes.values.any((node) => node.hasFocus) &&
+        !_opcaoExtraFloat1FocusNodes.values.any((node) => node.hasFocus) &&
+        !_opcaoExtraFloat2FocusNodes.values.any((node) => node.hasFocus)) {
       Future.delayed(const Duration(milliseconds: 100), () {
         if (mounted && !_isShowingDiscardDialog) {
           _dialogFocusNode.requestFocus();
@@ -2488,13 +2538,9 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     }
   }
 
-  bool get _hasChanges {
+   bool get _hasChanges {
     if (_clienteCtrl.text.trim() != _initialCliente) return true;
     if (_numeroCtrl.text != _initialNumero) return true;
-    if (_freteDescCtrl.text.trim() != _initialFreteDesc) return true;
-    if (_freteValorCtrl.text != _initialFreteValor) return true;
-    if (_munckHorasCtrl.text != _initialMunckHoras) return true;
-    if (_munckValorHoraCtrl.text != _initialMunckValorHora) return true;
     
     final currentFormaPagamento = _formaPagamentoCtrl.text.trim();
     if (currentFormaPagamento != _initialFormaPagamento) return true;
@@ -2505,8 +2551,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     if (currentCondicao != _initialCondicoesPagamento) return true;
     
     if (_prazoEntregaCtrl.text.trim() != _initialPrazoEntrega) return true;
-    if (_frete != _initialFrete) return true;
-    if (_caminhaoMunck != _initialCaminhaoMunck) return true;
     if (_despesasAdicionais != _initialDespesasAdicionais) return true;
     if (_selectedProduto?.id != _initialSelectedProdutoId) return true;
     
@@ -2518,7 +2562,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     }
     
     for (final entry in _quantityControllers.entries) {
-      final initialQty = _initialQuantities[entry.key] ?? '';
+      final initialQty = _initialQuantities[entry.key]?.toString() ?? '';
       if (entry.value.text != initialQty) return true;
     }
     
@@ -2552,6 +2596,35 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   void _initializeQuantityControllers() {
     if (_selectedProduto == null) return;
     
+    // Limpar controllers de opções extras antigas
+    for (final controller in _opcaoExtraStringControllers.values) {
+      controller.dispose();
+    }
+    for (final controller in _opcaoExtraFloat1Controllers.values) {
+      controller.dispose();
+    }
+    for (final controller in _opcaoExtraFloat2Controllers.values) {
+      controller.dispose();
+    }
+    for (final focusNode in _opcaoExtraStringFocusNodes.values) {
+      focusNode.dispose();
+    }
+    for (final focusNode in _opcaoExtraFloat1FocusNodes.values) {
+      focusNode.dispose();
+    }
+    for (final focusNode in _opcaoExtraFloat2FocusNodes.values) {
+      focusNode.dispose();
+    }
+    
+    _opcaoExtraStringControllers.clear();
+    _opcaoExtraFloat1Controllers.clear();
+    _opcaoExtraFloat2Controllers.clear();
+    _opcaoExtraStringFocusNodes.clear();
+    _opcaoExtraFloat1FocusNodes.clear();
+    _opcaoExtraFloat2FocusNodes.clear();
+    _opcoesExtrasEnabled.clear();
+    
+    // Inicializar materiais
     for (final mat in _selectedProduto!.materiais) {
       final existingQty = widget.initial?.materiais
           .firstWhere((m) => m.materialId == mat.materialId,
@@ -2561,10 +2634,10 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                   materialNome: '',
                   materialUnidade: '',
                   materialCusto: 0,
-                  quantidade: ''))
-          .quantidade ?? '';
+                  quantidade: 0))
+          .quantidade ?? 0;
       
-      final controller = TextEditingController(text: existingQty);
+      final controller = TextEditingController(text: existingQty > 0 ? existingQty.toString() : '');
       final focusNode = FocusNode();
       
       controller.addListener(_updateTotal);
@@ -2573,16 +2646,58 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       _quantityControllers[mat.materialId] = controller;
       _quantityFocusNodes[mat.materialId] = focusNode;
     }
+    
+    // Inicializar opções extras do produto selecionado
+    for (final opcao in _selectedProduto!.opcoesExtras) {
+      final existingOpcao = widget.initial?.opcoesExtras.firstWhere(
+        (o) => o.produtoOpcaoId == opcao.id,
+        orElse: () => const OrcamentoOpcaoExtraItem(  // ✅ Add const
+          id: 0,
+          produtoOpcaoId: 0,
+          nome: '',
+          tipo: TipoOpcaoExtra.stringFloat,  // ✅ Use enum value instead of empty string
+          valorString: null,
+          valorFloat1: null,
+          valorFloat2: null,
+        ),
+      );
+      
+      if (existingOpcao != null && existingOpcao.id != 0) {
+        _opcoesExtrasEnabled[opcao.id] = true;
+        
+        final stringCtrl = TextEditingController(text: existingOpcao.valorString ?? '');
+        final float1Ctrl = TextEditingController(
+          text: existingOpcao.valorFloat1 != null ? existingOpcao.valorFloat1.toString() : ''
+        );
+        final float2Ctrl = TextEditingController(
+          text: existingOpcao.valorFloat2 != null ? existingOpcao.valorFloat2.toString() : ''
+        );
+        
+        final stringFocus = FocusNode();
+        final float1Focus = FocusNode();
+        final float2Focus = FocusNode();
+        
+        stringCtrl.addListener(_updateTotal);
+        float1Ctrl.addListener(_updateTotal);
+        float2Ctrl.addListener(_updateTotal);
+        stringFocus.addListener(_onFieldFocusChange);
+        float1Focus.addListener(_onFieldFocusChange);
+        float2Focus.addListener(_onFieldFocusChange);
+        
+        _opcaoExtraStringControllers[opcao.id] = stringCtrl;
+        _opcaoExtraFloat1Controllers[opcao.id] = float1Ctrl;
+        _opcaoExtraFloat2Controllers[opcao.id] = float2Ctrl;
+        _opcaoExtraStringFocusNodes[opcao.id] = stringFocus;
+        _opcaoExtraFloat1FocusNodes[opcao.id] = float1Focus;
+        _opcaoExtraFloat2FocusNodes[opcao.id] = float2Focus;
+      }
+    }
   }
 
   @override
   void dispose() {
     _clienteCtrl.dispose();
     _numeroCtrl.dispose();
-    _freteDescCtrl.dispose();
-    _freteValorCtrl.dispose();
-    _munckHorasCtrl.dispose();
-    _munckValorHoraCtrl.dispose();
     _formaPagamentoCtrl.dispose();
     _condicoesPagamentoCtrl.dispose();
     _condicoesPagamentoOutrasCtrl.dispose();
@@ -2592,10 +2707,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     _dialogFocusNode.dispose();
     _clienteFocusNode.dispose();
     _numeroFocusNode.dispose();
-    _freteDescFocusNode.dispose();
-    _freteValorFocusNode.dispose();
-    _munckHorasFocusNode.dispose();
-    _munckValorHoraFocusNode.dispose();
     _formaPagamentoFocusNode.dispose();
     _condicoesPagamentoFocusNode.dispose();
     _condicoesPagamentoOutrasFocusNode.dispose();
@@ -2622,6 +2733,26 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       focusNode.dispose();
     }
     
+    // Dispose opções extras
+    for (final controller in _opcaoExtraStringControllers.values) {
+      controller.dispose();
+    }
+    for (final controller in _opcaoExtraFloat1Controllers.values) {
+      controller.dispose();
+    }
+    for (final controller in _opcaoExtraFloat2Controllers.values) {
+      controller.dispose();
+    }
+    for (final focusNode in _opcaoExtraStringFocusNodes.values) {
+      focusNode.dispose();
+    }
+    for (final focusNode in _opcaoExtraFloat1FocusNodes.values) {
+      focusNode.dispose();
+    }
+    for (final focusNode in _opcaoExtraFloat2FocusNodes.values) {
+      focusNode.dispose();
+    }
+    
     super.dispose();
   }
 
@@ -2629,6 +2760,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     if (_selectedProduto == null) return 0.0;
     double total = 0.0;
     
+    // Somar materiais
     for (final mat in _selectedProduto!.materiais) {
       final controller = _quantityControllers[mat.materialId];
       if (controller != null) {
@@ -2637,20 +2769,38 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       }
     }
     
+    // Somar despesas adicionais
     for (final valorCtrl in _despesaValorControllers) {
       final valor = double.tryParse(valorCtrl.text.replaceAll(',', '.')) ?? 0.0;
       total += valor;
     }
     
-    if (_frete == true) {
-      final valor = double.tryParse(_freteValorCtrl.text.replaceAll(',', '.')) ?? 0.0;
-      total += valor;
-    }
-    
-    if (_caminhaoMunck == true) {
-      final horas = double.tryParse(_munckHorasCtrl.text.replaceAll(',', '.')) ?? 0.0;
-      final valorHora = double.tryParse(_munckValorHoraCtrl.text.replaceAll(',', '.')) ?? 150.0;
-      total += horas * valorHora;
+    // ✅ CORRIGIDO: Somar opções extras habilitadas
+    for (final opcao in _selectedProduto!.opcoesExtras) {
+      final isEnabled = _opcoesExtrasEnabled[opcao.id] ?? false;
+      if (!isEnabled) continue;
+      
+      if (opcao.tipo == TipoOpcaoExtra.stringFloat) {
+        // Descrição + Valor: o valor está em float1
+        final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id];
+        if (float1Ctrl != null) {
+          final valor = double.tryParse(float1Ctrl.text.replaceAll(',', '.')) ?? 0.0;
+          total += valor;
+        }
+      } else {
+        // Hora (minutos) + Valor hora: calcular minutos * valor_hora
+        final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id]; // minutos
+        final float2Ctrl = _opcaoExtraFloat2Controllers[opcao.id]; // valor por hora
+        
+        if (float1Ctrl != null && float2Ctrl != null) {
+          final minutos = double.tryParse(float1Ctrl.text.replaceAll(',', '.')) ?? 0.0;
+          final valorHora = double.tryParse(float2Ctrl.text.replaceAll(',', '.')) ?? 0.0;
+          
+          // Converter minutos para horas e multiplicar pelo valor hora
+          final horas = minutos / 60.0;
+          total += horas * valorHora;
+        }
+      }
     }
     
     return total;
@@ -2785,14 +2935,14 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                         materialNome: '',
                         materialUnidade: '',
                         materialCusto: 0,
-                        quantidade: '0'))
+                        quantidade: 0))
                 .id ??
             0,
         materialId: mat.materialId,
         materialNome: mat.materialNome,
         materialUnidade: mat.materialUnidade,
         materialCusto: mat.materialCusto,
-        quantidade: qty.replaceAll(',', '.'),
+        quantidade: qtyValue,
       ));
     }
 
@@ -2812,6 +2962,67 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
             : 0,
         descricao: desc,
         valor: valor,
+      ));
+    }
+
+    // ✅ ADICIONAR: Coletar opções extras habilitadas
+    final opcoesExtras = <OrcamentoOpcaoExtraItem>[];
+    for (final opcao in _selectedProduto!.opcoesExtras) {
+      final isEnabled = _opcoesExtrasEnabled[opcao.id] ?? false;
+      if (!isEnabled) continue;
+      
+      final stringCtrl = _opcaoExtraStringControllers[opcao.id];
+      final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id];
+      final float2Ctrl = _opcaoExtraFloat2Controllers[opcao.id];
+      
+      String? valorString;
+      double? valorFloat1;
+      double? valorFloat2;
+      
+      if (opcao.tipo == TipoOpcaoExtra.stringFloat) {
+        // Descrição + Valor
+        valorString = stringCtrl?.text.trim();
+        final float1Text = float1Ctrl?.text.trim() ?? '';
+        if (float1Text.isNotEmpty) {
+          valorFloat1 = double.tryParse(float1Text.replaceAll(',', '.'));
+        }
+      } else {
+        // Minutos + Valor/Hora
+        final float1Text = float1Ctrl?.text.trim() ?? '';
+        final float2Text = float2Ctrl?.text.trim() ?? '';
+        
+        if (float1Text.isNotEmpty) {
+          valorFloat1 = double.tryParse(float1Text.replaceAll(',', '.'));
+        }
+        if (float2Text.isNotEmpty) {
+          valorFloat2 = double.tryParse(float2Text.replaceAll(',', '.'));
+        }
+      }
+      
+      // Buscar ID existente se estiver editando
+      final existingId = widget.initial?.opcoesExtras
+          .firstWhere(
+            (o) => o.produtoOpcaoId == opcao.id,
+            orElse: () => const OrcamentoOpcaoExtraItem(
+              id: 0,
+              produtoOpcaoId: 0,
+              nome: '',
+              tipo: TipoOpcaoExtra.stringFloat,
+              valorString: null,
+              valorFloat1: null,
+              valorFloat2: null,
+            ),
+          )
+          .id ?? 0;
+      
+      opcoesExtras.add(OrcamentoOpcaoExtraItem(
+        id: existingId,
+        produtoOpcaoId: opcao.id,
+        nome: opcao.nome,
+        tipo: opcao.tipo,
+        valorString: valorString,
+        valorFloat1: valorFloat1,
+        valorFloat2: valorFloat2,
       ));
     }
 
@@ -2843,18 +3054,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       produtoNome: _selectedProduto!.nome,
       materiais: materiais,
       despesasAdicionais: despesas,
-      frete: _frete ?? false,
-      freteDesc: _frete == true ? _freteDescCtrl.text.trim() : null,
-      freteValor: _frete == true 
-          ? double.tryParse(_freteValorCtrl.text.replaceAll(',', '.'))
-          : null,
-      caminhaoMunck: _caminhaoMunck ?? false,
-      caminhaoMunckHoras: _caminhaoMunck == true 
-          ? double.tryParse(_munckHorasCtrl.text.replaceAll(',', '.'))
-          : null,
-      caminhaoMunckValorHora: _caminhaoMunck == true 
-          ? double.tryParse(_munckValorHoraCtrl.text.replaceAll(',', '.'))
-          : null,
+      opcoesExtras: opcoesExtras,  // ✅ ADICIONAR esta linha
       formaPagamento: formaPagamento,
       condicoesPagamento: condicoesPagamento,
       prazoEntrega: _prazoEntregaCtrl.text.trim(),
@@ -2870,6 +3070,240 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     return _produtos
         .where((p) => p.nome.toLowerCase().contains(_produtoSearchQuery))
         .toList();
+  }
+
+  Widget _buildOpcoesExtrasSection() {
+    final theme = Theme.of(context);
+    
+    if (_selectedProduto == null || _selectedProduto!.opcoesExtras.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        Text(
+          'Outros',
+          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
+        ),
+        const SizedBox(height: 8),
+        ..._selectedProduto!.opcoesExtras.map((opcao) {
+          final isEnabled = _opcoesExtrasEnabled[opcao.id] ?? false;
+          
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isEnabled
+                    ? theme.colorScheme.primary.withValues(alpha: 0.3)
+                    : theme.dividerColor.withValues(alpha: 0.1),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        opcao.tipo == TipoOpcaoExtra.stringFloat  // ✅ Comparar com enum
+                            ? Icons.text_fields
+                            : Icons.calculate_outlined,
+                        size: 16,
+                        color: theme.colorScheme.onSecondaryContainer,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            opcao.nome,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        _buildToggleButton('Não', !isEnabled, () {
+                          setState(() {
+                            _opcoesExtrasEnabled[opcao.id] = false;
+                            _opcaoExtraStringControllers[opcao.id]?.clear();
+                            _opcaoExtraFloat1Controllers[opcao.id]?.clear();
+                            _opcaoExtraFloat2Controllers[opcao.id]?.clear();
+                          });
+                        }),
+                        const SizedBox(width: 6),
+                        _buildToggleButton('Sim', isEnabled, () {
+                          setState(() {
+                            _opcoesExtrasEnabled[opcao.id] = true;
+                            
+                            // Criar controllers se não existirem
+                            if (!_opcaoExtraStringControllers.containsKey(opcao.id)) {
+                              final stringCtrl = TextEditingController();
+                              final float1Ctrl = TextEditingController();
+                              final float2Ctrl = TextEditingController();
+                              final stringFocus = FocusNode();
+                              final float1Focus = FocusNode();
+                              final float2Focus = FocusNode();
+                              
+                              stringCtrl.addListener(_updateTotal);
+                              float1Ctrl.addListener(_updateTotal);
+                              float2Ctrl.addListener(_updateTotal);
+                              stringFocus.addListener(_onFieldFocusChange);
+                              float1Focus.addListener(_onFieldFocusChange);
+                              float2Focus.addListener(_onFieldFocusChange);
+                              
+                              _opcaoExtraStringControllers[opcao.id] = stringCtrl;
+                              _opcaoExtraFloat1Controllers[opcao.id] = float1Ctrl;
+                              _opcaoExtraFloat2Controllers[opcao.id] = float2Ctrl;
+                              _opcaoExtraStringFocusNodes[opcao.id] = stringFocus;
+                              _opcaoExtraFloat1FocusNodes[opcao.id] = float1Focus;
+                              _opcaoExtraFloat2FocusNodes[opcao.id] = float2Focus;
+                            }
+                          });
+                        }),
+                      ],
+                    ),
+                  ],
+                ),
+                if (isEnabled) ...[
+                  const SizedBox(height: 10),
+                  if (opcao.tipo == TipoOpcaoExtra.stringFloat) ...[  // ✅ Comparar com enum
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: _opcaoExtraStringControllers[opcao.id],
+                            focusNode: _opcaoExtraStringFocusNodes[opcao.id],
+                            style: const TextStyle(fontSize: 12),
+                            decoration: const InputDecoration(
+                              labelText: 'Descrição',
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                            ),
+                            validator: (v) => (v == null || v.trim().isEmpty) 
+                                ? 'Informe a descrição' 
+                                : null,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _opcaoExtraFloat1Controllers[opcao.id],
+                            focusNode: _opcaoExtraFloat1FocusNodes[opcao.id],
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                            ],
+                            style: const TextStyle(fontSize: 12),
+                            decoration: const InputDecoration(
+                              labelText: 'Valor',
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                            ),
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return 'Informe';
+                              }
+                              final value = double.tryParse(v.replaceAll(',', '.'));
+                              if (value == null || value < 0) {
+                                return 'Inválido';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _opcaoExtraFloat1Controllers[opcao.id],
+                            focusNode: _opcaoExtraFloat1FocusNodes[opcao.id],
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                            ],
+                            style: const TextStyle(fontSize: 12),
+                            decoration: const InputDecoration(
+                              labelText: 'Minutos',
+                              hintText: 'Ex: 30, 90, 120',
+                              helperText: 'Digite em minutos',
+                              helperStyle: TextStyle(fontSize: 10),
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                            ),
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return 'Informe';
+                              }
+                              final value = double.tryParse(v.replaceAll(',', '.'));
+                              if (value == null || value < 0) {
+                                return 'Inválido';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _opcaoExtraFloat2Controllers[opcao.id],
+                            focusNode: _opcaoExtraFloat2FocusNodes[opcao.id],
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                            ],
+                            style: const TextStyle(fontSize: 12),
+                            decoration: const InputDecoration(
+                              labelText: 'Valor/Hora',
+                              hintText: 'R\$ por hora',
+                              helperText: 'Valor por hora',
+                              helperStyle: TextStyle(fontSize: 10),
+                              isDense: true,
+                              prefixText: 'R\$ ',
+                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                            ),
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return 'Informe';
+                              }
+                              final value = double.tryParse(v.replaceAll(',', '.'));
+                              if (value == null || value < 0) {
+                                return 'Inválido';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ],
+            ),
+          );
+        }),
+      ],
+    );
   }
 
   Widget _buildDespesasSection() {
@@ -3500,10 +3934,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                           decimal: mat.materialUnidade == 'Kg',
                                                         ),
                                                         inputFormatters: [
-                                                          if (mat.materialUnidade == 'Kg')
-                                                            FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                                          else
-                                                            FilteringTextInputFormatter.digitsOnly
+                                                          FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
                                                         ],
                                                         textAlign: TextAlign.center,
                                                         style: const TextStyle(fontSize: 12),
@@ -3545,140 +3976,8 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                             const SizedBox(height: 12),
                                             
                                             _buildDespesasSection(),
-                                            
-                                            const SizedBox(height: 12),
-                                            
-                                            _buildToggleSection(
-                                              title: 'Frete',
-                                              value: _frete,
-                                              onChanged: (v) {
-                                                setState(() {
-                                                  _frete = v;
-                                                });
-                                              },
-                                              child: _frete == true
-                                                  ? Row(
-                                                      children: [
-                                                        Expanded(
-                                                          flex: 2,
-                                                          child: TextFormField(
-                                                            controller: _freteDescCtrl,
-                                                            focusNode: _freteDescFocusNode,
-                                                            style: const TextStyle(fontSize: 12),
-                                                            decoration: const InputDecoration(
-                                                              labelText: 'Descrição',
-                                                              isDense: true,
-                                                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                                            ),
-                                                            validator: (v)=> (v == null || v.trim().isEmpty) ? 'Informe' : null,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(width: 8),
-                                                        Expanded(
-                                                          child: TextFormField(
-                                                            controller: _freteValorCtrl,
-                                                            focusNode: _freteValorFocusNode,
-                                                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                                            inputFormatters: [
-                                                              FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                                            ],
-                                                            style: const TextStyle(fontSize: 12),
-                                                            decoration: const InputDecoration(
-                                                              labelText: 'Valor',
-                                                              isDense: true,
-                                                              prefixText: 'R\$ ',
-                                                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                                            ),
-                                                            validator: (v) {
-                                                              if (v == null || v.trim().isEmpty) {
-                                                                return 'Informe';
-                                                              }
-                                                              final value = double.tryParse(v.replaceAll(',', '.'));
-                                                              if (value == null || value <= 0) {
-                                                                return 'Inválido';
-                                                              }
-                                                              return null;
-                                                            },
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    )
-                                                  : null,
-                                            ),
-                                            
-                                            const SizedBox(height: 8),
-                                            
-                                            _buildToggleSection(
-                                              title: 'Caminhão Munck',
-                                              value: _caminhaoMunck,
-                                              onChanged: (v) {
-                                                setState(() {
-                                                  _caminhaoMunck = v;
-                                                });
-                                              },
-                                              child: _caminhaoMunck == true
-                                                  ? Row(
-                                                      children: [
-                                                        Expanded(
-                                                          child: TextFormField(
-                                                            controller: _munckHorasCtrl,
-                                                            focusNode: _munckHorasFocusNode,
-                                                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                                            inputFormatters: [
-                                                              FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                                            ],
-                                                            style: const TextStyle(fontSize: 12),
-                                                            decoration: const InputDecoration(
-                                                              labelText: 'Horas',
-                                                              isDense: true,
-                                                              suffixText: 'h',
-                                                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                                            ),
-                                                            validator: (v) {
-                                                              if (v == null || v.trim().isEmpty) {
-                                                                return 'Informe';
-                                                              }
-                                                              final value = double.tryParse(v.replaceAll(',', '.'));
-                                                              if (value == null || value < 0) {
-                                                                return 'Inválido';
-                                                              }
-                                                              return null;
-                                                            },
-                                                          ),
-                                                        ),
-                                                        const SizedBox(width: 8),
-                                                        Expanded(
-                                                          child: TextFormField(
-                                                            controller: _munckValorHoraCtrl,
-                                                            focusNode: _munckValorHoraFocusNode,
-                                                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                                            inputFormatters: [
-                                                              FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                                            ],
-                                                            style: const TextStyle(fontSize: 12),
-                                                            decoration: const InputDecoration(
-                                                              labelText: 'Valor/Hora',
-                                                              isDense: true,
-                                                              prefixText: 'R\$ ',
-                                                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                                            ),
-                                                            validator: (v) {
-                                                              if (v == null || v.trim().isEmpty) {
-                                                                return 'Informe';
-                                                              }
-                                                              final value = double.tryParse(v.replaceAll(',', '.'));
-                                                              if (value == null || value < 0) {
-                                                                return 'Inválido';
-                                                              }
-                                                              return null;
-                                                            },
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    )
-                                                  : null,
-                                            ),
-                                            
+                                            _buildOpcoesExtrasSection(),
+ 
                                             const SizedBox(height: 16),
                                             
                                             Row(
@@ -3854,83 +4153,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildToggleSection({
-    required String title,
-    required bool? value,
-    required ValueChanged<bool?> onChanged,
-    Widget? child,
-  }) {
-    final theme = Theme.of(context);
-    
-    return FormField<bool>(
-      initialValue: value,
-      validator: (_) => value == null ? 'Selecione Sim ou Não' : null,
-      builder: (formFieldState) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: formFieldState.hasError
-                      ? theme.colorScheme.error
-                      : value == true
-                          ? theme.colorScheme.primary.withValues(alpha: 0.3)
-                          : theme.dividerColor.withValues(alpha: 0.1),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          _buildToggleButton('Não', value == false, () {
-                            onChanged(false);
-                            formFieldState.didChange(false);
-                          }),
-                          const SizedBox(width: 6),
-                          _buildToggleButton('Sim', value == true, () {
-                            onChanged(true);
-                            formFieldState.didChange(true);
-                          }),
-                        ],
-                      ),
-                    ],
-                  ),
-                  if (formFieldState.hasError) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      formFieldState.errorText ?? '',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                  if (child != null) ...[
-                    const SizedBox(height: 8),
-                    child,
-                  ],
-                ],
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 

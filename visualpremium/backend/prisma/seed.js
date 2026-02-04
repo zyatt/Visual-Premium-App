@@ -19,16 +19,16 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log('🌱 Iniciando seed...');
 
-  const adminPassword = await bcrypt.hash('123', 10);
+  const adminPassword = await bcrypt.hash('mvds01', 10);
 
   const admin = await prisma.usuario.upsert({
-    where: { username: 'User' },  // ALTERADO AQUI
+    where: { username: 'mattvds' },  // ALTERADO AQUI
     update: {},
     create: {
-      username: 'User',           // ALTERADO AQUI
+      username: 'mattvds',           // ALTERADO AQUI
       password: adminPassword,
-      nome: 'Usuário',
-      role: 'User',
+      nome: 'Matheus',
+      role: 'admin',
     },
   });
 }

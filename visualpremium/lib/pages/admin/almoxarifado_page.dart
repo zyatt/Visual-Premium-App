@@ -520,7 +520,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
       final controller = _valorControllers[material.materialId];
       if (controller != null && controller.text.trim().isNotEmpty) {
         final valorUnitario = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0.0;
-        final quantidade = double.tryParse(material.quantidade.replaceAll(',', '.')) ?? 0.0;
+        final quantidade = material.quantidade;
         total += valorUnitario * quantidade;
       }
     }
@@ -668,7 +668,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                               return const SizedBox();
                             }
                             
-                            final quantidade = double.tryParse(material.quantidade.replaceAll(',', '.')) ?? 0.0;
+                            final quantidade = material.quantidade;
                             final valorUnitario = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0.0;
                             final subtotal = valorUnitario * quantidade;
                             

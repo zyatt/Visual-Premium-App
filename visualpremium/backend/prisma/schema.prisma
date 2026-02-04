@@ -6,17 +6,22 @@ datasource db {
   provider = "postgresql"
 }
 
+enum TipoOpcaoExtra {
+  STRING_FLOAT
+  FLOAT_FLOAT
+}
+
 model Log {
   id          Int      @id @default(autoincrement())
   usuarioId   Int
   usuarioNome String
-  acao        String   // CRIAR, EDITAR, DELETAR
-  entidade    String   // MATERIAL, PRODUTO, ORCAMENTO, PEDIDO, USUARIO
+  acao        String
+  entidade    String
   entidadeId  Int
   descricao   String
   detalhes    Json?
   createdAt   DateTime @default(now())
-  
+
   @@map("logs")
 }
 
@@ -25,7 +30,7 @@ model Usuario {
   username  String   @unique
   password  String
   nome      String
-  role      String   @default("user") // "admin" ou "user"
+  role      String   @default("user")
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -33,95 +38,140 @@ model Usuario {
   @@map("usuarios")
 }
 
+model Produto {
+  id           Int                 @id @default(autoincrement())
+  nome         String
+  materiais    ProdutoMaterial[]
+  opcoesExtras ProdutoOpcaoExtra[]
+  orcamentos   Orcamento[]
+  pedidos      Pedido[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@map("produtos")
+}
+
+model ProdutoOpcaoExtra {
+  id        Int            @id @default(autoincrement())
+  produtoId Int
+  nome      String
+  tipo      TipoOpcaoExtra
+
+  produto   Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  orcamentoOpcoes OrcamentoOpcaoExtra[]
+  pedidoOpcoes    PedidoOpcaoExtra[]
+
+  @@unique([produtoId, nome])
+  @@map("produto_opcoes_extras")
+}
+
 model Orcamento {
-  id                     Int                    @id @default(autoincrement())
-  cliente                String
-  numero                 Int
-  status                 String
-  produtoId              Int
+  id        Int    @id @default(autoincrement())
+  cliente   String
+  numero    Int
+  status    String
+  produtoId Int
 
-  frete                  Boolean                @default(false)
-  freteDesc              String?
-  freteValor             Float?
+  formaPagamento     String
+  condicoesPagamento String
+  prazoEntrega       String
 
-  caminhaoMunck          Boolean                @default(false)
-  caminhaoMunckHoras     Float?
-  caminhaoMunckValorHora Float?
+  produto            Produto               @relation(fields: [produtoId], references: [id])
+  materiais          OrcamentoMaterial[]
+  despesasAdicionais DespesaAdicional[]
+  opcoesExtras       OrcamentoOpcaoExtra[]
+  pedido             Pedido?
 
-  formaPagamento         String
-  condicoesPagamento     String
-  prazoEntrega           String
-  
-  produto                Produto                @relation(fields: [produtoId], references: [id])
-  materiais              OrcamentoMaterial[]
-  despesasAdicionais     DespesaAdicional[]
-  pedido                 Pedido?
-  createdAt              DateTime               @default(now())
-  updatedAt              DateTime               @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("orcamentos")
 }
 
-model DespesaAdicional {
-  id          Int       @id @default(autoincrement())
-  orcamentoId Int
-  descricao   String
-  valor       Float
-  orcamento   Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
+model OrcamentoOpcaoExtra {
+  id             Int @id @default(autoincrement())
+  orcamentoId    Int
+  produtoOpcaoId Int
 
-  @@map("despesas_adicionais")
+  valorString String?
+  valorFloat1 Float?
+  valorFloat2 Float?
+
+  orcamento    Orcamento         @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
+  produtoOpcao ProdutoOpcaoExtra @relation(fields: [produtoOpcaoId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([orcamentoId, produtoOpcaoId])
+  @@map("orcamento_opcoes_extras")
 }
 
 model Pedido {
-  id                     Int                         @id @default(autoincrement())
-  cliente                String
-  numero                 Int?
-  status                 String                      @default("Em Andamento")
-  produtoId              Int
+  id        Int    @id @default(autoincrement())
+  cliente   String
+  numero    Int?
+  status    String @default("Em Andamento")
+  produtoId Int
 
-  frete                  Boolean                     @default(false)
-  freteDesc              String?
-  freteValor             Float?
+  formaPagamento     String
+  condicoesPagamento String
+  prazoEntrega       String
 
-  caminhaoMunck          Boolean                     @default(false)
-  caminhaoMunckHoras     Float?
-  caminhaoMunckValorHora Float?
+  produto            Produto                  @relation(fields: [produtoId], references: [id])
+  materiais          PedidoMaterial[]
+  despesasAdicionais PedidoDespesaAdicional[]
+  orcamentoId        Int?                     @unique
+  orcamento          Orcamento?               @relation(fields: [orcamentoId], references: [id])
+  opcoesExtras       PedidoOpcaoExtra[]
 
-  formaPagamento         String
-  condicoesPagamento     String
-  prazoEntrega           String
-  
-  produto                Produto                     @relation(fields: [produtoId], references: [id])
-  materiais              PedidoMaterial[]
-  despesasAdicionais     PedidoDespesaAdicional[]
-  orcamentoId            Int?                        @unique
-  orcamento              Orcamento?                  @relation(fields: [orcamentoId], references: [id])
-  createdAt              DateTime                    @default(now())
-  updatedAt              DateTime                    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("pedidos")
 }
 
-model PedidoDespesaAdicional {
-  id          Int       @id @default(autoincrement())
-  pedidoId    Int
-  descricao   String
-  valor       Float
-  pedido      Pedido    @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
+model PedidoOpcaoExtra {
+  id             Int @id @default(autoincrement())
+  pedidoId       Int
+  produtoOpcaoId Int
 
-  @@map("pedidos_despesas_adicionais")
+  valorString String?
+  valorFloat1 Float?
+  valorFloat2 Float?
+
+  pedido       Pedido            @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  produtoOpcao ProdutoOpcaoExtra @relation(fields: [produtoOpcaoId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([pedidoId, produtoOpcaoId])
+  @@map("pedido_opcoes_extras")
 }
 
-model Produto {
-  id         Int               @id @default(autoincrement())
-  nome       String
-  materiais  ProdutoMaterial[]
-  orcamentos Orcamento[]
-  pedidos    Pedido[]
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
+model DespesaAdicional {
+  id          Int    @id @default(autoincrement())
+  orcamentoId Int
+  descricao   String
+  valor       Float
+
+  orcamento Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@map("despesas_adicionais")
+}
+
+model PedidoDespesaAdicional {
+  id        Int    @id @default(autoincrement())
+  pedidoId  Int
+  descricao String
+  valor     Float
+
+  pedido    Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@map("pedidos_despesas_adicionais")
 }
 
 model Material {
@@ -135,32 +185,42 @@ model Material {
   pedidoMaterials    PedidoMaterial[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+
+  @@map("materiais")
 }
 
 model ProdutoMaterial {
-  id         Int      @id @default(autoincrement())
+  id         Int @id @default(autoincrement())
   produtoId  Int
   materialId Int
-  produto    Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
-  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  produto  Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
 
   @@unique([produtoId, materialId])
+  @@map("produto_materiais")
 }
 
 model OrcamentoMaterial {
-  id          Int       @id @default(autoincrement())
+  id          Int   @id @default(autoincrement())
   orcamentoId Int
   materialId  Int
   quantidade  Float
-  orcamento   Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
-  material    Material  @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  orcamento Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
+  material  Material  @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@map("orcamento_materiais")
 }
 
 model PedidoMaterial {
-  id         Int      @id @default(autoincrement())
+  id         Int   @id @default(autoincrement())
   pedidoId   Int
   materialId Int
   quantidade Float
-  pedido     Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  pedido   Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@map("pedido_materiais")
 }

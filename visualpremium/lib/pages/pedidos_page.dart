@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:visualpremium/data/orcamentos_repository.dart';
-import 'package:visualpremium/models/orcamento_item.dart';
+import 'package:visualpremium/models/orcamento_item.dart' hide TipoOpcaoExtra;
 import 'package:visualpremium/models/pedido_item.dart';
 import '../theme.dart';
 
@@ -71,7 +71,6 @@ class PedidoFilters {
     return const PedidoFilters();
   }
 }
-
 class PedidosPage extends StatefulWidget {
   const PedidosPage({super.key});
 
@@ -83,7 +82,7 @@ class _PedidosPageState extends State<PedidosPage> {
   final _api = OrcamentosApiRepository();
   bool _loading = true;
   List<PedidoItem> _items = const [];
-  List<ProdutoItem> _produtos = const [];
+  List<ProdutoItem> _allProdutos = [];
   String _searchQuery = '';
   int? _downloadingId;
   SortOption _sortOption = SortOption.newestFirst;
@@ -93,17 +92,28 @@ class _PedidosPageState extends State<PedidosPage> {
   void initState() {
     super.initState();
     _load();
+    _loadProdutos();
+  }
+
+  Future<void> _loadProdutos() async {
+    try {
+      final produtos = await _api.fetchProdutos();
+      if (!mounted) return;
+      setState(() {
+        _allProdutos = produtos;
+      });
+    } catch (e) {
+      //
+    }
   }
 
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
       final items = await _api.fetchPedidos();
-      final produtos = await _api.fetchProdutos();
       if (!mounted) return;
       setState(() {
         _items = items;
-         _produtos = produtos;
         _loading = false;
       });
     } catch (e) {
@@ -143,8 +153,11 @@ class _PedidosPageState extends State<PedidosPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
-      // ✅ Não mostra erro aqui, pois já é tratado no diálogo
-      rethrow;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao salvar pedido: $e')),
+        );
+      });
     }
   }
 
@@ -199,7 +212,7 @@ class _PedidosPageState extends State<PedidosPage> {
     try {
       final directory = await getDownloadsDirectory() ?? 
                         await getApplicationDocumentsDirectory();
-      final fileName = 'pedido_${item.numero}_${item.cliente.replaceAll(' ', '_')}.pdf';
+      final fileName = 'pedido_${item.numero ?? "sem_numero"}_${item.cliente.replaceAll(' ', '_')}.pdf';
       final filePath = '${directory.path}/$fileName';
       final file = File(filePath);
       
@@ -309,19 +322,20 @@ class _PedidosPageState extends State<PedidosPage> {
   }
   
   Future<void> _showPedidoEditor(PedidoItem initial) async {
-    await showDialog<void>(  // ✅ Mudado de <PedidoItem> para <void>
+    final result = await showDialog<PedidoItem>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
         return PedidoEditorSheet(
           initial: initial,
           existingPedidos: _items,
-          onSave: (item) async {  // ✅ Novo callback
-            await _upsert(item);
-          },
         );
       },
     );
+
+    if (result != null) {
+      await _upsert(result);
+    }
   }
 
   Future<void> _showFilterDialog() async {
@@ -373,7 +387,7 @@ class _PedidosPageState extends State<PedidosPage> {
       final query = _searchQuery.toLowerCase();
       filtered = filtered.where((item) {
         return item.cliente.toLowerCase().contains(query) ||
-            item.numero.toString().contains(query) ||
+            (item.numero?.toString().contains(query) ?? false) ||
             item.produtoNome.toLowerCase().contains(query);
       }).toList();
     } else {
@@ -395,7 +409,6 @@ class _PedidosPageState extends State<PedidosPage> {
         break;
       case SortOption.numeroAsc:
         filtered.sort((a, b) {
-          // Null primeiro quando ordenar por menor
           if (a.numero == null && b.numero == null) return 0;
           if (a.numero == null) return -1;
           if (b.numero == null) return 1;
@@ -404,7 +417,6 @@ class _PedidosPageState extends State<PedidosPage> {
         break;
       case SortOption.numeroDesc:
         filtered.sort((a, b) {
-          // Null por último quando ordenar por maior
           if (a.numero == null && b.numero == null) return 0;
           if (a.numero == null) return 1;
           if (b.numero == null) return -1;
@@ -653,7 +665,7 @@ class _PedidosPageState extends State<PedidosPage> {
                                       },
                                     )),
                                 ..._filters.produtoIds.map((produtoId) {
-                                  final produto = _produtos.firstWhere(
+                                  final produto = _allProdutos.firstWhere(
                                     (p) => p.id == produtoId,
                                     orElse: () => ProdutoItem(
                                       id: produtoId,
@@ -1660,7 +1672,7 @@ class _FilterPanel extends StatelessWidget {
     return Container(
       width: 280,
       margin: const EdgeInsets.only(top: 72),
-      padding:const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: theme.cardTheme.color,
         borderRadius: BorderRadius.circular(AppRadius.md),
@@ -1676,7 +1688,8 @@ class _FilterPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
-        children: [Row(
+        children: [
+          Row(
             children: [
               Icon(
                 Icons.sort,
@@ -1971,7 +1984,7 @@ class _PedidoCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Pedido ${item.numero != null ? "#${item.numero}" : "#"}',
+                    'Pedido ${item.numero != null ? "#${item.numero}" : "(sem número)"}',
                     style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 2),
@@ -1999,7 +2012,6 @@ class _PedidoCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  // ✅ NOVO - Mostrar orçamento de origem
                   if (item.orcamentoNumero != null) ...[
                     const SizedBox(height: 2),
                     Row(
@@ -2148,13 +2160,11 @@ class _PedidoCard extends StatelessWidget {
 class PedidoEditorSheet extends StatefulWidget {
   final PedidoItem initial;
   final List<PedidoItem> existingPedidos;
-  final Future<void> Function(PedidoItem) onSave;  // ✅ Novo parâmetro
 
   const PedidoEditorSheet({
     super.key,
     required this.initial,
     required this.existingPedidos,
-    required this.onSave,  // ✅ Novo parâmetro
   });
   
   @override
@@ -2163,285 +2173,30 @@ class PedidoEditorSheet extends StatefulWidget {
 
 class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
   final _formKey = GlobalKey<FormState>();
-  final _api = OrcamentosApiRepository();
-  // ignore: unnecessary_null_comparison
-  bool get _isEditing => widget.initial != null;
-
-  late final TextEditingController _clienteCtrl;
+  
   late final TextEditingController _numeroCtrl;
-  late final TextEditingController _freteDescCtrl;
-  late final TextEditingController _freteValorCtrl;
-  late final TextEditingController _munckHorasCtrl;
-  late final TextEditingController _munckValorHoraCtrl;
-  late final TextEditingController _formaPagamentoCtrl;
-  late final TextEditingController _condicoesPagamentoCtrl;
-  late final TextEditingController _condicoesPagamentoOutrasCtrl;
-  late final TextEditingController _prazoEntregaCtrl;
-  final TextEditingController _produtoSearchCtrl = TextEditingController();
-
-  final List<TextEditingController> _despesaDescControllers = [];
-  final List<TextEditingController> _despesaValorControllers = [];
-
   final FocusNode _dialogFocusNode = FocusNode();
-  final FocusNode _clienteFocusNode = FocusNode();
   final FocusNode _numeroFocusNode = FocusNode();
-  final FocusNode _freteDescFocusNode = FocusNode();
-  final FocusNode _freteValorFocusNode = FocusNode();
-  final FocusNode _munckHorasFocusNode = FocusNode();
-  final FocusNode _munckValorHoraFocusNode = FocusNode();
-  final FocusNode _formaPagamentoFocusNode = FocusNode();
-  final FocusNode _condicoesPagamentoFocusNode = FocusNode();
-  final FocusNode _condicoesPagamentoOutrasFocusNode = FocusNode();
-  final FocusNode _prazoEntregaFocusNode = FocusNode();
-  final FocusNode _produtoSearchFocusNode = FocusNode();
   
-  final List<FocusNode> _despesaDescFocusNodes = [];
-  final List<FocusNode> _despesaValorFocusNodes = [];
-
-  late final String _initialCliente;
   late final String _initialNumero;
-  late final String _initialFreteDesc;
-  late final String _initialFreteValor;
-  late final String _initialMunckHoras;
-  late final String _initialMunckValorHora;
-  late final String _initialFormaPagamento;
-  late final String _initialCondicoesPagamento;
-  late final String _initialPrazoEntrega;
-  late final bool? _initialFrete;
-  late final bool? _initialCaminhaoMunck;
-  late final bool? _initialDespesasAdicionais;
-  late final int? _initialSelectedProdutoId;
-  late final List<String> _initialDespesasDesc;
-  late final List<String> _initialDespesasValor;
-  late final Map<int, String> _initialQuantities;
-
-  final List<String> _formaPagamentoOptions = [
-    'A COMBINAR',
-    'Boleto',
-    'Cartão Crédito',
-    'Cartão Débito',
-    'Cheque',
-    'Depósito',
-    'Dinheiro',
-    'Permuta',
-    'PIX',
-    'SEM VALOR',
-  ];
-
-  final List<String> _condicoesPagamentoOptions = [
-    '1+1',
-    '10 + 30 + 60 DIAS',
-    '10 DIAS',
-    '10X NO BOLETO',
-    '10X NO CARTÃO DE CRÉDITO',
-    '120 dias',
-    '12x NO CARTÃO COM JUROS',
-    '14 DIAS',
-    '14 e 28 dias',
-    '14, 21 E 28 DIAS',
-    '14, 28 E 56 DIAS',
-    '14, 28, 42, 56, 70 E 84 dias',
-    '14/28/42/56',
-    '15 dias',
-    '15/30/45 DIAS',
-    '20 DIAS',
-    '20, 40, 60, 80, 100 e 120 dias',
-    '21 DIAS',
-    '28 dias',
-    '28 E 42 DIAS',
-    '28 E 56 DIAS',
-    '28, 42 e 56 do pedido',
-    '28, 56 E 84 DIAS DIRETO',
-    '2X NO CARTÃO DE CRÉDITO',
-    '30 + 60 DIAS',
-    '30 dias',
-    '30/45/60',
-    '35 dias',
-    '3X NO CARTÃO DE CRÉDITO',
-    '4 DIAS',
-    '45 DIAS',
-    '4X NO CARTÃO DE CRÉDITO',
-    '50% DE ENTRADA NO PEDIDO + 25% NA ENTREGA + 25% PARA 28',
-    '50% DE ENTRADA NO PEDIDO + 50% NA ENTREGA / INSTALAÇÃO',
-    '50% DE ENTRADA NO PEDIDO + 50% NA RETIRADA',
-    '5X NO CARTÃO DE CRÉDITO',
-    '60 DIAS',
-    '60% pagamento via pix e 40% permuta',
-    '6X NO CARTÃO DE CRÉDITO',
-    '7 dias',
-    '7, 14 e 28 dias',
-    '7x CARTÃO DE CREDITO',
-    '8x',
-    '90 DIAS',
-    'À Vista',
-    'BOLETO 14, 28 e 42 dias',
-    'CRÉDITO À VISTA',
-    'ENTRADA + 15 + 30 dias',
-    'ENTRADA + 24 + 42 + 56',
-    'ENTRADA + 28 DIAS',
-    'ENTRADA + 28, 42 E 56 DIAS',
-    'ENTRADA + 28, 56, 84 E 112 DO PEDIDO',
-    'ENTRADA + 28/42 DIAS',
-    'ENTRADA + 28/56 dias',
-    'ENTRADA + 28/56/84 dias',
-    'ENTRADA + 30 + 60 DIAS',
-    'ENTRADA + 42 + 56 DIAS',
-    'ENTRADA + 4X NO CARTÃO SEM JUROS',
-    'ENTRADA + 5X',
-    'ENTRADA + MEDIÇÕES + 5% PARA 28 DIAS APÓS TÉRMINO',
-    'ENTRADA DE 30% + 28, 42, 56 E 70 DIAS DO PEDIDO',
-    'ENTRADA DE 30% + MEDIÇÕES',
-    'entrada de 35% + boleto 14, 28 e 42 dias',
-    'SEM VALOR',
-    'Outras',
-  ];
-
-  void _updateTotal() {
-    setState(() {});
-  }
-  
-  List<ProdutoItem> _produtos = [];
-  ProdutoItem? _selectedProduto;
-  final Map<int, TextEditingController> _quantityControllers = {};
-  final Map<int, FocusNode> _quantityFocusNodes = {};
-  bool _loading = true;
-  bool _saving = false;  // ✅ Novo estado para controlar salvamento
   bool _isShowingDiscardDialog = false;
-  String _produtoSearchQuery = '';
-  String? _selectedFormaPagamento;
-  String? _selectedCondicaoPagamento;
-
-  bool? _frete;
-  bool? _caminhaoMunck;
-  bool? _despesasAdicionais;
 
   @override
   void initState() {
     super.initState();
     
-    _initialCliente = widget.initial.cliente;
     _initialNumero = widget.initial.numero?.toString() ?? '';
-    _initialFreteDesc = widget.initial.freteDesc ?? '';
-    _initialFreteValor = widget.initial.freteValor?.toStringAsFixed(2) ?? '';
-    _initialMunckHoras = widget.initial.caminhaoMunckHoras?.toStringAsFixed(1) ?? '';
-    _initialMunckValorHora = widget.initial.caminhaoMunckValorHora?.toStringAsFixed(2) ?? '';
-    _initialFormaPagamento = widget.initial.formaPagamento;
-    _initialCondicoesPagamento = widget.initial.condicoesPagamento;
-    _initialPrazoEntrega = widget.initial.prazoEntrega;
-    _initialFrete = widget.initial.frete;
-    _initialCaminhaoMunck = widget.initial.caminhaoMunck;
-    _initialDespesasAdicionais = widget.initial.despesasAdicionais.isNotEmpty;
-    _initialSelectedProdutoId = widget.initial.produtoId;
-    
-    _initialDespesasDesc = widget.initial.despesasAdicionais.map((d) => d.descricao).toList();
-    _initialDespesasValor = widget.initial.despesasAdicionais.map((d) => d.valor.toStringAsFixed(2)).toList();
-    
-    _initialQuantities = {};
-    for (final mat in widget.initial.materiais) {
-      _initialQuantities[mat.materialId] = mat.quantidade;
-    }
-    
-    _clienteCtrl = TextEditingController(text: _initialCliente);
     _numeroCtrl = TextEditingController(text: _initialNumero);
-    _freteDescCtrl = TextEditingController(text: _initialFreteDesc);
-    _freteValorCtrl = TextEditingController(text: _initialFreteValor);
-    _munckHorasCtrl = TextEditingController(text: _initialMunckHoras);
-    _munckValorHoraCtrl = TextEditingController(text: _initialMunckValorHora);
-    _prazoEntregaCtrl = TextEditingController(text: _initialPrazoEntrega);
     
-    if (_initialFormaPagamento.isNotEmpty) {
-      if (_formaPagamentoOptions.contains(_initialFormaPagamento)) {
-        _selectedFormaPagamento = _initialFormaPagamento;
-        _formaPagamentoCtrl = TextEditingController(text: _initialFormaPagamento);
-      } else {
-        _formaPagamentoCtrl = TextEditingController(text: _initialFormaPagamento);
-      }
-    } else {
-      _formaPagamentoCtrl = TextEditingController();
-    }
-    
-    if (_initialCondicoesPagamento.isNotEmpty) {
-      if (_condicoesPagamentoOptions.contains(_initialCondicoesPagamento)) {
-        _selectedCondicaoPagamento = _initialCondicoesPagamento;
-        _condicoesPagamentoCtrl = TextEditingController(text: _initialCondicoesPagamento);
-        _condicoesPagamentoOutrasCtrl = TextEditingController();
-      } else {
-        _selectedCondicaoPagamento = 'Outras';
-        _condicoesPagamentoCtrl = TextEditingController(text: 'Outras');
-        _condicoesPagamentoOutrasCtrl = TextEditingController(text: _initialCondicoesPagamento);
-      }
-    } else {
-      _condicoesPagamentoCtrl = TextEditingController();
-      _condicoesPagamentoOutrasCtrl = TextEditingController();
-    }
-    
-    _freteValorCtrl.addListener(_updateTotal);
-    _munckHorasCtrl.addListener(_updateTotal);
-    _munckValorHoraCtrl.addListener(_updateTotal);
-    
-    _produtoSearchCtrl.addListener(() {
-      setState(() {
-        _produtoSearchQuery = _produtoSearchCtrl.text.toLowerCase();
-      });
-    });
-    
-    _frete = widget.initial.frete;
-    _caminhaoMunck = widget.initial.caminhaoMunck;
-    _despesasAdicionais = widget.initial.despesasAdicionais.isNotEmpty;
-    
-    if (widget.initial.despesasAdicionais.isNotEmpty) {
-      for (final despesa in widget.initial.despesasAdicionais) {
-        final descCtrl = TextEditingController(text: despesa.descricao);
-        final valorCtrl = TextEditingController(text: despesa.valor.toStringAsFixed(2));
-        final descFocus = FocusNode();
-        final valorFocus = FocusNode();
-        
-        descCtrl.addListener(_updateTotal);
-        valorCtrl.addListener(_updateTotal);
-        descFocus.addListener(_onFieldFocusChange);
-        valorFocus.addListener(_onFieldFocusChange);
-        
-        _despesaDescControllers.add(descCtrl);
-        _despesaValorControllers.add(valorCtrl);
-        _despesaDescFocusNodes.add(descFocus);
-        _despesaValorFocusNodes.add(valorFocus);
-      }
-    }
-    
-    _clienteFocusNode.addListener(_onFieldFocusChange);
     _numeroFocusNode.addListener(_onFieldFocusChange);
-    _freteDescFocusNode.addListener(_onFieldFocusChange);
-    _freteValorFocusNode.addListener(_onFieldFocusChange);
-    _munckHorasFocusNode.addListener(_onFieldFocusChange);
-    _munckValorHoraFocusNode.addListener(_onFieldFocusChange);
-    _formaPagamentoFocusNode.addListener(_onFieldFocusChange);
-    _condicoesPagamentoFocusNode.addListener(_onFieldFocusChange);
-    _condicoesPagamentoOutrasFocusNode.addListener(_onFieldFocusChange);
-    _prazoEntregaFocusNode.addListener(_onFieldFocusChange);
-    _produtoSearchFocusNode.addListener(_onFieldFocusChange);
     
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _dialogFocusNode.requestFocus();
+      _numeroFocusNode.requestFocus();
     });
-    
-    _loadProdutos();
   }
 
   void _onFieldFocusChange() {
-    if (!_clienteFocusNode.hasFocus && 
-        !_numeroFocusNode.hasFocus && 
-        !_freteDescFocusNode.hasFocus && 
-        !_freteValorFocusNode.hasFocus && 
-        !_munckHorasFocusNode.hasFocus && 
-        !_munckValorHoraFocusNode.hasFocus && 
-        !_formaPagamentoFocusNode.hasFocus && 
-        !_condicoesPagamentoFocusNode.hasFocus && 
-        !_condicoesPagamentoOutrasFocusNode.hasFocus && 
-        !_prazoEntregaFocusNode.hasFocus && 
-        !_produtoSearchFocusNode.hasFocus &&
-        !_despesaDescFocusNodes.any((node) => node.hasFocus) &&
-        !_despesaValorFocusNodes.any((node) => node.hasFocus) &&
-        !_quantityFocusNodes.values.any((node) => node.hasFocus)) {
+    if (!_numeroFocusNode.hasFocus) {
       Future.delayed(const Duration(milliseconds: 100), () {
         if (mounted && !_isShowingDiscardDialog) {
           _dialogFocusNode.requestFocus();
@@ -2451,207 +2206,20 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
   }
 
   bool get _hasChanges {
-    if (_clienteCtrl.text.trim() != _initialCliente) return true;
-    if (_numeroCtrl.text != _initialNumero) return true;
-    if (_freteDescCtrl.text.trim() != _initialFreteDesc) return true;
-    if (_freteValorCtrl.text != _initialFreteValor) return true;
-    if (_munckHorasCtrl.text != _initialMunckHoras) return true;
-    if (_munckValorHoraCtrl.text != _initialMunckValorHora) return true;
-    
-    final currentFormaPagamento = _formaPagamentoCtrl.text.trim();
-    if (currentFormaPagamento != _initialFormaPagamento) return true;
-    
-    final currentCondicao = _selectedCondicaoPagamento == 'Outras' 
-        ? _condicoesPagamentoOutrasCtrl.text.trim() 
-        : _condicoesPagamentoCtrl.text.trim();
-    if (currentCondicao != _initialCondicoesPagamento) return true;
-    
-    if (_prazoEntregaCtrl.text.trim() != _initialPrazoEntrega) return true;
-    if (_frete != _initialFrete) return true;
-    if (_caminhaoMunck != _initialCaminhaoMunck) return true;
-    if (_despesasAdicionais != _initialDespesasAdicionais) return true;
-    if (_selectedProduto?.id != _initialSelectedProdutoId) return true;
-    
-    if (_despesaDescControllers.length != _initialDespesasDesc.length) return true;
-    for (int i = 0; i < _despesaDescControllers.length; i++) {
-      if (i >= _initialDespesasDesc.length) return true;
-      if (_despesaDescControllers[i].text != _initialDespesasDesc[i]) return true;
-      if (_despesaValorControllers[i].text != _initialDespesasValor[i]) return true;
-    }
-    
-    for (final entry in _quantityControllers.entries) {
-      final initialQty = _initialQuantities[entry.key] ?? '';
-      if (entry.value.text != initialQty) return true;
-    }
-    
-    return false;
-  }
-
-  Future<void> _loadProdutos() async {
-    try {
-      final produtos = await _api.fetchProdutos();
-      if (!mounted) return;
-      setState(() {
-        _produtos = produtos..sort((a, b) => a.nome.toLowerCase().compareTo(b.nome.toLowerCase()));
-        _loading = false;
-        _selectedProduto = produtos.firstWhere(
-          (p) => p.id == widget.initial.produtoId,
-          orElse: () => produtos.first,
-        );
-        _initializeQuantityControllers();
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _loading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao carregar produtos: $e')),
-      );
-    }
-  }
-
-  void _initializeQuantityControllers() {
-    if (_selectedProduto == null) return;
-    
-    for (final mat in _selectedProduto!.materiais) {
-      final existingQty = widget.initial.materiais
-          .firstWhere((m) => m.materialId == mat.materialId,
-              orElse: () => const PedidoMaterialItem(
-                  id: 0,
-                  materialId: 0,
-                  materialNome: '',
-                  materialUnidade: '',
-                  materialCusto: 0,
-                  quantidade: ''))
-          .quantidade;
-      
-      final controller = TextEditingController(text: existingQty);
-      final focusNode = FocusNode();
-      
-      controller.addListener(_updateTotal);
-      focusNode.addListener(_onFieldFocusChange);
-      
-      _quantityControllers[mat.materialId] = controller;
-      _quantityFocusNodes[mat.materialId] = focusNode;
-    }
+    return _numeroCtrl.text != _initialNumero;
   }
 
   @override
   void dispose() {
-    _clienteCtrl.dispose();
     _numeroCtrl.dispose();
-    _freteDescCtrl.dispose();
-    _freteValorCtrl.dispose();
-    _munckHorasCtrl.dispose();
-    _munckValorHoraCtrl.dispose();
-    _formaPagamentoCtrl.dispose();
-    _condicoesPagamentoCtrl.dispose();
-    _condicoesPagamentoOutrasCtrl.dispose();
-    _prazoEntregaCtrl.dispose();
-    _produtoSearchCtrl.dispose();
-    
     _dialogFocusNode.dispose();
-    _clienteFocusNode.dispose();
     _numeroFocusNode.dispose();
-    _freteDescFocusNode.dispose();
-    _freteValorFocusNode.dispose();
-    _munckHorasFocusNode.dispose();
-    _munckValorHoraFocusNode.dispose();
-    _formaPagamentoFocusNode.dispose();
-    _condicoesPagamentoFocusNode.dispose();
-    _condicoesPagamentoOutrasFocusNode.dispose();
-    _prazoEntregaFocusNode.dispose();
-    _produtoSearchFocusNode.dispose();
-    
-    for (final controller in _quantityControllers.values) {
-      controller.dispose();
-    }
-    for (final focusNode in _quantityFocusNodes.values) {
-      focusNode.dispose();
-    }
-    
-    for (final controller in _despesaDescControllers) {
-      controller.dispose();
-    }
-    for (final controller in _despesaValorControllers) {
-      controller.dispose();
-    }
-    for (final focusNode in _despesaDescFocusNodes) {
-      focusNode.dispose();
-    }
-    for (final focusNode in _despesaValorFocusNodes) {
-      focusNode.dispose();
-    }
-    
     super.dispose();
-  }
-
-  double _calculateTotal() {
-    if (_selectedProduto == null) return 0.0;
-    double total = 0.0;
-    
-    for (final mat in _selectedProduto!.materiais) {
-      final controller = _quantityControllers[mat.materialId];
-      if (controller != null) {
-        final qty = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0.0;
-        total += mat.materialCusto * qty;
-      }
-    }
-    
-    for (final valorCtrl in _despesaValorControllers) {
-      final valor = double.tryParse(valorCtrl.text.replaceAll(',', '.')) ?? 0.0;
-      total += valor;
-    }
-    
-    if (_frete == true) {
-      final valor = double.tryParse(_freteValorCtrl.text.replaceAll(',', '.')) ?? 0.0;
-      total += valor;
-    }
-    
-    if (_caminhaoMunck == true) {
-      final horas = double.tryParse(_munckHorasCtrl.text.replaceAll(',', '.')) ?? 0.0;
-      final valorHora = double.tryParse(_munckValorHoraCtrl.text.replaceAll(',', '.')) ?? 150.0;
-      total += horas * valorHora;
-    }
-    
-    return total;
-  }
-
-  void _adicionarDespesa() {
-    final descCtrl = TextEditingController();
-    final valorCtrl = TextEditingController();
-    final descFocus = FocusNode();
-    final valorFocus = FocusNode();
-    
-    descCtrl.addListener(_updateTotal);
-    valorCtrl.addListener(_updateTotal);
-    descFocus.addListener(_onFieldFocusChange);
-    valorFocus.addListener(_onFieldFocusChange);
-    
-    setState(() {
-      _despesaDescControllers.add(descCtrl);
-      _despesaValorControllers.add(valorCtrl);
-      _despesaDescFocusNodes.add(descFocus);
-      _despesaValorFocusNodes.add(valorFocus);
-    });
-  }
-
-  void _removerDespesa(int index) {
-    _despesaDescControllers[index].dispose();
-    _despesaValorControllers[index].dispose();
-    _despesaDescFocusNodes[index].dispose();
-    _despesaValorFocusNodes[index].dispose();
-    
-    setState(() {
-      _despesaDescControllers.removeAt(index);
-      _despesaValorControllers.removeAt(index);
-      _despesaDescFocusNodes.removeAt(index);
-      _despesaValorFocusNodes.removeAt(index);
-    });
   }
 
   String? _validateNumeroPedido(String? value) {
     if (value == null || value.trim().isEmpty) {
-      // Se o pedido já existia sem número, pode continuar sem número
+      // Permitir vazio se o pedido já existia sem número
       if (widget.initial.numero == null) {
         return null; 
       }
@@ -2725,461 +2293,17 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
     return result ?? false;
   }
 
-  // ✅ MÉTODO _save CORRIGIDO - Mantém diálogo aberto durante salvamento
-  Future<void> _save() async {
+  void _save() {
     if (!_formKey.currentState!.validate()) return;
-    
-    // ✅ Ativar estado de salvamento
-    setState(() => _saving = true);
 
-    try {
-      final materiais = <PedidoMaterialItem>[];
-      
-      for(final mat in _selectedProduto!.materiais) {
-        final controller = _quantityControllers[mat.materialId];
-        if (controller == null) continue;
-        
-        final qty = controller.text.trim();
-        if (qty.isEmpty) continue;
-        
-        final qtyValue = double.tryParse(qty.replaceAll(',', '.'));
-        if (qtyValue == null || qtyValue < 0) continue;
-        
-        materiais.add(PedidoMaterialItem(
-          id: widget.initial.materiais
-                  .firstWhere((m) => m.materialId == mat.materialId,
-                      orElse: () => const PedidoMaterialItem(
-                          id: 0,
-                          materialId: 0,
-                          materialNome: '',
-                          materialUnidade: '',
-                          materialCusto: 0,
-                          quantidade: '0'))
-                  .id,
-          materialId: mat.materialId,
-          materialNome: mat.materialNome,
-          materialUnidade: mat.materialUnidade,
-          materialCusto: mat.materialCusto,
-          quantidade: qty.replaceAll(',', '.'),
-        ));
-      }
+    final numeroText = _numeroCtrl.text.trim();
+    final numero = numeroText.isEmpty ? null : int.tryParse(numeroText);
 
-      final despesas = <PedidoDespesaAdicionalItem>[];
-      for (int i = 0; i < _despesaDescControllers.length; i++) {
-        final desc = _despesaDescControllers[i].text.trim();
-        final valorText = _despesaValorControllers[i].text.trim();
-        
-        if (desc.isEmpty || valorText.isEmpty) continue;
-        
-        final valor = double.tryParse(valorText.replaceAll(',', '.'));
-        if (valor == null || valor <= 0) continue;
-        
-        despesas.add(PedidoDespesaAdicionalItem(
-          id: i < widget.initial.despesasAdicionais.length 
-              ? widget.initial.despesasAdicionais[i].id 
-              : 0,
-          descricao: desc,
-          valor: valor,
-        ));
-      }
-
-      final formaPagamento = _formaPagamentoCtrl.text.trim();
-      final condicoesPagamento = _selectedCondicaoPagamento == 'Outras'
-          ? _condicoesPagamentoOutrasCtrl.text.trim()
-          : _condicoesPagamentoCtrl.text.trim();
-
-      final numeroText = _numeroCtrl.text.trim();
-      final numero = numeroText.isEmpty ? null : int.tryParse(numeroText);
-
-      final item = widget.initial.copyWith(
-        cliente: _clienteCtrl.text.trim(),
-        numero: numero,
-        produtoId: _selectedProduto!.id,
-        produtoNome: _selectedProduto!.nome,
-        materiais: materiais,
-        despesasAdicionais: despesas,
-        frete: _frete ?? false,
-        freteDesc: _frete == true ? _freteDescCtrl.text.trim() : null,
-        freteValor: _frete == true 
-            ? double.tryParse(_freteValorCtrl.text.replaceAll(',', '.'))
-            : null,
-        caminhaoMunck: _caminhaoMunck ?? false,
-        caminhaoMunckHoras: _caminhaoMunck == true 
-            ? double.tryParse(_munckHorasCtrl.text.replaceAll(',', '.'))
-            : null,
-        caminhaoMunckValorHora: _caminhaoMunck == true 
-            ? double.tryParse(_munckValorHoraCtrl.text.replaceAll(',', '.'))
-            : null,
-        formaPagamento: formaPagamento,
-        condicoesPagamento: condicoesPagamento,
-        prazoEntrega: _prazoEntregaCtrl.text.trim(),
-      );
-
-      // ✅ Chamar callback de salvamento
-      await widget.onSave(item);
-      
-      // ✅ Fechar diálogo apenas após sucesso
-      if (mounted && context.mounted) {
-        Navigator.of(context).pop();
-      }
-    } catch (e) {
-      // ✅ Em caso de erro, desativar estado de salvamento e manter diálogo aberto
-      if (mounted) {
-        setState(() => _saving = false);
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao salvar pedido: $e'),
-            duration: const Duration(seconds: 4),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
-    }
-  }
-
-  List<ProdutoItem> get _filteredProdutos {
-    if (_produtoSearchQuery.isEmpty) {
-      return _produtos;
-    }
-    return _produtos
-        .where((p) => p.nome.toLowerCase().contains(_produtoSearchQuery))
-        .toList();
-  }
-
-  Widget _buildToggleButton(String label, bool isSelected, VoidCallback onTap) {
-    final theme = Theme.of(context);
-    
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? theme.colorScheme.primary.withValues(alpha: 0.15)
-              : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: isSelected
-                ? theme.colorScheme.primary.withValues(alpha: 0.5)
-                : theme.dividerColor.withValues(alpha: 0.2),
-          ),
-        ),
-        child: Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: isSelected
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurface.withValues(alpha: 0.7),
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-            fontSize: 11,
-          ),
-        ),
-      ),
+    final item = widget.initial.copyWith(
+      numero: numero,
     );
-  }
 
-  Widget _buildToggleSection({
-    required String title,
-    required bool? value,
-    required ValueChanged<bool?> onChanged,
-    Widget? child,
-  }) {
-    final theme = Theme.of(context);
-    
-    return FormField<bool>(
-      initialValue: value,
-      validator: (v) => v == null ? 'Selecione Sim ou Não' : null,
-      builder: (formFieldState) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: formFieldState.hasError
-                      ? theme.colorScheme.error
-                      : value == true
-                          ? theme.colorScheme.primary.withValues(alpha: 0.3)
-                          : theme.dividerColor.withValues(alpha: 0.1),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          _buildToggleButton('Não', value == false, () {
-                            onChanged(false);
-                            formFieldState.didChange(false);
-                          }),
-                          const SizedBox(width: 6),
-                          _buildToggleButton('Sim', value == true, () {
-                            onChanged(true);
-                            formFieldState.didChange(true);
-                          }),
-                        ],
-                      ),
-                    ],
-                  ),
-                  if (formFieldState.hasError) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      formFieldState.errorText ?? '',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                  if (value == true && child != null) ...[
-                    const SizedBox(height: 8),
-                    child,
-                  ],
-                ],
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildDespesasSection() {
-    final theme = Theme.of(context);
-    
-    return FormField<bool>(
-      initialValue: _despesasAdicionais,
-      validator: (value) {
-        if (value == null) {
-          return 'Selecione Sim ou Não';
-        }
-        if (value == true && _despesaDescControllers.isEmpty) {
-          return 'Adicione pelo menos uma despesa';
-        }
-        return null;
-      },
-      builder: (formFieldState) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: formFieldState.hasError
-                      ? theme.colorScheme.error
-                      : _despesasAdicionais == true
-                          ? theme.colorScheme.primary.withValues(alpha: 0.3)
-                          : theme.dividerColor.withValues(alpha: 0.1),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Despesas Adicionais',
-                          style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
-                        ),
-                      ),
-                      Row(
-                        children: [
-                          _buildToggleButton('Não', _despesasAdicionais == false, () {
-                            setState(() {
-                              _despesasAdicionais = false;
-                              for (final controller in _despesaDescControllers) {
-                                controller.dispose();
-                              }
-                              for (final controller in _despesaValorControllers) {
-                                controller.dispose();
-                              }
-                              for (final focusNode in _despesaDescFocusNodes) {
-                                focusNode.dispose();
-                              }
-                              for (final focusNode in _despesaValorFocusNodes) {
-                                focusNode.dispose();
-                              }
-                              _despesaDescControllers.clear();
-                              _despesaValorControllers.clear();
-                              _despesaDescFocusNodes.clear();
-                              _despesaValorFocusNodes.clear();
-                            });
-                            formFieldState.didChange(false);
-                          }),
-                          const SizedBox(width: 6),
-                          _buildToggleButton('Sim', _despesasAdicionais == true, () {
-                            setState(() {
-                              _despesasAdicionais = true;
-                            });
-                            formFieldState.didChange(true);
-                          }),
-                        ],
-                      ),
-                    ],
-                  ),
-                  if (formFieldState.hasError) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      formFieldState.errorText ?? '',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                  if (_despesasAdicionais == true) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Lista de Despesas',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 11,
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                          ),
-                        ),
-                        ExcludeFocus(
-                          child: IconButton(
-                            onPressed: _adicionarDespesa,
-                            icon: const Icon(Icons.add_circle_outline, size: 18),
-                            tooltip: 'Adicionar despesa',
-                            style: IconButton.styleFrom(
-                              foregroundColor: theme.colorScheme.primary,
-                              padding: EdgeInsets.zero,
-                            ),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    if (_despesaDescControllers.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.info_outline,
-                              size: 16,
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Clique no + para adicionar despesas',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      ...List.generate(_despesaDescControllers.length, (index) {
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 6),
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 2,
-                                child: TextFormField(
-                                  controller: _despesaDescControllers[index],
-                                  focusNode: _despesaDescFocusNodes[index],
-                                  style: const TextStyle(fontSize: 12),
-                                  decoration: const InputDecoration(
-                                    labelText: 'Descrição',
-                                    isDense: true,
-                                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                  ),
-                                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe' : null,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _despesaValorControllers[index],
-                                  focusNode: _despesaValorFocusNodes[index],
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                  ],
-                                  style: const TextStyle(fontSize: 12),
-                                  decoration: const InputDecoration(
-                                    labelText: 'Valor',
-                                    isDense: true,
-                                    prefixText: 'R\$ ',
-                                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                  ),
-                                  validator: (v) {
-                                    if (v == null || v.trim().isEmpty) {
-                                      return 'Informe';
-                                    }
-                                    final value = double.tryParse(v.replaceAll(',', '.'));
-                                    if (value == null || value <= 0) {
-                                      return 'Inválido';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              ExcludeFocus(
-                                child: IconButton(
-                                  onPressed: () => _removerDespesa(index),
-                                  icon: const Icon(Icons.delete_outline, size: 16),
-                                  color: theme.colorScheme.error,
-                                  tooltip: 'Remover',
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        );
-      },
-    );
+    Navigator.of(context).pop(item);
   }
 
   @override
@@ -3219,642 +2343,550 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                 return KeyEventResult.ignored;
               },
               child: Container(
-                constraints: const BoxConstraints(maxWidth: 1400, maxHeight: 850),
+                constraints: const BoxConstraints(maxWidth: 900, maxHeight: 850),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.surface,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: _loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : Row(
-                        children: [
-                          Opacity(
-                            opacity: _isEditing ? 0.5 : 1.0,
-                            child: IgnorePointer(
-                              ignoring: _isEditing,
-                              child: Container(
-                                width: 240,
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                                  borderRadius: const BorderRadius.only(
-                                    topLeft: Radius.circular(16),
-                                    bottomLeft: Radius.circular(16),
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.all(16),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Produtos',
-                                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                                          ),
-                                          const SizedBox(height: 12),
-                                          TextField(
-                                            controller: _produtoSearchCtrl,
-                                            focusNode: _produtoSearchFocusNode,
-                                            enabled: !_isEditing,
-                                            decoration: InputDecoration(
-                                              hintText: 'Buscar...',
-                                              isDense: true,
-                                              prefixIcon: const Icon(Icons.search, size: 18),
-                                              suffixIcon: _produtoSearchQuery.isNotEmpty
-                                                  ? IconButton(
-                                                      icon: const Icon(Icons.clear, size: 16),
-                                                      onPressed: () {
-                                                        _produtoSearchCtrl.clear();
-                                                      },
-                                                    )
-                                                  : null,
-                                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                            ),
-                                            style: const TextStyle(fontSize: 13),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: ExcludeFocus(
-                                        child: _filteredProdutos.isEmpty
-                                            ? Center(
-                                                child: Padding(
-                                                  padding: const EdgeInsets.all(16),
-                                                  child: Text(
-                                                    'Nenhum pedido encontrado',
-                                                    textAlign: TextAlign.center,  // ✅ CORRETO - parâmetro do Text
-                                                    style: theme.textTheme.titleMedium?.copyWith(
-                                                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                                                    ),
-                                                  ),
-                                                ),
-                                              )
-                                            : ListView.builder(
-                                                padding: const EdgeInsets.symmetric(horizontal: 10),
-                                                itemCount: _filteredProdutos.length,
-                                                itemBuilder: (context, index) {
-                                                  final produto = _filteredProdutos[index];
-                                                  final isSelected = _selectedProduto?.id == produto.id;
-                                                  
-                                                  return Padding(
-                                                    padding: const EdgeInsets.only(bottom: 6),
-                                                    child: InkWell(
-                                                      onTap: _isEditing ? null : () {
-                                                        setState(() {
-                                                          _selectedProduto = produto;
-                                                          for (final controller in _quantityControllers.values) {
-                                                            controller.dispose();
-                                                          }
-                                                          for (final focusNode in _quantityFocusNodes.values) {
-                                                            focusNode.dispose();
-                                                          }
-                                                          _quantityControllers.clear();
-                                                          _quantityFocusNodes.clear();
-                                                          _initializeQuantityControllers();
-                                                        });
-                                                      },
-                                                      borderRadius: BorderRadius.circular(8),
-                                                      child: Container(
-                                                        padding: const EdgeInsets.all(10),
-                                                        decoration: BoxDecoration(
-                                                          color: isSelected
-                                                              ? theme.colorScheme.primary.withValues(alpha: 0.15)
-                                                              : theme.colorScheme.surface,
-                                                          borderRadius: BorderRadius.circular(8),
-                                                          border: Border.all(
-                                                            color: isSelected
-                                                                ? theme.colorScheme.primary.withValues(alpha: 0.5)
-                                                                : theme.dividerColor.withValues(alpha: 0.1),
-                                                            width: isSelected ? 2 : 1,
-                                                          ),
-                                                        ),
-                                                        child: Row(
-                                                          children: [
-                                                            Container(
-                                                              padding: const EdgeInsets.all(6),
-                                                              decoration: BoxDecoration(
-                                                                color: isSelected
-                                                                    ? theme.colorScheme.primary.withValues(alpha: 0.2)
-                                                                    : theme.colorScheme.primary.withValues(alpha: 0.1),
-                                                                borderRadius: BorderRadius.circular(6),
-                                                              ),
-                                                              child: Icon(
-                                                                Icons.inventory_2_outlined,
-                                                                color: theme.colorScheme.primary,
-                                                                size: 16,
-                                                              ),
-                                                            ),
-                                                            const SizedBox(width: 8),
-                                                            Expanded(
-                                                              child: Column(
-                                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                                children: [
-                                                                  Text(produto.nome,
-                                                                    style: theme.textTheme.bodySmall?.copyWith(
-                                                                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                                                                      fontSize: 12,
-                                                                    ),
-                                                                    maxLines: 2,
-                                                                    overflow: TextOverflow.ellipsis,
-                                                                  ),
-                                                                  Text(
-                                                                    '${produto.materiais.length} materiais',
-                                                                    style: theme.textTheme.bodySmall?.copyWith(
-                                                                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                                                                      fontSize: 10,
-                                                                    ),
-                                                                  ),
-                                                                ],
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  );
-                                                }
-                                              ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              color: theme.dividerColor.withValues(alpha: 0.1),
                             ),
                           ),
-                          Expanded(
-                            child: Form(
-                              key: _formKey,
-                              child: Column(
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Pedido',
+                                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            ExcludeFocus(
+                              child: IconButton(
+                                onPressed: () async {
+                                  final shouldClose = await _onWillPop();
+                                  if (shouldClose && context.mounted) {
+                                    Navigator.of(context).pop();
+                                  }
+                                },
+                                icon: const Icon(Icons.close),
+                                tooltip: 'Fechar (Esc)',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // ✅ Informação sobre orçamento de origem
+                              if (widget.initial.orcamentoNumero != null)
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  margin: const EdgeInsets.only(bottom: 16),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.info_outline,
+                                        size: 20,
+                                        color: theme.colorScheme.primary,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          'Pedido gerado a partir do Orçamento #${widget.initial.orcamentoNumero}',
+                                          style: theme.textTheme.bodySmall?.copyWith(
+                                            color: theme.colorScheme.primary,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              
+                              Row(
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
-                                    decoration: BoxDecoration(
-                                      border: Border(
-                                        bottom: BorderSide(
-                                          color: theme.dividerColor.withValues(alpha: 0.1),
+                                  Expanded(
+                                    flex: 2,
+                                    child: Opacity(
+                                      opacity: 0.5,
+                                      child: IgnorePointer(
+                                        ignoring: true,
+                                        child: TextFormField(
+                                          initialValue: widget.initial.cliente,
+                                          enabled: false,
+                                          style: const TextStyle(fontSize: 13),
+                                          decoration: const InputDecoration(
+                                            labelText: 'Cliente',
+                                            isDense: true,
+                                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                          ),
                                         ),
                                       ),
                                     ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            'Editar Pedido',
-                                            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                                          ),
-                                        ),
-                                        ExcludeFocus(
-                                          child: IconButton(
-                                            onPressed: _saving ? null : () async {
-                                              final shouldClose = await _onWillPop();
-                                              if (shouldClose && context.mounted) {
-                                                Navigator.of(context).pop();
-                                              }
-                                            },
-                                            icon: const Icon(Icons.close),
-                                            tooltip: 'Fechar (Esc)',
-                                          ),
-                                        ),
-                                      ],
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _numeroCtrl,
+                                      focusNode: _numeroFocusNode,
+                                      keyboardType: TextInputType.number,
+                                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                      style: const TextStyle(fontSize: 13),
+                                      decoration: const InputDecoration(
+                                        labelText: 'Nº Pedido',
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                      ),
+                                      validator: _validateNumeroPedido,
                                     ),
                                   ),
-                                  Expanded(
-                                    child: SingleChildScrollView(
-                                      padding: const EdgeInsets.all(16),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
+                                ],
+                              ),
+                              
+                              const SizedBox(height: 16),
+                              
+                              // ✅ Produto (disabled)
+                              Opacity(
+                                opacity: 0.5,
+                                child: IgnorePointer(
+                                  ignoring: true,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.inventory_2_outlined,
+                                              size: 20,
+                                              color: theme.colorScheme.primary,
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'Produto',
+                                                    style: theme.textTheme.bodySmall?.copyWith(
+                                                      fontSize: 11,
+                                                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    widget.initial.produtoNome,
+                                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      
+                                      const SizedBox(height: 16),
+                                      
+                                      Text(
+                                        'Materiais',
+                                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      
+                                      ...widget.initial.materiais.map((mat) {
+                                        return Container(
+                                          margin: const EdgeInsets.only(bottom: 6),
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                                          ),
+                                          child: Row(
                                             children: [
                                               Expanded(
                                                 flex: 2,
-                                                child: Opacity(
-                                                  opacity: 0.5,
-                                                  child: IgnorePointer(
-                                                    ignoring: true,
-                                                    child: TextFormField(
-                                                      controller: _clienteCtrl,
-                                                      focusNode: _clienteFocusNode,
-                                                      enabled: false,
-                                                      style: const TextStyle(fontSize: 13),
-                                                      decoration: const InputDecoration(
-                                                        labelText: 'Cliente',
-                                                        isDense: true,
-                                                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                                      ),
-                                                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe o cliente' : null,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 10),
-                                              Expanded(
-                                                child: TextFormField(
-                                                  controller: _numeroCtrl,
-                                                  focusNode: _numeroFocusNode,
-                                                  enabled: !_saving,
-                                                  keyboardType: TextInputType.number,
-                                                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                                                  style: const TextStyle(fontSize: 13),
-                                                  decoration: const InputDecoration(
-                                                    labelText: 'Nº Pedido',
-                                                    isDense: true,
-                                                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                                  ),
-                                                  validator: _validateNumeroPedido,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          
-                                          const SizedBox(height: 16),
-                                          
-                                          if (_selectedProduto != null) ...[
-                                            Text(
-                                              'Materiais',
-                                              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Opacity(
-                                              opacity: 0.5,
-                                              child: IgnorePointer(
-                                                ignoring: true,
                                                 child: Column(
-                                                  children: _selectedProduto!.materiais.map((mat) {
-                                                    final controller = _quantityControllers[mat.materialId];
-                                                    final focusNode = _quantityFocusNodes[mat.materialId];
-                                                    if (controller == null || focusNode == null) return const SizedBox();
-                                                    
-                                                    final qty = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0.0;
-                                                    final total = mat.materialCusto * qty;
-                                                    
-                                                    return Container(
-                                                      margin: const EdgeInsets.only(bottom: 6),
-                                                      padding: const EdgeInsets.all(8),
-                                                      decoration: BoxDecoration(
-                                                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                                                        borderRadius: BorderRadius.circular(8),
-                                                        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-                                                      ),
-                                                      child: Row(
-                                                        children: [
-                                                          Expanded(
-                                                            flex: 2,
-                                                            child: Column(
-                                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                                              children: [
-                                                                Text(
-                                                                  mat.materialNome,
-                                                                  style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 11),
-                                                                ),
-                                                                Text(
-                                                                  '${currency.format(mat.materialCusto)} / ${mat.materialUnidade}',
-                                                                  style: theme.textTheme.bodySmall?.copyWith(
-                                                                    fontSize: 10,
-                                                                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                                                                  ),
-                                                                ),
-                                                              ],
-                                                            ),
-                                                          ),
-                                                          const SizedBox(width: 8),
-                                                          SizedBox(
-                                                            width: 70,
-                                                            child: TextFormField(
-                                                              controller: controller,
-                                                              focusNode: focusNode,
-                                                              enabled: false,
-                                                              keyboardType: TextInputType.numberWithOptions(
-                                                                decimal: mat.materialUnidade == 'Kg',
-                                                              ),
-                                                              inputFormatters: [
-                                                                if (mat.materialUnidade == 'Kg')
-                                                                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                                                else
-                                                                  FilteringTextInputFormatter.digitsOnly
-                                                              ],
-                                                              textAlign: TextAlign.center,
-                                                              style: const TextStyle(fontSize: 12),
-                                                              decoration: const InputDecoration(
-                                                                labelText: 'Qtd',
-                                                                isDense: true,
-                                                                contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                                                              ),
-                                                              validator: (v) {
-                                                                if (v == null || v.trim().isEmpty) {
-                                                                  return 'Informe';
-                                                                }
-                                                                final value = double.tryParse(v.replaceAll(',', '.'));
-                                                                if (value == null || value < 0) {
-                                                                  return 'Inválido';
-                                                                }
-                                                                return null;
-                                                              },
-                                                            ),
-                                                          ),
-                                                          const SizedBox(width: 8),
-                                                          SizedBox(
-                                                            width: 75,
-                                                            child: Text(
-                                                              currency.format(total),
-                                                              style: theme.textTheme.bodySmall?.copyWith(
-                                                                fontWeight: FontWeight.bold,
-                                                                color: theme.colorScheme.primary,
-                                                                fontSize: 11,
-                                                              ),
-                                                              textAlign: TextAlign.right,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    );
-                                                  }).toList(),
-                                                ),
-                                              ),
-                                            ),
-                                            
-                                            const SizedBox(height: 12),
-                                            
-                                            Opacity(
-                                              opacity: 0.5,
-                                              child: IgnorePointer(
-                                                ignoring: true,
-                                                child: _buildDespesasSection(),
-                                              ),
-                                            ),
-                                            
-                                            const SizedBox(height: 12),
-                                            
-                                            Opacity(
-                                              opacity: 0.5,
-                                              child: IgnorePointer(
-                                                ignoring: true,
-                                                child: _buildToggleSection(
-                                                  title: 'Frete',
-                                                  value: _frete,
-                                                  onChanged: (v) {},
-                                                  child: _frete == true
-                                                      ? Row(
-                                                          children: [
-                                                            Expanded(
-                                                              flex: 2,
-                                                              child: TextFormField(
-                                                                controller: _freteDescCtrl,
-                                                                focusNode: _freteDescFocusNode,
-                                                                enabled: false,
-                                                                style: const TextStyle(fontSize: 12),
-                                                                decoration: const InputDecoration(
-                                                                  labelText: 'Descrição',
-                                                                  isDense: true,
-                                                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                                                ),
-                                                              ),
-                                                            ),
-                                                            const SizedBox(width: 8),
-                                                            Expanded(
-                                                              child: TextFormField(
-                                                                controller: _freteValorCtrl,
-                                                                focusNode: _freteValorFocusNode,
-                                                                enabled: false,
-                                                                style: const TextStyle(fontSize: 12),
-                                                                decoration: const InputDecoration(
-                                                                  labelText: 'Valor',
-                                                                  isDense: true,
-                                                                  prefixText: 'R\$ ',
-                                                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                                                ),
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        )
-                                                      : null,
-                                                ),
-                                              ),
-                                            ),
-                                            
-                                            const SizedBox(height: 8),
-                                            
-                                            Opacity(
-                                              opacity: 0.5,
-                                              child: IgnorePointer(
-                                                ignoring: true,
-                                                child: _buildToggleSection(
-                                                  title: 'Caminhão Munck',
-                                                  value: _caminhaoMunck,
-                                                  onChanged: (v) {},
-                                                  child: _caminhaoMunck == true
-                                                      ? Row(
-                                                          children: [
-                                                            Expanded(
-                                                              child: TextFormField(
-                                                                controller: _munckHorasCtrl,
-                                                                focusNode: _munckHorasFocusNode,
-                                                                enabled: false,
-                                                                style: const TextStyle(fontSize: 12),
-                                                                decoration: const InputDecoration(
-                                                                  labelText: 'Horas',
-                                                                  isDense: true,
-                                                                  suffixText: 'h',
-                                                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                                                ),
-                                                              ),
-                                                            ),
-                                                            const SizedBox(width: 8),
-                                                            Expanded(
-                                                              child: TextFormField(
-                                                                controller: _munckValorHoraCtrl,
-                                                                focusNode: _munckValorHoraFocusNode,
-                                                                enabled: false,
-                                                                style: const TextStyle(fontSize: 12),
-                                                                decoration: const InputDecoration(
-                                                                  labelText: 'Valor/Hora',
-                                                                  isDense: true,
-                                                                  prefixText: 'R\$ ',
-                                                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                                                ),
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        )
-                                                      : null,
-                                                ),
-                                              ),
-                                            ),
-                                            
-                                            const SizedBox(height: 16),
-                                            
-                                            Opacity(
-                                              opacity: 0.5,
-                                              child: IgnorePointer(
-                                                ignoring: true,
-                                                child: Row(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
                                                   children: [
-                                                    Expanded(
-                                                      child: DropdownButtonFormField<String>(
-                                                        initialValue: _selectedFormaPagamento,
-                                                        focusNode: _formaPagamentoFocusNode,
-                                                        onChanged: null,
-                                                        decoration: const InputDecoration(
-                                                          labelText: 'Forma de Pagamento',
-                                                          isDense: true,
-                                                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                                        ),
-                                                        style: const TextStyle(fontSize: 13),
-                                                        items: _formaPagamentoOptions.map((option) {
-                                                          return DropdownMenuItem<String>(
-                                                            value: option,
-                                                            child: Text(option),
-                                                          );
-                                                        }).toList(),
-                                                        disabledHint: Text(_selectedFormaPagamento ?? ''),
-                                                      ),
+                                                    Text(
+                                                      mat.materialNome,
+                                                      style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 11),
                                                     ),
-                                                    const SizedBox(width: 10),
-                                                    Expanded(
-                                                      child: Column(
-                                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                                        children: [
-                                                          DropdownButtonFormField<String>(
-                                                            initialValue: _selectedCondicaoPagamento,
-                                                            focusNode: _condicoesPagamentoFocusNode,
-                                                            onChanged: null,
-                                                            decoration: const InputDecoration(
-                                                              labelText: 'Condições de Pagamento',
-                                                              isDense: true,
-                                                              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                                            ),
-                                                            style: const TextStyle(fontSize: 13),
-                                                            items: _condicoesPagamentoOptions.map((option) {
-                                                              return DropdownMenuItem<String>(
-                                                                value: option,
-                                                                child: Text(option),
-                                                              );
-                                                            }).toList(),
-                                                            disabledHint: Text(_selectedCondicaoPagamento ?? ''),
-                                                          ),
-                                                          if (_selectedCondicaoPagamento == 'Outras') ...[
-                                                            const SizedBox(height: 10),
-                                                            TextFormField(
-                                                              controller: _condicoesPagamentoOutrasCtrl,
-                                                              focusNode: _condicoesPagamentoOutrasFocusNode,
-                                                              enabled: false,
-                                                              style: const TextStyle(fontSize: 13),
-                                                              decoration: const InputDecoration(
-                                                                labelText: 'Especifique as condições',
-                                                                isDense: true,
-                                                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ],
+                                                    Text(
+                                                      '${currency.format(mat.materialCusto)} / ${mat.materialUnidade}',
+                                                      style: theme.textTheme.bodySmall?.copyWith(
+                                                        fontSize: 10,
+                                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                                                       ),
                                                     ),
                                                   ],
                                                 ),
                                               ),
-                                            ),
-                                            
-                                            const SizedBox(height: 10),
-                                            
-                                            Opacity(
-                                              opacity: 0.5,
-                                              child: IgnorePointer(
-                                                ignoring: true,
-                                                child: TextFormField(
-                                                  controller: _prazoEntregaCtrl,
-                                                  focusNode: _prazoEntregaFocusNode,
-                                                  enabled: false,
-                                                  style: const TextStyle(fontSize: 13),
-                                                  decoration: const InputDecoration(
-                                                    labelText: 'Prazo de Entrega',
-                                                    isDense: true,
-                                                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                decoration: BoxDecoration(
+                                                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Text(
+                                                  '${mat.quantidade} ${mat.materialUnidade}',
+                                                  style: theme.textTheme.bodySmall?.copyWith(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
                                                   ),
                                                 ),
                                               ),
+                                              const SizedBox(width: 8),
+                                              SizedBox(
+                                                width: 75,
+                                                child: Text(
+                                                  currency.format(mat.total),
+                                                  style: theme.textTheme.bodySmall?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: theme.colorScheme.primary,
+                                                    fontSize: 11,
+                                                  ),
+                                                  textAlign: TextAlign.right,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }),
+                                      
+                                      // ✅ Despesas Adicionais
+                                      if (widget.initial.despesasAdicionais.isNotEmpty) ...[
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          'Despesas Adicionais',
+                                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        ...widget.initial.despesasAdicionais.map((despesa) {
+                                          return Container(
+                                            margin: const EdgeInsets.only(bottom: 6),
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
                                             ),
-                                          ],
+                                            child: Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    despesa.descricao,
+                                                    style: theme.textTheme.bodySmall?.copyWith(
+                                                      fontWeight: FontWeight.w600,
+                                                      fontSize: 11,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  currency.format(despesa.valor),
+                                                  style: theme.textTheme.bodySmall?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: theme.colorScheme.primary,
+                                                    fontSize: 11,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }),
+                                      ],
+                                      
+                                      // ✅ Opções Extras
+                                      if (widget.initial.opcoesExtras.isNotEmpty) ...[
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          'Outros',
+                                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        ...widget.initial.opcoesExtras.map((opcao) {
+                                          return Container(
+                                            margin: const EdgeInsets.only(bottom: 6),
+                                            padding: const EdgeInsets.all(10),
+                                            decoration: BoxDecoration(
+                                              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Container(
+                                                      padding: const EdgeInsets.all(6),
+                                                      decoration: BoxDecoration(
+                                                        color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                                                        borderRadius: BorderRadius.circular(6),
+                                                      ),
+                                                      child: Icon(
+                                                        opcao.tipo == TipoOpcaoExtra.stringFloat
+                                                            ? Icons.text_fields
+                                                            : Icons.calculate_outlined,
+                                                        size: 16,
+                                                        color: theme.colorScheme.onSecondaryContainer,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 10),
+                                                    Expanded(
+                                                      child: Text(
+                                                        opcao.nome,
+                                                        style: theme.textTheme.bodySmall?.copyWith(
+                                                          fontWeight: FontWeight.w600,
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 8),
+                                                if (opcao.tipo == TipoOpcaoExtra.stringFloat) ...[
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        flex: 2,
+                                                        child: Container(
+                                                          padding: const EdgeInsets.all(8),
+                                                          decoration: BoxDecoration(
+                                                            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                                                            borderRadius: BorderRadius.circular(6),
+                                                          ),
+                                                          child: Text(
+                                                            opcao.valorString ?? '',
+                                                            style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Expanded(
+                                                        child: Container(
+                                                          padding: const EdgeInsets.all(8),
+                                                          decoration: BoxDecoration(
+                                                            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                                                            borderRadius: BorderRadius.circular(6),
+                                                          ),
+                                                          child: Text(
+                                                            currency.format(opcao.valorFloat1 ?? 0),
+                                                            style: theme.textTheme.bodySmall?.copyWith(
+                                                              fontSize: 11,
+                                                              fontWeight: FontWeight.w600,
+                                                              color: theme.colorScheme.primary,
+                                                            ),
+                                                            textAlign: TextAlign.right,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ] else ...[
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Container(
+                                                          padding: const EdgeInsets.all(8),
+                                                          decoration: BoxDecoration(
+                                                            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                                                            borderRadius: BorderRadius.circular(6),
+                                                          ),
+                                                          child: Text(
+                                                            '${opcao.valorFloat1 ?? 0} min',
+                                                            style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Expanded(
+                                                        child: Container(
+                                                          padding: const EdgeInsets.all(8),
+                                                          decoration: BoxDecoration(
+                                                            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                                                            borderRadius: BorderRadius.circular(6),
+                                                          ),
+                                                          child: Text(
+                                                            '${currency.format(opcao.valorFloat2 ?? 0)}/h',
+                                                            style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Expanded(
+                                                        child: Container(
+                                                          padding: const EdgeInsets.all(8),
+                                                          decoration: BoxDecoration(
+                                                            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                                                            borderRadius: BorderRadius.circular(6),
+                                                          ),
+                                                          child: Text(
+                                                            currency.format(((opcao.valorFloat1 ?? 0) / 60) * (opcao.valorFloat2 ?? 0)),
+                                                            style: theme.textTheme.bodySmall?.copyWith(
+                                                              fontSize: 11,
+                                                              fontWeight: FontWeight.w600,
+                                                              color: theme.colorScheme.primary,
+                                                            ),
+                                                            textAlign: TextAlign.right,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          );
+                                        }),
+                                      ],
+                                      
+                                      const SizedBox(height: 16),
+                                      
+                                      // ✅ Forma e Condições de Pagamento
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: TextFormField(
+                                              initialValue: widget.initial.formaPagamento,
+                                              enabled: false,
+                                              style: const TextStyle(fontSize: 13),
+                                              decoration: const InputDecoration(
+                                                labelText: 'Forma de Pagamento',
+                                                isDense: true,
+                                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: TextFormField(
+                                              initialValue: widget.initial.condicoesPagamento,
+                                              enabled: false,
+                                              style: const TextStyle(fontSize: 13),
+                                              decoration: const InputDecoration(
+                                                labelText: 'Condições de Pagamento',
+                                                isDense: true,
+                                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                              ),
+                                            ),
+                                          ),
                                         ],
                                       ),
-                                    ),
-                                  ),
-                                  
-                                  Container(
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                                      border: Border(
-                                        top: BorderSide(
-                                          color: theme.dividerColor.withValues(alpha: 0.1),
+                                      
+                                      const SizedBox(height: 10),
+                                      
+                                      TextFormField(
+                                        initialValue: widget.initial.prazoEntrega,
+                                        enabled: false,
+                                        style: const TextStyle(fontSize: 13),
+                                        decoration: const InputDecoration(
+                                          labelText: 'Prazo de Entrega',
+                                          isDense: true,
+                                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                         ),
                                       ),
-                                    ),
-                                    child: Column(
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              'Total do Pedido',
-                                              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                                            ),
-                                            Text(
-                                              currency.format(_calculateTotal()),
-                                              style: theme.textTheme.titleLarge?.copyWith(
-                                                fontWeight: FontWeight.bold,
-                                                color: theme.colorScheme.primary,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: ExcludeFocus(
-                                                child: OutlinedButton(
-                                                  onPressed: _saving ? null : () async {
-                                                    final shouldClose = await _onWillPop();
-                                                    if (shouldClose && context.mounted) {
-                                                      Navigator.of(context).pop();
-                                                    }
-                                                  },
-                                                  child: const Text('Cancelar'),
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: ExcludeFocus(
-                                                child: ElevatedButton(
-                                                  onPressed: _saving ? null : _save,
-                                                  child: _saving
-                                                      ? const SizedBox(
-                                                          width: 16,
-                                                          height: 16,
-                                                          child: CircularProgressIndicator(
-                                                            strokeWidth: 2,
-                                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                                          ),
-                                                        )
-                                                      : const Text('Finalizar'),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
+                                    ],
                                   ),
-                                ],
+                                ),
                               ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                          border: Border(
+                            top: BorderSide(
+                              color: theme.dividerColor.withValues(alpha: 0.1),
                             ),
                           ),
-                        ],
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Total do Pedido',
+                                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                                Text(
+                                  currency.format(widget.initial.total),
+                                  style: theme.textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ExcludeFocus(
+                                    child: OutlinedButton(
+                                      onPressed: () async {
+                                        final shouldClose = await _onWillPop();
+                                        if (shouldClose && context.mounted) {
+                                          Navigator.of(context).pop();
+                                        }
+                                      },
+                                      child: const Text('Cancelar'),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ExcludeFocus(
+                                    child: ElevatedButton(
+                                      onPressed: _save,
+                                      child: const Text('Salvar'),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

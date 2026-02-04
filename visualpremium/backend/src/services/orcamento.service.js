@@ -11,7 +11,8 @@ class OrcamentoService {
               include: {
                 material: true
               }
-            }
+            },
+            opcoesExtras: true
           }
         },
         materiais: {
@@ -19,7 +20,12 @@ class OrcamentoService {
             material: true
           }
         },
-        despesasAdicionais: true
+        despesasAdicionais: true,
+        opcoesExtras: {
+          include: {
+            produtoOpcao: true
+          }
+        }
       },
       orderBy: {
         createdAt: 'desc'
@@ -37,7 +43,8 @@ class OrcamentoService {
               include: {
                 material: true
               }
-            }
+            },
+            opcoesExtras: true
           }
         },
         materiais: {
@@ -45,7 +52,12 @@ class OrcamentoService {
             material: true
           }
         },
-        despesasAdicionais: true
+        despesasAdicionais: true,
+        opcoesExtras: {
+          include: {
+            produtoOpcao: true
+          }
+        }
       }
     });
 
@@ -63,6 +75,7 @@ class OrcamentoService {
       produtoId, 
       materiais,
       despesasAdicionais,
+      opcoesExtras,
       frete,
       freteDesc,
       freteValor,
@@ -99,7 +112,8 @@ class OrcamentoService {
           include: {
             material: true
           }
-        }
+        },
+        opcoesExtras: true
       }
     });
 
@@ -178,21 +192,64 @@ class OrcamentoService {
       }
     }
 
+    // Validar opções extras
+    const opcoesExtrasValidadas = [];
+    if (opcoesExtras && Array.isArray(opcoesExtras) && opcoesExtras.length > 0) {
+      for (const opcaoValor of opcoesExtras) {
+        const opcaoExtra = produto.opcoesExtras.find(o => o.id === opcaoValor.produtoOpcaoId);
+        
+        if (!opcaoExtra) {
+          throw new Error(`Opção extra ${opcaoValor.produtoOpcaoId} não pertence ao produto`);
+        }
+
+        // Validar valores baseado no tipo
+        if (opcaoExtra.tipo === 'STRING_FLOAT') {
+          if (!opcaoValor.valorString || opcaoValor.valorString.trim() === '') {
+            throw new Error(`Valor texto é obrigatório para a opção "${opcaoExtra.nome}"`);
+          }
+          const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
+          if (isNaN(valorFloat1) || valorFloat1 < 0) {
+            throw new Error(`Valor numérico inválido para a opção "${opcaoExtra.nome}"`);
+          }
+          opcoesExtrasValidadas.push({
+            produtoOpcaoId: opcaoValor.produtoOpcaoId,
+            valorString: opcaoValor.valorString.trim(),
+            valorFloat1: valorFloat1,
+            valorFloat2: null
+          });
+        } else if (opcaoExtra.tipo === 'FLOAT_FLOAT') {
+          const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
+          const valorFloat2 = parseFloat(opcaoValor.valorFloat2);
+          
+          if (isNaN(valorFloat1) || valorFloat1 < 0) {
+            throw new Error(`Primeiro valor numérico inválido para a opção "${opcaoExtra.nome}"`);
+          }
+          if (isNaN(valorFloat2) || valorFloat2 < 0) {
+            throw new Error(`Segundo valor numérico inválido para a opção "${opcaoExtra.nome}"`);
+          }
+          
+          opcoesExtrasValidadas.push({
+            produtoOpcaoId: opcaoValor.produtoOpcaoId,
+            valorString: null,
+            valorFloat1: valorFloat1,
+            valorFloat2: valorFloat2
+          });
+        }
+      }
+    }
+
     // Preparar dados para criação
     const createData = {
       cliente: cliente.trim(),
       numero,
       status: 'Pendente',
       produtoId,
-      frete: freteBool,
-      freteDesc: freteBool ? freteDesc.trim() : null,
-      freteValor: freteBool ? parseFloat(freteValor) : null,
-      caminhaoMunck: caminhaoMunckBool,
-      caminhaoMunckHoras: caminhaoMunckBool ? parseFloat(caminhaoMunckHoras) : null,
-      caminhaoMunckValorHora: caminhaoMunckBool ? parseFloat(caminhaoMunckValorHora) : null,
       formaPagamento: formaPagamento.trim(),
       condicoesPagamento: condicoesPagamento.trim(),
-      prazoEntrega: prazoEntrega.trim()
+      prazoEntrega: prazoEntrega.trim(),
+      caminhaoMunck: caminhaoMunckBool,
+      caminhaoMunckHoras: caminhaoMunckBool ? parseFloat(caminhaoMunckHoras) / 60 : null, // ✅ DIVIDIR POR 60
+      caminhaoMunckValorHora: caminhaoMunckBool ? parseFloat(caminhaoMunckValorHora) : null,
     };
 
     // Adicionar materiais apenas se houver
@@ -209,6 +266,13 @@ class OrcamentoService {
       };
     }
 
+    // Adicionar opções extras apenas se houver
+    if (opcoesExtrasValidadas.length > 0) {
+      createData.opcoesExtras = {
+        create: opcoesExtrasValidadas
+      };
+    }
+
     // Criar orçamento
     const orcamento = await prisma.orcamento.create({
       data: createData,
@@ -219,7 +283,8 @@ class OrcamentoService {
               include: {
                 material: true
               }
-            }
+            },
+            opcoesExtras: true
           }
         },
         materiais: {
@@ -227,22 +292,24 @@ class OrcamentoService {
             material: true
           }
         },
-        despesasAdicionais: true
+        despesasAdicionais: true,
+        opcoesExtras: {
+          include: {
+            produtoOpcao: true
+          }
+        }
       }
     });
 
-    // ✅ USAR DADOS DO USUÁRIO AUTENTICADO
-     await logService.registrar({
+    // Registrar log de criação
+    await logService.registrar({
       usuarioId: user?.id || 1,
       usuarioNome: user?.nome || 'Sistema',
-      acao: 'EDITAR',
+      acao: 'CRIAR',
       entidade: 'ORCAMENTO',
-      entidadeId: id,
-      descricao: `Editou o orçamento #${orcamento.numero}`,
-      detalhes: {
-        antes: orcamentoAntigo,
-        depois: orcamento,
-      },
+      entidadeId: orcamento.id,
+      descricao: `Criou o orçamento #${orcamento.numero}`,
+      detalhes: orcamento,
     });
 
     return orcamento;
@@ -256,12 +323,7 @@ class OrcamentoService {
       materiais, 
       status,
       despesasAdicionais,
-      frete,
-      freteDesc,
-      freteValor,
-      caminhaoMunck,
-      caminhaoMunckHoras,
-      caminhaoMunckValorHora,
+      opcoesExtras,
       formaPagamento,
       condicoesPagamento,
       prazoEntrega
@@ -271,9 +333,13 @@ class OrcamentoService {
     const orcamentoAntigo = await prisma.orcamento.findUnique({
       where: { id },
       include: {
-        produto: true,
+        produto: {
+          include: {opcoesExtras: true
+          }
+        },
         materiais: { include: { material: true } },
-        despesasAdicionais: true
+        despesasAdicionais: true,
+        opcoesExtras: { include: { produtoOpcao: true } }
       }
     });
 
@@ -294,47 +360,6 @@ class OrcamentoService {
       throw new Error('Prazo de entrega é obrigatório');
     }
 
-    const freteBool = frete === true || frete === 'true';
-    const caminhaoMunckBool = caminhaoMunck === true || caminhaoMunck === 'true';
-
-    if (frete !== undefined && freteBool) {
-      if (!freteDesc || freteDesc.trim() === '') {
-        throw new Error('Descrição do frete é obrigatória');
-      }
-      if (!freteValor || freteValor <= 0) {
-        throw new Error('Valor do frete deve ser maior que zero');
-      }
-    }
-
-    if (caminhaoMunck !== undefined && caminhaoMunckBool) {
-      if (!caminhaoMunckHoras || caminhaoMunckHoras <= 0) {
-        throw new Error('Quantidade de horas do caminhão munck deve ser maior que zero');
-      }
-      if (!caminhaoMunckValorHora || caminhaoMunckValorHora <= 0) {
-        throw new Error('Valor por hora do caminhão munck deve ser maior que zero');
-      }
-    }
-
-    // Validar despesas adicionais
-    let despesasValidadas;
-    if (despesasAdicionais !== undefined) {
-      despesasValidadas = [];
-      if (Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
-        for (const despesa of despesasAdicionais) {
-          if (!despesa.descricao || despesa.descricao.trim() === '') {
-            throw new Error('Descrição da despesa adicional é obrigatória');
-          }
-          if (!despesa.valor || despesa.valor <= 0) {
-            throw new Error('Valor da despesa adicional deve ser maior que zero');
-          }
-          despesasValidadas.push({
-            descricao: despesa.descricao.trim(),
-            valor: parseFloat(despesa.valor)
-          });
-        }
-      }
-    }
-
     // Buscar produto se necessário
     let produto;
     if (produtoId && produtoId !== orcamentoAntigo.produtoId) {
@@ -345,7 +370,8 @@ class OrcamentoService {
             include: {
               material: true
             }
-          }
+          },
+          opcoesExtras: true
         }
       });
 
@@ -360,7 +386,8 @@ class OrcamentoService {
             include: {
               material: true
             }
-          }
+          },
+          opcoesExtras: true
         }
       });
     }
@@ -398,6 +425,75 @@ class OrcamentoService {
       }
     }
 
+    // Validar despesas adicionais
+    let despesasValidadas;
+    if (despesasAdicionais !== undefined) {
+      despesasValidadas = [];
+      if (Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
+        for (const despesa of despesasAdicionais) {
+          if (!despesa.descricao || despesa.descricao.trim() === '') {
+            throw new Error('Descrição da despesa adicional é obrigatória');
+          }
+          if (!despesa.valor || despesa.valor <= 0) {
+            throw new Error('Valor da despesa adicional deve ser maior que zero');
+          }
+          despesasValidadas.push({
+            descricao: despesa.descricao.trim(),
+            valor: parseFloat(despesa.valor)
+          });
+        }
+      }
+    }
+
+    // Validar opções extras
+    let opcoesExtrasValidadas;
+    if (opcoesExtras !== undefined) {
+      opcoesExtrasValidadas = [];
+      if (Array.isArray(opcoesExtras) && opcoesExtras.length > 0) {
+        for (const opcaoValor of opcoesExtras) {
+          const opcaoExtra = produto.opcoesExtras.find(o => o.id === opcaoValor.produtoOpcaoId);
+          
+          if (!opcaoExtra) {
+            throw new Error(`Opção extra ${opcaoValor.produtoOpcaoId} não pertence ao produto`);
+          }
+
+          // Validar valores baseado no tipo
+          if (opcaoExtra.tipo === 'STRING_FLOAT') {
+            if (!opcaoValor.valorString || opcaoValor.valorString.trim() === '') {
+              throw new Error(`Valor texto é obrigatório para a opção "${opcaoExtra.nome}"`);
+            }
+            const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
+            if (isNaN(valorFloat1) || valorFloat1 < 0) {
+              throw new Error(`Valor numérico inválido para a opção "${opcaoExtra.nome}"`);
+            }
+            opcoesExtrasValidadas.push({
+              produtoOpcaoId: opcaoValor.produtoOpcaoId,
+              valorString: opcaoValor.valorString.trim(),
+              valorFloat1: valorFloat1,
+              valorFloat2: null
+            });
+          } else if (opcaoExtra.tipo === 'FLOAT_FLOAT') {
+            const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
+            const valorFloat2 = parseFloat(opcaoValor.valorFloat2);
+            
+            if (isNaN(valorFloat1) || valorFloat1 < 0) {
+              throw new Error(`Primeiro valor numérico inválido para a opção "${opcaoExtra.nome}"`);
+            }
+            if (isNaN(valorFloat2) || valorFloat2 < 0) {
+              throw new Error(`Segundo valor numérico inválido para a opção "${opcaoExtra.nome}"`);
+            }
+            
+            opcoesExtrasValidadas.push({
+              produtoOpcaoId: opcaoValor.produtoOpcaoId,
+              valorString: null,
+              valorFloat1: valorFloat1,
+              valorFloat2: valorFloat2
+            });
+          }
+        }
+      }
+    }
+
     // Deletar materiais antigos se houver novos
     if (materiaisValidados) {
       await prisma.orcamentoMaterial.deleteMany({
@@ -412,18 +508,19 @@ class OrcamentoService {
       });
     }
 
+    // Deletar opções extras antigas se houver novas
+    if (opcoesExtrasValidadas !== undefined) {
+      await prisma.orcamentoOpcaoExtra.deleteMany({
+        where: { orcamentoId: id }
+      });
+    }
+
     // Preparar dados para atualização
     const updateData = {
       cliente: cliente ? cliente.trim() : undefined,
       numero: numero || undefined,
       status: status || undefined,
       produtoId: produtoId || undefined,
-      frete: frete !== undefined ? freteBool : undefined,
-      freteDesc: frete !== undefined ? (freteBool ? freteDesc?.trim() : null) : undefined,
-      freteValor: frete !== undefined ? (freteBool ? parseFloat(freteValor) : null) : undefined,
-      caminhaoMunck: caminhaoMunck !== undefined ? caminhaoMunckBool : undefined,
-      caminhaoMunckHoras: caminhaoMunck !== undefined ? (caminhaoMunckBool ? parseFloat(caminhaoMunckHoras) : null) : undefined,
-      caminhaoMunckValorHora: caminhaoMunck !== undefined ? (caminhaoMunckBool ? parseFloat(caminhaoMunckValorHora) : null) : undefined,
       formaPagamento: formaPagamento ? formaPagamento.trim() : undefined,
       condicoesPagamento: condicoesPagamento ? condicoesPagamento.trim() : undefined,
       prazoEntrega: prazoEntrega ? prazoEntrega.trim() : undefined
@@ -443,6 +540,13 @@ class OrcamentoService {
       };
     }
 
+    // Adicionar opções extras apenas se houver
+    if (opcoesExtrasValidadas !== undefined && opcoesExtrasValidadas.length > 0) {
+      updateData.opcoesExtras = {
+        create: opcoesExtrasValidadas
+      };
+    }
+
     // Atualizar orçamento
     const orcamento = await prisma.orcamento.update({
       where: { id },
@@ -454,7 +558,8 @@ class OrcamentoService {
               include: {
                 material: true
               }
-            }
+            },
+            opcoesExtras: true
           }
         },
         materiais: {
@@ -462,13 +567,18 @@ class OrcamentoService {
             material: true
           }
         },
-        despesasAdicionais: true
+        despesasAdicionais: true,
+        opcoesExtras: {
+          include: {
+            produtoOpcao: true
+          }
+        }
       }
     });
 
     // REGISTRAR LOG DE EDIÇÃO
     await logService.registrar({
-      usuarioId: 1,
+      usuarioId: user?.id || 1,
       usuarioNome: user?.nome || 'Sistema',
       acao: 'EDITAR',
       entidade: 'ORCAMENTO',
@@ -493,6 +603,11 @@ class OrcamentoService {
           }
         },
         despesasAdicionais: true,
+        opcoesExtras: {
+          include: {
+            produtoOpcao: true
+          }
+        },
         pedido: true
       }
     });
@@ -512,12 +627,6 @@ class OrcamentoService {
         numero: null,
         status: 'Em Andamento',
         produtoId: orcamento.produtoId,
-        frete: orcamento.frete,
-        freteDesc: orcamento.freteDesc,
-        freteValor: orcamento.freteValor,
-        caminhaoMunck: orcamento.caminhaoMunck,
-        caminhaoMunckHoras: orcamento.caminhaoMunckHoras,
-        caminhaoMunckValorHora: orcamento.caminhaoMunckValorHora,
         formaPagamento: orcamento.formaPagamento,
         condicoesPagamento: orcamento.condicoesPagamento,
         prazoEntrega: orcamento.prazoEntrega,
@@ -544,6 +653,18 @@ class OrcamentoService {
         };
       }
 
+      // Adicionar opções extras do orçamento ao pedido
+      if (orcamento.opcoesExtras && orcamento.opcoesExtras.length > 0) {
+        pedidoData.opcoesExtras = {
+          create: orcamento.opcoesExtras.map(o => ({
+            produtoOpcaoId: o.produtoOpcaoId,
+            valorString: o.valorString,
+            valorFloat1: o.valorFloat1,
+            valorFloat2: o.valorFloat2
+          }))
+        };
+      }
+
       // Criar o pedido em uma transação junto com a atualização do status
       return await prisma.$transaction(async (tx) => {
         // Criar o pedido
@@ -562,7 +683,8 @@ class OrcamentoService {
                   include: {
                     material: true
                   }
-                }
+                },
+                opcoesExtras: true
               }
             },
             materiais: {
@@ -570,7 +692,12 @@ class OrcamentoService {
                 material: true
               }
             },
-            despesasAdicionais: true
+            despesasAdicionais: true,
+            opcoesExtras: {
+              include: {
+                produtoOpcao: true
+              }
+            }
           }
         });
 
@@ -605,7 +732,8 @@ class OrcamentoService {
               include: {
                 material: true
               }
-            }
+            },
+            opcoesExtras: true
           }
         },
         materiais: {
@@ -613,13 +741,18 @@ class OrcamentoService {
             material: true
           }
         },
-        despesasAdicionais: true
+        despesasAdicionais: true,
+        opcoesExtras: {
+          include: {
+            produtoOpcao: true
+          }
+        }
       }
     });
 
     // REGISTRAR LOG DE MUDANÇA DE STATUS
     await logService.registrar({
-      usuarioId: 1,
+      usuarioId: user?.id || 1,
       usuarioNome: user?.nome || 'Sistema',
       acao: 'EDITAR',
       entidade: 'ORCAMENTO',
@@ -641,7 +774,8 @@ class OrcamentoService {
       include: {
         produto: true,
         materiais: { include: { material: true } },
-        despesasAdicionais: true
+        despesasAdicionais: true,
+        opcoesExtras: { include: { produtoOpcao: true } }
       }
     });
 
@@ -654,6 +788,10 @@ class OrcamentoService {
     });
 
     await prisma.despesaAdicional.deleteMany({
+      where: { orcamentoId: id }
+    });
+
+    await prisma.orcamentoOpcaoExtra.deleteMany({
       where: { orcamentoId: id }
     });
 
@@ -671,6 +809,7 @@ class OrcamentoService {
       descricao: `Excluiu o orçamento "#${orcamento.numero}"`,
       detalhes: orcamento,
     });
+    
     return orcamento;
   }
 
@@ -681,7 +820,8 @@ class OrcamentoService {
           include: {
             material: true
           }
-        }
+        },
+        opcoesExtras: true
       },
       orderBy: {
         nome: 'asc'

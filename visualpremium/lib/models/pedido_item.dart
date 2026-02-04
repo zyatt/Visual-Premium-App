@@ -1,5 +1,99 @@
 import 'dart:convert';
 
+enum TipoOpcaoExtra {
+  stringFloat,
+  floatFloat,
+}
+
+class PedidoOpcaoExtraItem {
+  final int id;
+  final int produtoOpcaoId;
+  final String nome;
+  final TipoOpcaoExtra tipo;
+  final String? valorString;
+  final double? valorFloat1;
+  final double? valorFloat2;
+
+  const PedidoOpcaoExtraItem({
+    required this.id,
+    required this.produtoOpcaoId,
+    required this.nome,
+    required this.tipo,
+    this.valorString,
+    this.valorFloat1,
+    this.valorFloat2,
+  });
+
+  PedidoOpcaoExtraItem copyWith({
+    int? id,
+    int? produtoOpcaoId,
+    String? nome,
+    TipoOpcaoExtra? tipo,
+    String? valorString,
+    double? valorFloat1,
+    double? valorFloat2,
+  }) =>
+      PedidoOpcaoExtraItem(
+        id: id ?? this.id,
+        produtoOpcaoId: produtoOpcaoId ?? this.produtoOpcaoId,
+        nome: nome ?? this.nome,
+        tipo: tipo ?? this.tipo,
+        valorString: valorString ?? this.valorString,
+        valorFloat1: valorFloat1 ?? this.valorFloat1,
+        valorFloat2: valorFloat2 ?? this.valorFloat2,
+      );
+
+  Map<String, Object?> toMap() => {
+        'produtoOpcaoId': produtoOpcaoId,
+        'valorString': valorString,
+        'valorFloat1': valorFloat1,
+        'valorFloat2': valorFloat2,
+      };
+
+  static PedidoOpcaoExtraItem? tryFromMap(Map<String, Object?> map) {
+    try {
+      final id = map['id'];
+      final produtoOpcaoId = map['produtoOpcaoId'];
+      final valorString = map['valorString'] as String?;
+      final valorFloat1 = map['valorFloat1'];
+      final valorFloat2 = map['valorFloat2'];
+      final produtoOpcao = map['produtoOpcao'];
+
+      if (id == null || produtoOpcaoId == null || produtoOpcao == null) {
+        return null;
+      }
+
+      final produtoOpcaoMap = produtoOpcao as Map<String, dynamic>;
+      final nome = produtoOpcaoMap['nome'] as String?;
+      final tipoStr = produtoOpcaoMap['tipo'] as String?;
+
+      if (nome == null || tipoStr == null) {
+        return null;
+      }
+
+      final tipo = tipoStr == 'STRING_FLOAT' 
+          ? TipoOpcaoExtra.stringFloat 
+          : TipoOpcaoExtra.floatFloat;
+
+      return PedidoOpcaoExtraItem(
+        id: int.parse(id.toString()),
+        produtoOpcaoId: int.parse(produtoOpcaoId.toString()),
+        nome: nome.trim(),
+        tipo: tipo,
+        valorString: valorString,
+        valorFloat1: valorFloat1 != null 
+            ? (valorFloat1 is int ? valorFloat1.toDouble() : valorFloat1 as double)
+            : null,
+        valorFloat2: valorFloat2 != null 
+            ? (valorFloat2 is int ? valorFloat2.toDouble() : valorFloat2 as double)
+            : null,
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+}
+
 class PedidoDespesaAdicionalItem {
   final int id;
   final String descricao;
@@ -56,7 +150,7 @@ class PedidoMaterialItem {
   final String materialNome;
   final String materialUnidade;
   final double materialCusto;
-  final String quantidade;
+  final double quantidade;
 
   const PedidoMaterialItem({
     required this.id,
@@ -68,8 +162,7 @@ class PedidoMaterialItem {
   });
 
   double get total {
-    final qty = double.tryParse(quantidade) ?? 0.0;
-    return materialCusto * qty;
+    return materialCusto * quantidade;
   }
 
   PedidoMaterialItem copyWith({
@@ -78,7 +171,7 @@ class PedidoMaterialItem {
     String? materialNome,
     String? materialUnidade,
     double? materialCusto,
-    String? quantidade,
+    double? quantidade,
   }) =>
       PedidoMaterialItem(
         id: id ?? this.id,
@@ -115,7 +208,7 @@ class PedidoMaterialItem {
       }
 
       final custoDouble = (custo is int) ? custo.toDouble() : (custo is double ? custo : 0.0);
-      final quantidadeStr = quantidade.toString();
+      final quantidadeDouble = (quantidade is int) ? quantidade.toDouble() : (quantidade is double ? quantidade : 0.0);
 
       return PedidoMaterialItem(
         id: int.parse(id.toString()),
@@ -123,7 +216,7 @@ class PedidoMaterialItem {
         materialNome: nome.trim(),
         materialUnidade: unidade.trim(),
         materialCusto: custoDouble,
-        quantidade: quantidadeStr,
+        quantidade: quantidadeDouble,
       );
     } catch (e) {
       return null;
@@ -140,19 +233,14 @@ class PedidoItem {
   final String produtoNome;
   final List<PedidoMaterialItem> materiais;
   final List<PedidoDespesaAdicionalItem> despesasAdicionais;
-  final bool frete;
-  final String? freteDesc;
-  final double? freteValor;
-  final bool caminhaoMunck;
-  final double? caminhaoMunckHoras;
-  final double? caminhaoMunckValorHora;
+  final List<PedidoOpcaoExtraItem> opcoesExtras;
   final String formaPagamento;
   final String condicoesPagamento;
   final String prazoEntrega;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final int? orcamentoId;        // ✅ NOVO
-  final int? orcamentoNumero;    // ✅ NOVO
+  final int? orcamentoId;
+  final int? orcamentoNumero;
 
   const PedidoItem({
     required this.id,
@@ -163,19 +251,14 @@ class PedidoItem {
     required this.produtoNome,
     required this.materiais,
     this.despesasAdicionais = const [],
-    this.frete = false,
-    this.freteDesc,
-    this.freteValor,
-    this.caminhaoMunck = false,
-    this.caminhaoMunckHoras,
-    this.caminhaoMunckValorHora,
+    this.opcoesExtras = const [],
     required this.formaPagamento,
     required this.condicoesPagamento,
     required this.prazoEntrega,
     required this.createdAt,
     required this.updatedAt,
-    this.orcamentoId,        // ✅ NOVO
-    this.orcamentoNumero,    // ✅ NOVO
+    this.orcamentoId,
+    this.orcamentoNumero,
   });
 
   double get totalMateriais {
@@ -186,20 +269,25 @@ class PedidoItem {
     return despesasAdicionais.fold(0.0, (sum, item) => sum + item.valor);
   }
 
+  double get totalOpcoesExtras {
+    double total = 0.0;
+    
+    for (final opcao in opcoesExtras) {
+      if (opcao.tipo == TipoOpcaoExtra.stringFloat) {
+        total += opcao.valorFloat1 ?? 0.0;
+      } else {
+        final minutos = opcao.valorFloat1 ?? 0.0;
+        final valorHora = opcao.valorFloat2 ?? 0.0;
+        final horas = minutos / 60.0;
+        total += horas * valorHora;
+      }
+    }
+    
+    return total;
+  }
+
   double get total {
-    double t = totalMateriais;
-    
-    t += totalDespesasAdicionais;
-    
-    if (frete && freteValor != null) {
-      t += freteValor!;
-    }
-    
-    if (caminhaoMunck && caminhaoMunckHoras != null && caminhaoMunckValorHora != null) {
-      t += caminhaoMunckHoras! * caminhaoMunckValorHora!;
-    }
-    
-    return t;
+    return totalMateriais + totalDespesasAdicionais + totalOpcoesExtras;
   }
 
   PedidoItem copyWith({
@@ -211,19 +299,14 @@ class PedidoItem {
     String? produtoNome,
     List<PedidoMaterialItem>? materiais,
     List<PedidoDespesaAdicionalItem>? despesasAdicionais,
-    bool? frete,
-    String? freteDesc,
-    double? freteValor,
-    bool? caminhaoMunck,
-    double? caminhaoMunckHoras,
-    double? caminhaoMunckValorHora,
+    List<PedidoOpcaoExtraItem>? opcoesExtras,
     String? formaPagamento,
     String? condicoesPagamento,
     String? prazoEntrega,
     DateTime? createdAt,
     DateTime? updatedAt,
-    int? orcamentoId,        // ✅ NOVO
-    int? orcamentoNumero,    // ✅ NOVO
+    int? orcamentoId,
+    int? orcamentoNumero,
   }) =>
       PedidoItem(
         id: id ?? this.id,
@@ -234,19 +317,14 @@ class PedidoItem {
         produtoNome: produtoNome ?? this.produtoNome,
         materiais: materiais ?? this.materiais,
         despesasAdicionais: despesasAdicionais ?? this.despesasAdicionais,
-        frete: frete ?? this.frete,
-        freteDesc: freteDesc ?? this.freteDesc,
-        freteValor: freteValor ?? this.freteValor,
-        caminhaoMunck: caminhaoMunck ?? this.caminhaoMunck,
-        caminhaoMunckHoras: caminhaoMunckHoras ?? this.caminhaoMunckHoras,
-        caminhaoMunckValorHora: caminhaoMunckValorHora ?? this.caminhaoMunckValorHora,
+        opcoesExtras: opcoesExtras ?? this.opcoesExtras,
         formaPagamento: formaPagamento ?? this.formaPagamento,
         condicoesPagamento: condicoesPagamento ?? this.condicoesPagamento,
         prazoEntrega: prazoEntrega ?? this.prazoEntrega,
         createdAt: createdAt ?? this.createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
-        orcamentoId: orcamentoId ?? this.orcamentoId,              // ✅ NOVO
-        orcamentoNumero: orcamentoNumero ?? this.orcamentoNumero,  // ✅ NOVO
+        orcamentoId: orcamentoId ?? this.orcamentoId,
+        orcamentoNumero: orcamentoNumero ?? this.orcamentoNumero,
       );
 
   Map<String, Object?> toMap() {
@@ -256,18 +334,12 @@ class PedidoItem {
       'produtoId': produtoId,
       'materiais': materiais.map((e) => e.toMap()).toList(),
       'despesasAdicionais': despesasAdicionais.map((e) => e.toMap()).toList(),
-      'frete': frete,
-      'freteDesc': frete ? freteDesc : null,
-      'freteValor': frete ? freteValor : null,
-      'caminhaoMunck': caminhaoMunck,
-      'caminhaoMunckHoras': caminhaoMunck ? caminhaoMunckHoras : null,
-      'caminhaoMunckValorHora': caminhaoMunck ? caminhaoMunckValorHora : null,
+      'opcoesExtras': opcoesExtras.map((e) => e.toMap()).toList(),
       'formaPagamento': formaPagamento,
       'condicoesPagamento': condicoesPagamento,
       'prazoEntrega': prazoEntrega,
     };
     
-    // ✅ Só adiciona numero se não for null
     if (numero != null) {
       map['numero'] = numero;
     }
@@ -285,20 +357,13 @@ class PedidoItem {
       final produtoData = map['produto'];
       final materiaisData = map['materiais'];
       final despesasData = map['despesasAdicionais'];
+      final opcoesExtrasData = map['opcoesExtras'];
       final createdAt = map['createdAt'];
       final updatedAt = map['updatedAt'];
       final formaPagamento = map['formaPagamento'];
       final condicoesPagamento = map['condicoesPagamento'];
       final prazoEntrega = map['prazoEntrega'];
       
-      final frete = map['frete'] as bool? ?? false;
-      final freteDesc = map['freteDesc'] as String?;
-      final freteValor = map['freteValor'];
-      final caminhaoMunck = map['caminhaoMunck'] as bool? ?? false;
-      final caminhaoMunckHoras = map['caminhaoMunckHoras'];
-      final caminhaoMunckValorHora = map['caminhaoMunckValorHora'];
-      
-      // ✅ NOVO - Extrair dados do orçamento
       final orcamentoId = map['orcamentoId'];
       final orcamentoData = map['orcamento'];
       int? orcamentoNumero;
@@ -308,8 +373,8 @@ class PedidoItem {
       }
 
       if (id == null || cliente is! String || status is! String || 
-        produtoId == null || produtoData == null || formaPagamento is! String ||
-        condicoesPagamento is! String || prazoEntrega is! String) {
+          produtoId == null || produtoData == null || formaPagamento is! String ||
+          condicoesPagamento is! String || prazoEntrega is! String) {
         return null;
       }
 
@@ -338,6 +403,16 @@ class PedidoItem {
         }
       }
 
+      final opcoesExtras = <PedidoOpcaoExtraItem>[];
+      if (opcoesExtrasData is List) {
+        for (final o in opcoesExtrasData) {
+          if (o is Map) {
+            final item = PedidoOpcaoExtraItem.tryFromMap(o.map((k, v) => MapEntry(k.toString(), v)));
+            if (item != null) opcoesExtras.add(item);
+          }
+        }
+      }
+
       return PedidoItem(
         id: int.parse(id.toString()),
         cliente: cliente.trim(),
@@ -347,25 +422,14 @@ class PedidoItem {
         produtoNome: produtoNome.trim(),
         materiais: materiais,
         despesasAdicionais: despesasAdicionais,
-        frete: frete,
-        freteDesc: freteDesc,
-        freteValor: freteValor != null 
-            ? (freteValor is int ? freteValor.toDouble() : freteValor as double)
-            : null,
-        caminhaoMunck: caminhaoMunck,
-        caminhaoMunckHoras: caminhaoMunckHoras != null 
-            ? (caminhaoMunckHoras is int ? caminhaoMunckHoras.toDouble() : caminhaoMunckHoras as double)
-            : null,
-        caminhaoMunckValorHora: caminhaoMunckValorHora != null 
-            ? (caminhaoMunckValorHora is int ? caminhaoMunckValorHora.toDouble() : caminhaoMunckValorHora as double)
-            : null,
+        opcoesExtras: opcoesExtras,
         formaPagamento: formaPagamento.trim(),
         condicoesPagamento: condicoesPagamento.trim(),
         prazoEntrega: prazoEntrega.trim(),
         createdAt: createdAt != null ? DateTime.parse(createdAt.toString()) : DateTime.now(),
         updatedAt: updatedAt != null ? DateTime.parse(updatedAt.toString()) : DateTime.now(),
-        orcamentoId: orcamentoId != null ? int.tryParse(orcamentoId.toString()) : null,  // ✅ NOVO
-        orcamentoNumero: orcamentoNumero,  // ✅ NOVO
+        orcamentoId: orcamentoId != null ? int.tryParse(orcamentoId.toString()) : null,
+        orcamentoNumero: orcamentoNumero,
       );
     } catch (e) {
       return null;
