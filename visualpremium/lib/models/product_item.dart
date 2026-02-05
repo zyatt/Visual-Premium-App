@@ -3,6 +3,7 @@ import 'dart:convert';
 enum TipoOpcaoExtra {
   stringFloat,
   floatFloat,
+  percentFloat
 }
 
 class ProductOpcaoExtra {
@@ -16,10 +17,30 @@ class ProductOpcaoExtra {
     required this.tipo,
   });
 
-  Map<String, Object?> toMap() => {
-        'nome': nome,
-        'tipo': tipo == TipoOpcaoExtra.stringFloat ? 'STRING_FLOAT' : 'FLOAT_FLOAT',
-      };
+  Map<String, Object?> toMap() {
+    String tipoStr;
+    switch (tipo) {
+      case TipoOpcaoExtra.stringFloat:
+        tipoStr = 'STRINGFLOAT';
+        break;
+      case TipoOpcaoExtra.floatFloat:
+        tipoStr = 'FLOATFLOAT';
+        break;
+      case TipoOpcaoExtra.percentFloat:
+        tipoStr = 'PERCENTFLOAT';
+        break;
+    }
+    
+    // ✅ CORREÇÃO: Incluir o ID quando for uma opção existente (id > 0)
+    // IDs gerados pelo frontend são timestamps enormes, então consideramos > 1000000 como "novo"
+    final isExisting = id > 0 && id < 1000000;
+    
+    return {
+      if (isExisting) 'id': id, // ✅ Incluir ID apenas se for opção existente
+      'nome': nome,
+      'tipo': tipoStr,
+    };
+  }
 
   static ProductOpcaoExtra? tryFromMap(Map<String, Object?> map) {
     try {
@@ -31,9 +52,20 @@ class ProductOpcaoExtra {
         return null;
       }
 
-      final tipo = tipoStr == 'STRING_FLOAT' 
-          ? TipoOpcaoExtra.stringFloat 
-          : TipoOpcaoExtra.floatFloat;
+      TipoOpcaoExtra tipo;
+      switch (tipoStr) {
+        case 'STRINGFLOAT':
+          tipo = TipoOpcaoExtra.stringFloat;
+          break;
+        case 'FLOATFLOAT':
+          tipo = TipoOpcaoExtra.floatFloat;
+          break;
+        case 'PERCENTFLOAT':
+          tipo = TipoOpcaoExtra.percentFloat;
+          break;
+        default:
+          return null;
+      }
 
       return ProductOpcaoExtra(
         id: int.parse(id.toString()),
@@ -118,11 +150,15 @@ class ProductItem {
         updatedAt: updatedAt ?? this.updatedAt,
       );
 
-  Map<String, Object?> toMap() => {
-        'nome': name,
-        'materiais': materials.map((m) => m.toMap()).toList(),
-        'opcoesExtras': opcoesExtras.map((o) => o.toMap()).toList(),
-      };
+  Map<String, Object?> toMap() {
+    final opcoesExtrasMap = opcoesExtras.map((o) => o.toMap()).toList();
+    
+    return {
+      'nome': name,
+      'materiais': materials.map((m) => m.toMap()).toList(),
+      'opcoesExtras': opcoesExtrasMap,
+    };
+  }
 
   static ProductItem? tryFromMap(Map<String, Object?> map) {
     try {

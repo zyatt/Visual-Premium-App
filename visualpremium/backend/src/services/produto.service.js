@@ -46,7 +46,7 @@ class ProdutoService {
       }
 
       // Validar tipos válidos
-      const tiposValidos = ['STRING_FLOAT', 'FLOAT_FLOAT'];
+      const tiposValidos = ['STRINGFLOAT', 'FLOATFLOAT', 'PERCENTFLOAT'];
       for (const opcao of opcoesExtras) {
         if (!tiposValidos.includes(opcao.tipo)) {
           throw new Error(`Tipo de opção extra inválido: ${opcao.tipo}`);
@@ -138,7 +138,7 @@ class ProdutoService {
       }
 
       // Validar tipos válidos
-      const tiposValidos = ['STRING_FLOAT', 'FLOAT_FLOAT'];
+      const tiposValidos = ['STRINGFLOAT', 'FLOATFLOAT', 'PERCENTFLOAT'];
       for (const opcao of opcoesExtras) {
         if (!tiposValidos.includes(opcao.tipo)) {
           throw new Error(`Tipo de opção extra inválido: ${opcao.tipo}`);
@@ -146,30 +146,142 @@ class ProdutoService {
       }
     }
 
-    // Deletar materiais e opções extras antigas
-    await prisma.produtoMaterial.deleteMany({ where: { produtoId: id } });
-    await prisma.produtoOpcaoExtra.deleteMany({ where: { produtoId: id } });
+    // ✅ SOLUÇÃO COMPLETA: Atualização inteligente de opções extras
+    const produto = await prisma.$transaction(async (tx) => {
+      // 1. Identificar opções extras antigas
+      const opcoesAntigasIds = produtoAntigo.opcoesExtras.map(o => o.id);
+      
+      // 2. Verificar quais opções antigas estão em uso em orçamentos
+      const opcoesEmUsoEmOrcamentos = await tx.orcamentoOpcaoExtra.findMany({
+        where: {
+          produtoOpcaoId: { in: opcoesAntigasIds }
+        },
+        select: { produtoOpcaoId: true },
+        distinct: ['produtoOpcaoId']
+      });
+      
+      const idsEmUsoEmOrcamentos = new Set(opcoesEmUsoEmOrcamentos.map(o => o.produtoOpcaoId));
+      
+      // 3. Verificar quais opções antigas estão em uso em pedidos
+      const opcoesEmUsoEmPedidos = await tx.pedidoOpcaoExtra.findMany({
+        where: {
+          produtoOpcaoId: { in: opcoesAntigasIds }
+        },
+        select: { produtoOpcaoId: true },
+        distinct: ['produtoOpcaoId']
+      });
+      
+      const idsEmUsoEmPedidos = new Set(opcoesEmUsoEmPedidos.map(o => o.produtoOpcaoId));
+      
+      // 4. Combinar IDs em uso
+      const idsEmUso = new Set([...idsEmUsoEmOrcamentos, ...idsEmUsoEmPedidos]);
+      
+      // 5. Criar estrutura para mapeamento por ID
+      // Precisamos trabalhar com IDs porque o nome pode mudar
+      const opcoesRecebidas = (opcoesExtras || []).map(o => ({
+        id: o.id, // ID da opção existente (se houver)
+        nome: o.nome.trim(),
+        tipo: o.tipo
+      }));
 
-    const produto = await prisma.produto.update({
-      where: { id },
-      data: {
-        nome: nome.trim(),
-        materiais: {
-          create: (materiais || []).map(m => ({
-            material: { connect: { id: +m.materialId } },
-          })),
+      // 6. Identificar operações necessárias
+      const opcoesCriar = [];
+      const opcoesAtualizar = [];
+      const opcoesDeletar = [];
+
+      // Processar opções antigas
+      for (const opcaoAntiga of produtoAntigo.opcoesExtras) {
+        // Verificar se esta opção antiga ainda existe nas opções recebidas
+        const opcaoNova = opcoesRecebidas.find(o => o.id === opcaoAntiga.id);
+        
+        if (opcaoNova) {
+          // Opção existe tanto na versão antiga quanto na nova
+          // Verificar se nome ou tipo mudaram
+          const nomeChanged = opcaoAntiga.nome !== opcaoNova.nome;
+          const tipoChanged = opcaoAntiga.tipo !== opcaoNova.tipo;
+          
+          if (nomeChanged || tipoChanged) {
+            // ✅ PERMITE ATUALIZAR MESMO SE ESTIVER EM USO
+            opcoesAtualizar.push({
+              id: opcaoAntiga.id,
+              nome: opcaoNova.nome,
+              tipo: opcaoNova.tipo,
+              emUso: idsEmUso.has(opcaoAntiga.id)
+            });
+          }
+        } else {
+          // Opção antiga não existe mais nas opções recebidas
+          // Só pode deletar se NÃO estiver em uso
+          if (idsEmUso.has(opcaoAntiga.id)) {
+            throw new Error(
+              `Não é possível remover a opção "${opcaoAntiga.nome}" pois ela está sendo usada em orçamentos ou pedidos. ` +
+              `Você pode editar o nome ou tipo desta opção, mas não removê-la.`
+            );
+          } else {
+            opcoesDeletar.push(opcaoAntiga.id);
+          }
+        }
+      }
+
+      // Processar opções novas (que não têm ID)
+      for (const opcaoNova of opcoesRecebidas) {
+        if (!opcaoNova.id) {
+          // Opção completamente nova
+          opcoesCriar.push({
+            nome: opcaoNova.nome,
+            tipo: opcaoNova.tipo
+          });
+        }
+      }
+      
+      // 7. Executar operações
+
+      // Deletar opções antigas não usadas
+      if (opcoesDeletar.length > 0) {
+        await tx.produtoOpcaoExtra.deleteMany({
+          where: {
+            id: { in: opcoesDeletar }
+          }
+        });
+      }
+      
+      // Atualizar opções existentes (permite atualizar mesmo se estiver em uso)
+      for (const opcao of opcoesAtualizar) {
+        await tx.produtoOpcaoExtra.update({
+          where: { id: opcao.id },
+          data: { 
+            nome: opcao.nome,
+            tipo: opcao.tipo 
+          }
+        });
+      }
+      
+      // Deletar materiais antigos (não têm FK em orçamentos/pedidos)
+      await tx.produtoMaterial.deleteMany({ where: { produtoId: id } });
+
+      // 8. Atualizar o produto
+      return await tx.produto.update({
+        where: { id },
+        data: {
+          nome: nome.trim(),
+          materiais: {
+            create: (materiais || []).map(m => ({
+              material: { connect: { id: +m.materialId } },
+            })),
+          },
+          opcoesExtras: {
+            // Criar apenas as opções REALMENTE NOVAS
+            create: opcoesCriar.map(o => ({
+              nome: o.nome,
+              tipo: o.tipo,
+            })),
+          },
         },
-        opcoesExtras: {
-          create: (opcoesExtras || []).map(o => ({
-            nome: o.nome.trim(),
-            tipo: o.tipo,
-          })),
+        include: { 
+          materiais: { include: { material: true } },
+          opcoesExtras: true,
         },
-      },
-      include: { 
-        materiais: { include: { material: true } },
-        opcoesExtras: true,
-      },
+      });
     });
 
     await logService.registrar({

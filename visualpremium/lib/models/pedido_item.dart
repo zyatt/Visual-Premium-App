@@ -3,6 +3,7 @@ import 'dart:convert';
 enum TipoOpcaoExtra {
   stringFloat,
   floatFloat,
+  percentFloat, // ✅ NOVO TIPO ADICIONADO
 }
 
 class PedidoOpcaoExtraItem {
@@ -71,9 +72,11 @@ class PedidoOpcaoExtraItem {
         return null;
       }
 
-      final tipo = tipoStr == 'STRING_FLOAT' 
+      final tipo = tipoStr == 'STRINGFLOAT' 
           ? TipoOpcaoExtra.stringFloat 
-          : TipoOpcaoExtra.floatFloat;
+          : tipoStr == 'PERCENTFLOAT'
+              ? TipoOpcaoExtra.percentFloat
+              : TipoOpcaoExtra.floatFloat;
 
       return PedidoOpcaoExtraItem(
         id: int.parse(id.toString()),
@@ -274,12 +277,18 @@ class PedidoItem {
     
     for (final opcao in opcoesExtras) {
       if (opcao.tipo == TipoOpcaoExtra.stringFloat) {
+        // Descrição + Valor: o valor está em float1
         total += opcao.valorFloat1 ?? 0.0;
-      } else {
-        final minutos = opcao.valorFloat1 ?? 0.0;
+      } else if (opcao.tipo == TipoOpcaoExtra.floatFloat) {
+        // ✅ CORRIGIDO: Horas × Valor/Hora (não precisa dividir por 60)
+        final horas = opcao.valorFloat1 ?? 0.0;
         final valorHora = opcao.valorFloat2 ?? 0.0;
-        final horas = minutos / 60.0;
-        total += horas * valorHora;
+        total += horas * valorHora;  // ✅ CÁLCULO DIRETO
+      } else if (opcao.tipo == TipoOpcaoExtra.percentFloat) {
+        // % + Valor: calcular (percentual / 100) * valor
+        final percentual = opcao.valorFloat1 ?? 0.0;
+        final valor = opcao.valorFloat2 ?? 0.0;
+        total += (percentual / 100.0) * valor;
       }
     }
     

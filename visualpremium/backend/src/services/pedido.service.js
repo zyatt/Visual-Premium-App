@@ -192,7 +192,7 @@ class PedidoService {
       }
     }
 
-    // Validar opções extras
+    // ✅ CORRIGIDO: Validar opções extras com tipos corretos (sem underscore)
     const opcoesExtrasValidadas = [];
     if (opcoesExtras && Array.isArray(opcoesExtras) && opcoesExtras.length > 0) {
       for (const opcaoValor of opcoesExtras) {
@@ -202,8 +202,25 @@ class PedidoService {
           throw new Error(`Opção extra ${opcaoValor.produtoOpcaoId} não pertence ao produto`);
         }
 
-        // Validar valores baseado no tipo
-        if (opcaoExtra.tipo === 'STRING_FLOAT') {
+        // ✅ NOVO: Verificar se é um registro "Não"
+        const isNaoSelection = 
+          (opcaoValor.valorString === null || opcaoValor.valorString === undefined) &&
+          (opcaoValor.valorFloat1 === null || opcaoValor.valorFloat1 === undefined) &&
+          (opcaoValor.valorFloat2 === null || opcaoValor.valorFloat2 === undefined);
+
+        // ✅ MUDANÇA: Se for "Não", salvar com valores nulos
+        if (isNaoSelection) {
+          opcoesExtrasValidadas.push({
+            produtoOpcaoId: opcaoValor.produtoOpcaoId,
+            valorString: null,
+            valorFloat1: null,
+            valorFloat2: null
+          });
+          continue;
+        }
+
+        // Validar valores baseado no tipo (mesmo código anterior)
+        if (opcaoExtra.tipo === 'STRINGFLOAT') {
           if (!opcaoValor.valorString || opcaoValor.valorString.trim() === '') {
             throw new Error(`Valor texto é obrigatório para a opção "${opcaoExtra.nome}"`);
           }
@@ -217,7 +234,7 @@ class PedidoService {
             valorFloat1: valorFloat1,
             valorFloat2: null
           });
-        } else if (opcaoExtra.tipo === 'FLOAT_FLOAT') {
+        } else if (opcaoExtra.tipo === 'FLOATFLOAT') {
           const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
           const valorFloat2 = parseFloat(opcaoValor.valorFloat2);
           
@@ -234,10 +251,26 @@ class PedidoService {
             valorFloat1: valorFloat1,
             valorFloat2: valorFloat2
           });
+        } else if (opcaoExtra.tipo === 'PERCENTFLOAT') {
+          const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
+          const valorFloat2 = parseFloat(opcaoValor.valorFloat2);
+          
+          if (isNaN(valorFloat1) || valorFloat1 < 0 || valorFloat1 > 100) {
+            throw new Error(`Percentual inválido para a opção "${opcaoExtra.nome}" (deve estar entre 0 e 100)`);
+          }
+          if (isNaN(valorFloat2) || valorFloat2 < 0) {
+            throw new Error(`Valor base inválido para a opção "${opcaoExtra.nome}"`);
+          }
+          
+          opcoesExtrasValidadas.push({
+            produtoOpcaoId: opcaoValor.produtoOpcaoId,
+            valorString: null,
+            valorFloat1: valorFloat1,
+            valorFloat2: valorFloat2
+          });
         }
       }
     }
-
     // Preparar dados para criação
     const createData = {
       cliente: cliente.trim(),
@@ -306,7 +339,7 @@ class PedidoService {
       }
     });
 
-    // Registrar log de criação
+    // REGISTRAR LOG DE CRIAÇÃO
     await logService.registrar({
       usuarioId: user?.id || 1,
       usuarioNome: user?.nome || 'Sistema',
@@ -321,26 +354,17 @@ class PedidoService {
   }
 
   async atualizar(id, data, user) {
-    const { 
-      cliente, 
-      numero, 
-      produtoId, 
-      materiais, 
-      status,
-      despesasAdicionais,
-      opcoesExtras,
-     
-      formaPagamento,
-      condicoesPagamento,
-      prazoEntrega
-    } = data;
-
-    // Verificar se o pedido existe e buscar dados antigos
+    // Buscar pedido antigo
     const pedidoAntigo = await prisma.pedido.findUnique({
       where: { id },
       include: {
         produto: {
           include: {
+            materiais: {
+              include: {
+                material: true
+              }
+            },
             opcoesExtras: true
           }
         },
@@ -362,16 +386,29 @@ class PedidoService {
       throw new Error('Pedido não encontrado');
     }
 
-    // ✅ VALIDAÇÃO DO NÚMERO DO PEDIDO
-    if (numero !== undefined && numero !== null) {
+    const { 
+      cliente, 
+      numero, 
+      status,
+      produtoId, 
+      materiais,
+      despesasAdicionais,
+      opcoesExtras,
+      formaPagamento,
+      condicoesPagamento,
+      prazoEntrega
+    } = data;
+
+    // Validar número se fornecido e diferente do atual
+    if (numero !== undefined && numero !== null && numero !== pedidoAntigo.numero) {
       if (typeof numero !== 'number' || numero <= 0) {
         throw new Error('Número do pedido inválido');
       }
       
       const pedidoDuplicado = await prisma.pedido.findFirst({
-        where: {
+        where: { 
           numero: numero,
-          id: { not: id }
+          NOT: { id: id }
         }
       });
       
@@ -380,7 +417,6 @@ class PedidoService {
       }
     }
 
-    // Validações condicionais
     if (formaPagamento !== undefined && (!formaPagamento || formaPagamento.trim() === '')) {
       throw new Error('Forma de pagamento é obrigatória');
     }
@@ -393,11 +429,12 @@ class PedidoService {
       throw new Error('Prazo de entrega é obrigatório');
     }
 
+    // Buscar produto se mudou
+    let produto = pedidoAntigo.produto;
+    let materiaisValidados = undefined;
+    let despesasValidadas = undefined;
+    let opcoesExtrasValidadas = undefined;
 
-    
-
-    // Buscar produto se necessário
-    let produto;
     if (produtoId && produtoId !== pedidoAntigo.produtoId) {
       produto = await prisma.produto.findUnique({
         where: { id: produtoId },
@@ -414,56 +451,9 @@ class PedidoService {
       if (!produto) {
         throw new Error('Produto não encontrado');
       }
-    } else {
-      produto = await prisma.produto.findUnique({
-        where: { id: pedidoAntigo.produtoId },
-        include: {
-          materiais: {
-            include: {
-              material: true
-            }
-          },
-          opcoesExtras: true
-        }
-      });
     }
 
-    // Validar materiais
-    let materiaisValidados;
-    if (materiais) {
-      materiaisValidados = [];
-      
-      for (const m of materiais) {
-        const material = produto.materiais.find(pm => pm.materialId === m.materialId);
-        if (!material) {
-          throw new Error(`Material ${m.materialId} não pertence ao produto`);
-        }
-
-        const unidade = material.material.unidade;
-        let quantidadeNum;
-
-        if (unidade === 'Kg') {
-          quantidadeNum = parseFloat(m.quantidade);
-          if (isNaN(quantidadeNum) || quantidadeNum < 0) {
-            throw new Error(`Quantidade inválida para material ${material.material.nome}`);
-          }
-        } else {
-          const qty = parseFloat(m.quantidade);
-          if (isNaN(qty) || qty < 0) {
-            throw new Error(`Quantidade inválida para material ${material.material.nome}`);
-          }
-          quantidadeNum = qty;
-        }
-
-        materiaisValidados.push({
-          materialId: m.materialId,
-          quantidade: quantidadeNum
-        });
-      }
-    }
-
-    // Validar despesas adicionais
-    let despesasValidadas;
+    // Validar despesas adicionais se enviadas
     if (despesasAdicionais !== undefined) {
       despesasValidadas = [];
       if (Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
@@ -482,8 +472,41 @@ class PedidoService {
       }
     }
 
-    // Validar opções extras
-    let opcoesExtrasValidadas;
+    // Validar materiais se enviados
+    if (materiais !== undefined) {
+      materiaisValidados = [];
+      if (materiais && materiais.length > 0) {
+        for (const m of materiais) {
+          const material = produto.materiais.find(pm => pm.materialId === m.materialId);
+          if (!material) {
+            throw new Error(`Material ${m.materialId} não pertence ao produto`);
+          }
+
+          const unidade = material.material.unidade;
+          let quantidadeNum;
+
+          if (unidade === 'Kg') {
+            quantidadeNum = parseFloat(m.quantidade);
+            if (isNaN(quantidadeNum) || quantidadeNum < 0) {
+              throw new Error(`Quantidade inválida para material ${material.material.nome}`);
+            }
+          } else {
+            const qty = parseFloat(m.quantidade);
+            if (isNaN(qty) || qty < 0) {
+              throw new Error(`Quantidade inválida para material ${material.material.nome}`);
+            }
+            quantidadeNum = qty;
+          }
+
+          materiaisValidados.push({
+            materialId: m.materialId,
+            quantidade: quantidadeNum
+          });
+        }
+      }
+    }
+
+    // ✅ CORRIGIDO: Validar opções extras se enviadas com tipos corretos
     if (opcoesExtras !== undefined) {
       opcoesExtrasValidadas = [];
       if (Array.isArray(opcoesExtras) && opcoesExtras.length > 0) {
@@ -495,7 +518,7 @@ class PedidoService {
           }
 
           // Validar valores baseado no tipo
-          if (opcaoExtra.tipo === 'STRING_FLOAT') {
+          if (opcaoExtra.tipo === 'STRINGFLOAT') {
             if (!opcaoValor.valorString || opcaoValor.valorString.trim() === '') {
               throw new Error(`Valor texto é obrigatório para a opção "${opcaoExtra.nome}"`);
             }
@@ -509,7 +532,7 @@ class PedidoService {
               valorFloat1: valorFloat1,
               valorFloat2: null
             });
-          } else if (opcaoExtra.tipo === 'FLOAT_FLOAT') {
+          } else if (opcaoExtra.tipo === 'FLOATFLOAT') {
             const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
             const valorFloat2 = parseFloat(opcaoValor.valorFloat2);
             
@@ -518,6 +541,24 @@ class PedidoService {
             }
             if (isNaN(valorFloat2) || valorFloat2 < 0) {
               throw new Error(`Segundo valor numérico inválido para a opção "${opcaoExtra.nome}"`);
+            }
+            
+            opcoesExtrasValidadas.push({
+              produtoOpcaoId: opcaoValor.produtoOpcaoId,
+              valorString: null,
+              valorFloat1: valorFloat1,
+              valorFloat2: valorFloat2
+            });
+          } else if (opcaoExtra.tipo === 'PERCENTFLOAT') {
+            // ✅ ADICIONADO: Validação para PERCENTFLOAT
+            const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
+            const valorFloat2 = parseFloat(opcaoValor.valorFloat2);
+            
+            if (isNaN(valorFloat1) || valorFloat1 < 0 || valorFloat1 > 100) {
+              throw new Error(`Percentual inválido para a opção "${opcaoExtra.nome}" (deve estar entre 0 e 100)`);
+            }
+            if (isNaN(valorFloat2) || valorFloat2 < 0) {
+              throw new Error(`Valor base inválido para a opção "${opcaoExtra.nome}"`);
             }
             
             opcoesExtrasValidadas.push({
@@ -694,7 +735,7 @@ class PedidoService {
       acao: 'EDITAR',
       entidade: 'PEDIDO',
       entidadeId: id,
-      descricao: `Alterou o status do pedido "${pedido.numero ? `#${pedido.numero}"` : `(ID: ${id})`} de "${statusAnterior}" para "${status}"`,
+      descricao: `Alterou o status do pedido "${pedido.numero ? `#${pedido.numero}"` : `(ID: ${id})"`} de "${statusAnterior}" para "${status}"`,
       detalhes: {
         statusAnterior,
         statusNovo: status
@@ -743,7 +784,7 @@ class PedidoService {
       acao: 'DELETAR',
       entidade: 'PEDIDO',
       entidadeId: id,
-      descricao: `Excluiu o pedido "${pedido.numero ? `#${pedido.numero}"` : `(ID: ${id})`}`,
+      descricao: `Excluiu o pedido "${pedido.numero ? `#${pedido.numero}"` : `(ID: ${id})"`}`,
       detalhes: pedido,
     });
 

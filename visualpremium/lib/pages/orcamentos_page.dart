@@ -80,6 +80,7 @@ class BudgetsPage extends StatefulWidget {
 
 class _BudgetsPageState extends State<BudgetsPage> {
   final _api = OrcamentosApiRepository();
+  final _scrollController = ScrollController();
   bool _loading = true;
   List<OrcamentoItem> _items = const [];
   List<ProdutoItem> _allProdutos = [];
@@ -87,12 +88,39 @@ class _BudgetsPageState extends State<BudgetsPage> {
   int? _downloadingId;
   SortOption _sortOption = SortOption.newestFirst;
   OrcamentoFilters _filters = const OrcamentoFilters();
+  bool _showScrollToTopButton = false;
 
   @override
   void initState() {
     super.initState();
     _load();
     _loadProdutos();
+    
+    _scrollController.addListener(() {
+      if (_scrollController.offset >= 300 && !_showScrollToTopButton) {
+        setState(() {
+          _showScrollToTopButton = true;
+        });
+      } else if (_scrollController.offset < 300 && _showScrollToTopButton) {
+        setState(() {
+          _showScrollToTopButton = false;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
   }
 
    Future<void> _loadProdutos() async {
@@ -173,7 +201,6 @@ class _BudgetsPageState extends State<BudgetsPage> {
   Future<void> _updateStatus(OrcamentoItem item, String newStatus) async {
     setState(() => _loading = true);
     try {
-      // ✅ MUDANÇA: Agora passa o item completo, não apenas o ID
       final updated = await _api.updateStatus(item, newStatus);
       
       final idx = _items.indexWhere((e) => e.id == item.id);
@@ -191,7 +218,6 @@ class _BudgetsPageState extends State<BudgetsPage> {
         _loading = false;
       });
       
-      // Adicionar feedback de sucesso
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -203,7 +229,6 @@ class _BudgetsPageState extends State<BudgetsPage> {
       });
       
     } catch (e) {
-      // Adicionar tratamento de erro
       if (!mounted) return;
       setState(() => _loading = false);
       
@@ -364,9 +389,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
           existingOrcamentos: _items,
         );
       },
-    );
-
-    if (result != null) {
+    );if (result != null) {
       await _upsert(result);
     }
   }
@@ -554,6 +577,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
           RefreshIndicator(
             onRefresh: _load,
             child: SingleChildScrollView(
+              controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(32.0),
               child: Row(
@@ -703,9 +727,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
                                         });
                                       },
                                     )),
-                                // ✅ CORRIGIR esta parte
                                 ..._filters.produtoIds.map((produtoId) {
-                                  // Busca na lista de todos os produtos ao invés dos orçamentos
                                   final produto = _allProdutos.firstWhere(
                                     (p) => p.id == produtoId,
                                     orElse: () => ProdutoItem(
@@ -831,6 +853,23 @@ class _BudgetsPageState extends State<BudgetsPage> {
                   valueColor: AlwaysStoppedAnimation<Color>(
                     theme.colorScheme.primary,
                   ),
+                ),
+              ),
+            ),
+          if (_showScrollToTopButton)
+            Positioned(
+              right: 32,
+              bottom: 32,
+              child: AnimatedOpacity(
+                opacity: _showScrollToTopButton ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: FloatingActionButton(
+                  onPressed: _scrollToTop,
+                  tooltip: 'Voltar ao topo',
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                  elevation: 4,
+                  child: const Icon(Icons.arrow_upward),
                 ),
               ),
             ),
@@ -2595,105 +2634,118 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   }
 
   void _initializeQuantityControllers() {
-    if (_selectedProduto == null) return;
+  if (_selectedProduto == null) return;
+  
+  // Limpar controllers de opções extras antigas
+  for (final controller in _opcaoExtraStringControllers.values) {
+    controller.dispose();
+  }
+  for (final controller in _opcaoExtraFloat1Controllers.values) {
+    controller.dispose();
+  }
+  for (final controller in _opcaoExtraFloat2Controllers.values) {
+    controller.dispose();
+  }
+  for (final focusNode in _opcaoExtraStringFocusNodes.values) {
+    focusNode.dispose();
+  }
+  for (final focusNode in _opcaoExtraFloat1FocusNodes.values) {
+    focusNode.dispose();
+  }
+  for (final focusNode in _opcaoExtraFloat2FocusNodes.values) {
+    focusNode.dispose();
+  }
+  
+  _opcaoExtraStringControllers.clear();
+  _opcaoExtraFloat1Controllers.clear();
+  _opcaoExtraFloat2Controllers.clear();
+  _opcaoExtraStringFocusNodes.clear();
+  _opcaoExtraFloat1FocusNodes.clear();
+  _opcaoExtraFloat2FocusNodes.clear();
+  _opcoesExtrasEnabled.clear();
+  
+  // Inicializar materiais
+  for (final mat in _selectedProduto!.materiais) {
+    final existingQty = widget.initial?.materiais
+        .firstWhere((m) => m.materialId == mat.materialId,
+            orElse: () => const OrcamentoMaterialItem(
+                id: 0,
+                materialId: 0,
+                materialNome: '',
+                materialUnidade: '',
+                materialCusto: 0,
+                quantidade: 0))
+        .quantidade ?? 0;
     
-    // Limpar controllers de opções extras antigas
-    for (final controller in _opcaoExtraStringControllers.values) {
-      controller.dispose();
-    }
-    for (final controller in _opcaoExtraFloat1Controllers.values) {
-      controller.dispose();
-    }
-    for (final controller in _opcaoExtraFloat2Controllers.values) {
-      controller.dispose();
-    }
-    for (final focusNode in _opcaoExtraStringFocusNodes.values) {
-      focusNode.dispose();
-    }
-    for (final focusNode in _opcaoExtraFloat1FocusNodes.values) {
-      focusNode.dispose();
-    }
-    for (final focusNode in _opcaoExtraFloat2FocusNodes.values) {
-      focusNode.dispose();
-    }
+    final controller = TextEditingController(text: existingQty > 0 ? existingQty.toString() : '');
+    final focusNode = FocusNode();
     
-    _opcaoExtraStringControllers.clear();
-    _opcaoExtraFloat1Controllers.clear();
-    _opcaoExtraFloat2Controllers.clear();
-    _opcaoExtraStringFocusNodes.clear();
-    _opcaoExtraFloat1FocusNodes.clear();
-    _opcaoExtraFloat2FocusNodes.clear();
-    _opcoesExtrasEnabled.clear();
+    controller.addListener(_updateTotal);
+    focusNode.addListener(_onFieldFocusChange);
     
-    // Inicializar materiais
-    for (final mat in _selectedProduto!.materiais) {
-      final existingQty = widget.initial?.materiais
-          .firstWhere((m) => m.materialId == mat.materialId,
-              orElse: () => const OrcamentoMaterialItem(
-                  id: 0,
-                  materialId: 0,
-                  materialNome: '',
-                  materialUnidade: '',
-                  materialCusto: 0,
-                  quantidade: 0))
-          .quantidade ?? 0;
-      
-      final controller = TextEditingController(text: existingQty > 0 ? existingQty.toString() : '');
-      final focusNode = FocusNode();
-      
-      controller.addListener(_updateTotal);
-      focusNode.addListener(_onFieldFocusChange);
-      
-      _quantityControllers[mat.materialId] = controller;
-      _quantityFocusNodes[mat.materialId] = focusNode;
-    }
+    _quantityControllers[mat.materialId] = controller;
+    _quantityFocusNodes[mat.materialId] = focusNode;
+  }
+  
+  // ✅ CORRIGIDO: Inicializar opções extras do produto selecionado
+  for (final opcao in _selectedProduto!.opcoesExtras) {
+    final existingOpcao = widget.initial?.opcoesExtras.firstWhere(
+      (o) => o.produtoOpcaoId == opcao.id,
+      orElse: () => const OrcamentoOpcaoExtraItem(
+        id: 0,
+        produtoOpcaoId: 0,
+        nome: '',
+        tipo: TipoOpcaoExtra.stringFloat,
+        valorString: null,
+        valorFloat1: null,
+        valorFloat2: null,
+      ),
+    );
     
-    // Inicializar opções extras do produto selecionado
-    for (final opcao in _selectedProduto!.opcoesExtras) {
-      final existingOpcao = widget.initial?.opcoesExtras.firstWhere(
-        (o) => o.produtoOpcaoId == opcao.id,
-        orElse: () => const OrcamentoOpcaoExtraItem(
-          id: 0,
-          produtoOpcaoId: 0,
-          nome: '',
-          tipo: TipoOpcaoExtra.stringFloat,
-          valorString: null,
-          valorFloat1: null,
-          valorFloat2: null,
-        ),
-      );
+    // ✅ MUDANÇA: Verificar se existe um registro (mesmo com valores nulos)
+    if (existingOpcao != null && existingOpcao.id != 0) {
+      // ✅ MUDANÇA: Verificar se tem valores ou se é um registro "Não"
+      final hasValues = existingOpcao.valorString != null || 
+                       existingOpcao.valorFloat1 != null || 
+                       existingOpcao.valorFloat2 != null;
       
-      if (existingOpcao != null && existingOpcao.id != 0) {
-      _opcoesExtrasEnabled[opcao.id] = true;
-      
-      final stringCtrl = TextEditingController(text: existingOpcao.valorString ?? '');
-      final float1Ctrl = TextEditingController(
-        text: existingOpcao.valorFloat1 != null ? existingOpcao.valorFloat1.toString() : ''
-      );
-      final float2Ctrl = TextEditingController(
-        text: existingOpcao.valorFloat2 != null ? existingOpcao.valorFloat2.toString() : ''
-      );
-      
-      final stringFocus = FocusNode();
-      final float1Focus = FocusNode();
-      final float2Focus = FocusNode();
-      
-      stringCtrl.addListener(_updateTotal);
-      float1Ctrl.addListener(_updateTotal);
-      float2Ctrl.addListener(_updateTotal);
-      stringFocus.addListener(_onFieldFocusChange);
-      float1Focus.addListener(_onFieldFocusChange);
-      float2Focus.addListener(_onFieldFocusChange);
-      
-      _opcaoExtraStringControllers[opcao.id] = stringCtrl;
-      _opcaoExtraFloat1Controllers[opcao.id] = float1Ctrl;
-      _opcaoExtraFloat2Controllers[opcao.id] = float2Ctrl;
-      _opcaoExtraStringFocusNodes[opcao.id] = stringFocus;
-      _opcaoExtraFloat1FocusNodes[opcao.id] = float1Focus;
-      _opcaoExtraFloat2FocusNodes[opcao.id] = float2Focus;
+      if (hasValues) {
+        // Opção foi marcada como "Sim" e tem valores
+        _opcoesExtrasEnabled[opcao.id] = true;
+        
+        final stringCtrl = TextEditingController(text: existingOpcao.valorString ?? '');
+        final float1Ctrl = TextEditingController(
+          text: existingOpcao.valorFloat1 != null ? existingOpcao.valorFloat1.toString() : ''
+        );
+        final float2Ctrl = TextEditingController(
+          text: existingOpcao.valorFloat2 != null ? existingOpcao.valorFloat2.toString() : ''
+        );
+        
+        final stringFocus = FocusNode();
+        final float1Focus = FocusNode();
+        final float2Focus = FocusNode();
+        
+        stringCtrl.addListener(_updateTotal);
+        float1Ctrl.addListener(_updateTotal);
+        float2Ctrl.addListener(_updateTotal);
+        stringFocus.addListener(_onFieldFocusChange);
+        float1Focus.addListener(_onFieldFocusChange);
+        float2Focus.addListener(_onFieldFocusChange);
+        
+        _opcaoExtraStringControllers[opcao.id] = stringCtrl;
+        _opcaoExtraFloat1Controllers[opcao.id] = float1Ctrl;
+        _opcaoExtraFloat2Controllers[opcao.id] = float2Ctrl;
+        _opcaoExtraStringFocusNodes[opcao.id] = stringFocus;
+        _opcaoExtraFloat1FocusNodes[opcao.id] = float1Focus;
+        _opcaoExtraFloat2FocusNodes[opcao.id] = float2Focus;
+      } else {
+        // ✅ NOVO: Opção foi marcada como "Não" (registro existe mas sem valores)
+        _opcoesExtrasEnabled[opcao.id] = false;
       }
     }
+    // Se não existe registro, deixa como null (não respondido)
   }
+}
 
   @override
   void dispose() {
@@ -2776,7 +2828,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       total += valor;
     }
     
-    // ✅ CORRIGIDO: Somar opções extras habilitadas
     for (final opcao in _selectedProduto!.opcoesExtras) {
       final isEnabled = _opcoesExtrasEnabled[opcao.id] ?? false;
       if (!isEnabled) continue;
@@ -2788,18 +2839,31 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
           final valor = double.tryParse(float1Ctrl.text.replaceAll(',', '.')) ?? 0.0;
           total += valor;
         }
-      } else {
-        // Hora (minutos) + Valor hora: calcular minutos * valor_hora
-        final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id]; // minutos
+      } 
+      else if (opcao.tipo == TipoOpcaoExtra.floatFloat) {
+        // Tempo (horas) + Valor/Hora: calcular horas * valor_hora
+        final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id]; // horas
         final float2Ctrl = _opcaoExtraFloat2Controllers[opcao.id]; // valor por hora
         
         if (float1Ctrl != null && float2Ctrl != null) {
-          final minutos = double.tryParse(float1Ctrl.text.replaceAll(',', '.')) ?? 0.0;
+          final horas = double.tryParse(float1Ctrl.text.replaceAll(',', '.')) ?? 0.0;  // ✅ JÁ É HORAS
           final valorHora = double.tryParse(float2Ctrl.text.replaceAll(',', '.')) ?? 0.0;
           
-          // Converter minutos para horas e multiplicar pelo valor hora
-          final horas = minutos / 60.0;
+          // ✅ CÁLCULO DIRETO: horas × valor_hora (sem conversão)
           total += horas * valorHora;
+        }
+      }
+      else if (opcao.tipo == TipoOpcaoExtra.percentFloat) {
+        // % + Valor: calcular (percentual / 100) * valor
+        final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id]; // percentual
+        final float2Ctrl = _opcaoExtraFloat2Controllers[opcao.id]; // valor
+        
+        if (float1Ctrl != null && float2Ctrl != null) {
+          final percentual = double.tryParse(float1Ctrl.text.replaceAll(',', '.')) ?? 0.0;
+          final valor = double.tryParse(float2Ctrl.text.replaceAll(',', '.')) ?? 0.0;
+          
+          // Calcular percentual do valor
+          total += (percentual / 100.0) * valor;
         }
       }
     }
@@ -2966,39 +3030,13 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       ));
     }
 
-    // ✅ ADICIONAR: Coletar opções extras habilitadas
+    // ✅ CORRIGIDO: Salvar TODAS as opções extras (incluindo "Não")
     final opcoesExtras = <OrcamentoOpcaoExtraItem>[];
     for (final opcao in _selectedProduto!.opcoesExtras) {
-      final isEnabled = _opcoesExtrasEnabled[opcao.id] ?? false;
-      if (!isEnabled) continue;
+      final isEnabled = _opcoesExtrasEnabled[opcao.id];
       
-      final stringCtrl = _opcaoExtraStringControllers[opcao.id];
-      final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id];
-      final float2Ctrl = _opcaoExtraFloat2Controllers[opcao.id];
-      
-      String? valorString;
-      double? valorFloat1;
-      double? valorFloat2;
-      
-      if (opcao.tipo == TipoOpcaoExtra.stringFloat) {
-        // Descrição + Valor
-        valorString = stringCtrl?.text.trim();
-        final float1Text = float1Ctrl?.text.trim() ?? '';
-        if (float1Text.isNotEmpty) {
-          valorFloat1 = double.tryParse(float1Text.replaceAll(',', '.'));
-        }
-      } else {
-        // Minutos + Valor/Hora
-        final float1Text = float1Ctrl?.text.trim() ?? '';
-        final float2Text = float2Ctrl?.text.trim() ?? '';
-        
-        if (float1Text.isNotEmpty) {
-          valorFloat1 = double.tryParse(float1Text.replaceAll(',', '.'));
-        }
-        if (float2Text.isNotEmpty) {
-          valorFloat2 = double.tryParse(float2Text.replaceAll(',', '.'));
-        }
-      }
+      // ✅ MUDANÇA: Só pular se não foi respondido (null)
+      if (isEnabled == null) continue;
       
       // Buscar ID existente se estiver editando
       final existingId = widget.initial?.opcoesExtras
@@ -3015,6 +3053,47 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
             ),
           )
           .id ?? 0;
+      
+      // ✅ MUDANÇA: Se for "Não" (false), salvar com valores nulos
+      if (isEnabled == false) {
+        opcoesExtras.add(OrcamentoOpcaoExtraItem(
+          id: existingId,
+          produtoOpcaoId: opcao.id,
+          nome: opcao.nome,
+          tipo: opcao.tipo,
+          valorString: null,
+          valorFloat1: null,
+          valorFloat2: null,
+        ));
+        continue;
+      }
+      
+      // Se for "Sim" (true), coletar os valores
+      final stringCtrl = _opcaoExtraStringControllers[opcao.id];
+      final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id];
+      final float2Ctrl = _opcaoExtraFloat2Controllers[opcao.id];
+      
+      String? valorString;
+      double? valorFloat1;
+      double? valorFloat2;
+      
+      if (opcao.tipo == TipoOpcaoExtra.stringFloat) {
+        valorString = stringCtrl?.text.trim();
+        final float1Text = float1Ctrl?.text.trim() ?? '';
+        if (float1Text.isNotEmpty) {
+          valorFloat1 = double.tryParse(float1Text.replaceAll(',', '.'));
+        }
+      } else {
+        final float1Text = float1Ctrl?.text.trim() ?? '';
+        final float2Text = float2Ctrl?.text.trim() ?? '';
+        
+        if (float1Text.isNotEmpty) {
+          valorFloat1 = double.tryParse(float1Text.replaceAll(',', '.'));
+        }
+        if (float2Text.isNotEmpty) {
+          valorFloat2 = double.tryParse(float2Text.replaceAll(',', '.'));
+        }
+      }
       
       opcoesExtras.add(OrcamentoOpcaoExtraItem(
         id: existingId,
@@ -3055,7 +3134,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       produtoNome: _selectedProduto!.nome,
       materiais: materiais,
       despesasAdicionais: despesas,
-      opcoesExtras: opcoesExtras,  // ✅ ADICIONAR esta linha
+      opcoesExtras: opcoesExtras,
       formaPagamento: formaPagamento,
       condicoesPagamento: condicoesPagamento,
       prazoEntrega: _prazoEntregaCtrl.text.trim(),
@@ -3216,8 +3295,11 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                 focusNode: _opcaoExtraStringFocusNodes[opcao.id],
                                 style: const TextStyle(fontSize: 12),
                                 decoration: const InputDecoration(
-                                  labelText: 'Descrição',
+                                  labelText: 'Tempo',
+                                  helperText: 'Digite as horas',
+                                  helperStyle: TextStyle(fontSize: 10),
                                   isDense: true,
+                                  suffixText: 'h',
                                   contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                                 ),
                                 validator: (v) => (v == null || v.trim().isEmpty) 
@@ -3254,7 +3336,72 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                             ),
                           ],
                         ),
-                      ] else ...[
+                      ] else if (opcao.tipo == TipoOpcaoExtra.floatFloat) ...[
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _opcaoExtraFloat1Controllers[opcao.id],
+                                  focusNode: _opcaoExtraFloat1FocusNodes[opcao.id],
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                  ],
+                                  style: const TextStyle(fontSize: 12),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Tempo',
+                                    helperText: 'Digite em horas',
+                                    helperStyle: TextStyle(fontSize: 10),
+                                    isDense: true,
+                                    suffixText: 'h',  // ✅ ADICIONADO: indicador visual
+                                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                  ),
+                                  validator: (v) {
+                                    if (v == null || v.trim().isEmpty) {
+                                      return 'Informe o tempo';
+                                    }
+                                    final value = double.tryParse(v.replaceAll(',', '.'));
+                                    if (value == null || value < 0) {
+                                      return 'Inválido';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _opcaoExtraFloat2Controllers[opcao.id],
+                                  focusNode: _opcaoExtraFloat2FocusNodes[opcao.id],
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                  ],
+                                  style: const TextStyle(fontSize: 12),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Valor/Hora',
+                                    helperText: 'Valor por hora',
+                                    helperStyle: TextStyle(fontSize: 10),
+                                    isDense: true,
+                                    prefixText: 'R\$ ',
+                                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                  ),
+                                  validator: (v) {
+                                    if (v == null || v.trim().isEmpty) {
+                                      return 'Informe o valor/h';
+                                    }
+                                    final value = double.tryParse(v.replaceAll(',', '.'));
+                                    if (value == null || value < 0) {
+                                      return 'Inválido';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ] else if (opcao.tipo == TipoOpcaoExtra.percentFloat) ...[
+                        // ✅ NOVO: Formulário para % + Valor
                         Row(
                           children: [
                             Expanded(
@@ -3267,19 +3414,20 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                 ],
                                 style: const TextStyle(fontSize: 12),
                                 decoration: const InputDecoration(
-                                  labelText: 'Tempo',
-                                  helperText: 'Digite em minutos',
+                                  labelText: 'Percentual',
+                                  helperText: 'Digite o percentual',
                                   helperStyle: TextStyle(fontSize: 10),
                                   isDense: true,
+                                  suffixText: '%',
                                   contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                                 ),
                                 validator: (v) {
                                   if (v == null || v.trim().isEmpty) {
-                                    return 'Informe o tempo';
+                                    return 'Informe o %';
                                   }
                                   final value = double.tryParse(v.replaceAll(',', '.'));
-                                  if (value == null || value < 0) {
-                                    return 'Inválido';
+                                  if (value == null || value < 0 || value > 100) {
+                                    return 'Entre 0-100';
                                   }
                                   return null;
                                 },
@@ -3296,8 +3444,8 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                 ],
                                 style: const TextStyle(fontSize: 12),
                                 decoration: const InputDecoration(
-                                  labelText: 'Valor/Hora',
-                                  helperText: 'Valor por hora',
+                                  labelText: 'Valor Base',
+                                  helperText: 'Valor de referência',
                                   helperStyle: TextStyle(fontSize: 10),
                                   isDense: true,
                                   prefixText: 'R\$ ',
@@ -3305,7 +3453,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                 ),
                                 validator: (v) {
                                   if (v == null || v.trim().isEmpty) {
-                                    return 'Informe o valor/h';
+                                    return 'Informe o valor';
                                   }
                                   final value = double.tryParse(v.replaceAll(',', '.'));
                                   if (value == null || value < 0) {

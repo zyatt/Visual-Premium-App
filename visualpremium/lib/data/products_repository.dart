@@ -21,7 +21,7 @@ class ProductsApiRepository {
   Future<List<ProductItem>> fetchProducts() async {
     try {
       final url = Uri.parse('$baseUrl/produtos');
-      final headers = await _getHeaders(); // ✅ Inclui token
+      final headers = await _getHeaders();
       final response = await http.get(url, headers: headers);
       
       if (response.statusCode == 401) {
@@ -45,9 +45,11 @@ class ProductsApiRepository {
   Future<ProductItem> createProduct(ProductItem item) async {
     try {
       final url = Uri.parse('$baseUrl/produtos');
-      final headers = await _getHeaders(); // ✅ Inclui token
+      final headers = await _getHeaders();
       final body = item.toMap();
-            
+      
+      // 🔍 LOG COMPLETO DO PAYLOAD
+      
       final response = await http.post(
         url,
         headers: headers,
@@ -57,8 +59,19 @@ class ProductsApiRepository {
       if (response.statusCode == 401) {
         throw Exception('Não autorizado - faça login novamente');
       }
-            
-      if (response.statusCode == 200) {
+      
+      if (response.statusCode == 400) {
+        // Parse da mensagem de erro
+        try {
+          final errorData = jsonDecode(response.body);
+          final errorMessage = errorData['error'] ?? errorData['message'] ?? 'Erro desconhecido';
+          throw Exception('Erro de validação: $errorMessage');
+        } catch (e) {
+          throw Exception('Erro ao criar produto: ${response.body}');
+        }
+      }
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final created = ProductItem.tryFromMap(jsonDecode(response.body));
         if (created == null) {
           throw Exception('Falha ao parsear resposta do servidor');
@@ -73,34 +86,50 @@ class ProductsApiRepository {
   }
 
   Future<ProductItem> updateProduct(ProductItem item) async {
-    final url = Uri.parse('$baseUrl/produtos/${item.id}');
-    final headers = await _getHeaders(); // ✅ Inclui token
-    
-    final response = await http.put(
-      url,
-      headers: headers,
-      body: jsonEncode(item.toMap()),
-    );
-    
-    if (response.statusCode == 401) {
-      throw Exception('Não autorizado - faça login novamente');
-    }
-    
-    if (response.statusCode == 200) {
-      final updated = ProductItem.tryFromMap(jsonDecode(response.body));
-      if (updated == null) {
-        throw Exception('Falha ao parsear resposta do servidor');
+    try {
+      final url = Uri.parse('$baseUrl/produtos/${item.id}');
+      final headers = await _getHeaders();
+      final body = item.toMap();
+            
+      final response = await http.put(
+        url,
+        headers: headers,
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
       }
-      return updated;
-    } else {
-      throw Exception('Erro ao atualizar produto: ${response.statusCode}');
+      
+      if (response.statusCode == 400) {
+        // Parse da mensagem de erro
+        try {
+          final errorData = jsonDecode(response.body);
+          final errorMessage = errorData['error'] ?? errorData['message'] ?? 'Erro desconhecido';
+          throw Exception('Erro de validação: $errorMessage');
+        } catch (e) {
+          throw Exception('Erro ao atualizar produto: ${response.body}');
+        }
+      }
+      
+      if (response.statusCode == 200) {
+        final updated = ProductItem.tryFromMap(jsonDecode(response.body));
+        if (updated == null) {
+          throw Exception('Falha ao parsear resposta do servidor');
+        }
+        return updated;
+      } else {
+        throw Exception('Erro ao atualizar produto: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      rethrow;
     }
   }
 
   Future<void> deleteProduct(String id) async {
     try {
       final url = Uri.parse('$baseUrl/produtos/$id');
-      final headers = await _getHeaders(); // ✅ Inclui token
+      final headers = await _getHeaders();
       final response = await http.delete(url, headers: headers);
       
       if (response.statusCode == 401) {

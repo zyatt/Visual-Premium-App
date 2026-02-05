@@ -7,8 +7,9 @@ datasource db {
 }
 
 enum TipoOpcaoExtra {
-  STRING_FLOAT
-  FLOAT_FLOAT
+  STRINGFLOAT
+  FLOATFLOAT
+  PERCENTFLOAT
 }
 
 model Log {
@@ -67,25 +68,23 @@ model ProdutoOpcaoExtra {
   @@map("produto_opcoes_extras")
 }
 
+
 model Orcamento {
-  id        Int    @id @default(autoincrement())
-  cliente   String
-  numero    Int
-  status    String
-  produtoId Int
-
-  formaPagamento     String
-  condicoesPagamento String
-  prazoEntrega       String
-
-  produto            Produto               @relation(fields: [produtoId], references: [id])
-  materiais          OrcamentoMaterial[]
-  despesasAdicionais DespesaAdicional[]
-  opcoesExtras       OrcamentoOpcaoExtra[]
-  pedido             Pedido?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   Int                      @id @default(autoincrement())
+  cliente              String
+  numero               Int                      @unique
+  status               String
+  produtoId            Int
+  produto              Produto                  @relation(fields: [produtoId], references: [id])
+  materiais            OrcamentoMaterial[]
+  despesasAdicionais   DespesaAdicional[]
+  opcoesExtras         OrcamentoOpcaoExtra[]
+  formaPagamento       String
+  condicoesPagamento   String
+  prazoEntrega         String
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  pedido               Pedido?
 
   @@map("orcamentos")
 }
@@ -109,25 +108,22 @@ model OrcamentoOpcaoExtra {
 }
 
 model Pedido {
-  id        Int    @id @default(autoincrement())
-  cliente   String
-  numero    Int?
-  status    String @default("Em Andamento")
-  produtoId Int
-
-  formaPagamento     String
-  condicoesPagamento String
-  prazoEntrega       String
-
-  produto            Produto                  @relation(fields: [produtoId], references: [id])
-  materiais          PedidoMaterial[]
-  despesasAdicionais PedidoDespesaAdicional[]
-  orcamentoId        Int?                     @unique
-  orcamento          Orcamento?               @relation(fields: [orcamentoId], references: [id])
-  opcoesExtras       PedidoOpcaoExtra[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   Int                         @id @default(autoincrement())
+  cliente              String
+  numero               Int?                        @unique
+  status               String
+  produtoId            Int
+  produto              Produto                     @relation(fields: [produtoId], references: [id])
+  materiais            PedidoMaterial[]
+  despesasAdicionais   PedidoDespesaAdicional[]
+  opcoesExtras         PedidoOpcaoExtra[]
+  formaPagamento       String
+  condicoesPagamento   String
+  prazoEntrega         String
+  orcamentoId          Int?                        @unique
+  orcamento            Orcamento?                  @relation(fields: [orcamentoId], references: [id])
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
 
   @@map("pedidos")
 }

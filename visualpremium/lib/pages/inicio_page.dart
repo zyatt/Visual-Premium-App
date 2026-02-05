@@ -20,9 +20,26 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with RouteAware {
+  final _scrollController = ScrollController();  // ✅ ADICIONAR
+  bool _showScrollToTopButton = false;  // ✅ ADICIONAR
+
   @override
   void initState() {
     super.initState();
+    
+    // ✅ ADICIONAR listener do scroll
+    _scrollController.addListener(() {
+      if (_scrollController.offset >= 300 && !_showScrollToTopButton) {
+        setState(() {
+          _showScrollToTopButton = true;
+        });
+      } else if (_scrollController.offset < 300 && _showScrollToTopButton) {
+        setState(() {
+          _showScrollToTopButton = false;
+        });
+      }
+    });
+    
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -46,6 +63,21 @@ class _HomePageState extends State<HomePage> with RouteAware {
         dataProvider.loadAllData();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();  // ✅ ADICIONAR
+    super.dispose();
+  }
+
+  // ✅ ADICIONAR método
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
   }
 
   Future<void> _handleRefresh(DataProvider dataProvider) async {
@@ -104,6 +136,9 @@ class _HomePageState extends State<HomePage> with RouteAware {
           pedidos: dataProvider.pedidos,
           isLoading: dataProvider.isLoading,
           onRefresh: () => _handleRefresh(dataProvider),
+          scrollController: _scrollController,  // ✅ ADICIONAR
+          showScrollToTopButton: _showScrollToTopButton,  // ✅ ADICIONAR
+          onScrollToTop: _scrollToTop,  // ✅ ADICIONAR
         );
       },
     );
@@ -117,6 +152,9 @@ class _HomePageContent extends StatelessWidget {
   final List<PedidoItem> pedidos;
   final bool isLoading;
   final Future<void> Function() onRefresh;
+  final ScrollController scrollController;  // ✅ ADICIONAR
+  final bool showScrollToTopButton;  // ✅ ADICIONAR
+  final VoidCallback onScrollToTop;  // ✅ ADICIONAR
 
   const _HomePageContent({
     required this.materials,
@@ -125,6 +163,9 @@ class _HomePageContent extends StatelessWidget {
     required this.pedidos,
     required this.isLoading,
     required this.onRefresh,
+    required this.scrollController,  // ✅ ADICIONAR
+    required this.showScrollToTopButton,  // ✅ ADICIONAR
+    required this.onScrollToTop,  // ✅ ADICIONAR
   });
 
   int get _totalOrcamentos => orcamentos.length;
@@ -186,6 +227,7 @@ class _HomePageContent extends StatelessWidget {
         children: [
           RepaintBoundary(
             child: SingleChildScrollView(
+              controller: scrollController,  // ✅ ADICIONAR
               physics: const AlwaysScrollableScrollPhysics(),
               padding: EdgeInsets.all(screenWidth < 600 ? 16 : screenWidth < 1200 ? 24 : 32),
               child: Column(
@@ -312,6 +354,24 @@ class _HomePageContent extends StatelessWidget {
                   valueColor: AlwaysStoppedAnimation<Color>(
                     theme.colorScheme.primary,
                   ),
+                ),
+              ),
+            ),
+          // ✅ ADICIONAR botão voltar ao topo
+          if (showScrollToTopButton)
+            Positioned(
+              right: screenWidth < 600 ? 16 : 32,
+              bottom: screenWidth < 600 ? 16 : 32,
+              child: AnimatedOpacity(
+                opacity: showScrollToTopButton ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: FloatingActionButton(
+                  onPressed: onScrollToTop,
+                  tooltip: 'Voltar ao topo',
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                  elevation: 4,
+                  child: const Icon(Icons.arrow_upward),
                 ),
               ),
             ),

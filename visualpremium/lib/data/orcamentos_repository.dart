@@ -23,7 +23,7 @@ class OrcamentosApiRepository {
   Future<List<OrcamentoItem>> fetchOrcamentos() async {
     try {
       final url = Uri.parse('$baseUrl/orcamentos');
-      final headers = await _getHeaders(); // ✅ Inclui token
+      final headers = await _getHeaders();
       final response = await http.get(url, headers: headers);
 
       if (response.statusCode == 401) {
@@ -43,7 +43,7 @@ class OrcamentosApiRepository {
   Future<List<ProdutoItem>> fetchProdutos() async {
     try {
       final url = Uri.parse('$baseUrl/orcamentos/produtos');
-      final headers = await _getHeaders(); // ✅ Inclui token
+      final headers = await _getHeaders();
       final response = await http.get(url, headers: headers);
 
       if (response.statusCode == 401) {
@@ -63,7 +63,7 @@ class OrcamentosApiRepository {
   Future<OrcamentoItem> createOrcamento(OrcamentoItem item) async {
     try {
       final url = Uri.parse('$baseUrl/orcamentos');
-      final headers = await _getHeaders(); // ✅ Inclui token
+      final headers = await _getHeaders();
       final body = item.toMap();
 
       final response = await http.post(
@@ -76,13 +76,25 @@ class OrcamentosApiRepository {
         throw Exception('Não autorizado - faça login novamente');
       }
 
-      if (response.statusCode == 200) {
+      // ✅ CORRIGIDO: Aceitar tanto 200 quanto 201
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final created = OrcamentoItem.tryFromMap(jsonDecode(response.body));
         if (created == null) {
           throw Exception('Falha ao parsear resposta do servidor');
         }
         return created;
       } else {
+        // Tentar extrair mensagem de erro do JSON
+        try {
+          final errorJson = jsonDecode(response.body);
+          if (errorJson is Map && errorJson.containsKey('error')) {
+            throw Exception(errorJson['error']);
+          } else if (errorJson is Map && errorJson.containsKey('message')) {
+            throw Exception(errorJson['message']);
+          }
+        } catch (_) {
+          // Se não conseguir parsear, usar mensagem genérica
+        }
         throw Exception('Erro ao criar orçamento: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
@@ -92,7 +104,7 @@ class OrcamentosApiRepository {
 
   Future<OrcamentoItem> updateOrcamento(OrcamentoItem item) async {
     final url = Uri.parse('$baseUrl/orcamentos/${item.id}');
-    final headers = await _getHeaders(); // ✅ Inclui token
+    final headers = await _getHeaders();
     
     final response = await http.put(
       url,
@@ -111,6 +123,15 @@ class OrcamentosApiRepository {
       }
       return updated;
     } else {
+      // Extrair mensagem de erro
+      try {
+        final errorJson = jsonDecode(response.body);
+        if (errorJson is Map && errorJson.containsKey('error')) {
+          throw Exception(errorJson['error']);
+        } else if (errorJson is Map && errorJson.containsKey('message')) {
+          throw Exception(errorJson['message']);
+        }
+      } catch (_) {}
       throw Exception('Erro ao atualizar orçamento: ${response.statusCode}');
     }
   }
@@ -118,7 +139,7 @@ class OrcamentosApiRepository {
   Future<OrcamentoItem> updateStatus(OrcamentoItem item, String status) async {
     try {
       final url = Uri.parse('$baseUrl/orcamentos/${item.id}/status');
-      final headers = await _getHeaders(); // ✅ Inclui token
+      final headers = await _getHeaders();
       
       final response = await http.patch(
         url,
@@ -145,6 +166,15 @@ class OrcamentosApiRepository {
         
         return updated;
       } else {
+        // Extrair mensagem de erro
+        try {
+          final errorJson = jsonDecode(response.body);
+          if (errorJson is Map && errorJson.containsKey('error')) {
+            throw Exception(errorJson['error']);
+          } else if (errorJson is Map && errorJson.containsKey('message')) {
+            throw Exception(errorJson['message']);
+          }
+        } catch (_) {}
         throw Exception('Erro ao atualizar status: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
@@ -154,7 +184,7 @@ class OrcamentosApiRepository {
 
   Future<void> deleteOrcamento(int id) async {
     final url = Uri.parse('$baseUrl/orcamentos/$id');
-    final headers = await _getHeaders(); // ✅ Inclui token
+    final headers = await _getHeaders();
     final response = await http.delete(url, headers: headers);
 
     if (response.statusCode == 401) {
@@ -172,7 +202,7 @@ class OrcamentosApiRepository {
     try {
       final queryParams = regenerate ? '?regenerate=true' : '';
       final url = Uri.parse('$baseUrl/pdf/orcamento/$id$queryParams');
-      final headers = await _getHeaders(); // ✅ Inclui token
+      final headers = await _getHeaders();
       
       final response = await http.get(
         url,
@@ -199,7 +229,7 @@ class OrcamentosApiRepository {
   Future<List<PedidoItem>> fetchPedidos() async {
     try {
       final url = Uri.parse('$baseUrl/pedidos');
-      final headers = await _getHeaders(); // ✅ Inclui token
+      final headers = await _getHeaders();
       final response = await http.get(url, headers: headers);
 
       if (response.statusCode == 401) {
@@ -218,7 +248,7 @@ class OrcamentosApiRepository {
 
   Future<PedidoItem> updatePedido(PedidoItem item) async {
     final url = Uri.parse('$baseUrl/pedidos/${item.id}');
-    final headers = await _getHeaders(); // ✅ Inclui token
+    final headers = await _getHeaders();
     
     final response = await http.put(
       url,
@@ -256,7 +286,7 @@ class OrcamentosApiRepository {
 
   Future<PedidoItem> updatePedidoStatus(int id, String status) async {
     final url = Uri.parse('$baseUrl/pedidos/$id/status');
-    final headers = await _getHeaders(); // ✅ Inclui token
+    final headers = await _getHeaders();
     
     final response = await http.patch(
       url,
@@ -281,7 +311,7 @@ class OrcamentosApiRepository {
 
   Future<void> deletePedido(int id) async {
     final url = Uri.parse('$baseUrl/pedidos/$id');
-    final headers = await _getHeaders(); // ✅ Inclui token
+    final headers = await _getHeaders();
     final response = await http.delete(url, headers: headers);
 
     if (response.statusCode == 401) {
@@ -298,7 +328,7 @@ class OrcamentosApiRepository {
   Future<Uint8List> downloadPedidoPdf(int id) async {
     try {
       final url = Uri.parse('$baseUrl/pdf/pedido/$id');
-      final headers = await _getHeaders(); // ✅ Inclui token
+      final headers = await _getHeaders();
       
       final response = await http.get(
         url,

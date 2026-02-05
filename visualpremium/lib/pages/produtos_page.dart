@@ -68,13 +68,15 @@ class ProductsPage extends StatefulWidget {
 class _ProductsPageState extends State<ProductsPage> {
   final _api = ProductsApiRepository();
   final _materialsApi = MaterialsApiRepository();
+  final _scrollController = ScrollController();
   bool _loading = true;
   List<ProductItem> _items = const [];
   List<MaterialItem> _availableMaterials = const [];
   String _searchQuery = '';
   SortOption _sortOption = SortOption.newestFirst;
   ProductFilters _filters = const ProductFilters();
-
+  bool _showScrollToTopButton = false;
+  
   Future<void> _showProductEditor(ProductItem? initial) async {
     final result = await showDialog<ProductItem>(
       context: context,
@@ -134,8 +136,34 @@ class _ProductsPageState extends State<ProductsPage> {
   void initState() {
     super.initState();
     _load();
+    
+    _scrollController.addListener(() {
+      if (_scrollController.offset >= 300 && !_showScrollToTopButton) {
+        setState(() {
+          _showScrollToTopButton = true;
+        });
+      } else if (_scrollController.offset < 300 && _showScrollToTopButton) {
+        setState(() {
+          _showScrollToTopButton = false;
+        });
+      }
+    });
   }
 
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  // ✅ ADICIONAR método
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
+  }
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
@@ -425,6 +453,7 @@ class _ProductsPageState extends State<ProductsPage> {
           RefreshIndicator(
             onRefresh: _load,
             child: SingleChildScrollView(
+              controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(32.0),
               child: Row(
@@ -677,6 +706,23 @@ class _ProductsPageState extends State<ProductsPage> {
                   valueColor: AlwaysStoppedAnimation<Color>(
                     theme.colorScheme.primary,
                   ),
+                ),
+              ),
+            ),
+             if (_showScrollToTopButton)
+            Positioned(
+              right: 32,
+              bottom: 32,
+              child: AnimatedOpacity(
+                opacity: _showScrollToTopButton ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: FloatingActionButton(
+                  onPressed: _scrollToTop,
+                  tooltip: 'Voltar ao topo',
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                  elevation: 4,
+                  child: const Icon(Icons.arrow_upward),
                 ),
               ),
             ),
@@ -1856,13 +1902,22 @@ class _ProductEditorSheetState extends State<ProductEditorSheet> {
                                                 ),
                                                 const SizedBox(height: 2),
                                                 Text(
-                                                  opcao.tipo == TipoOpcaoExtra.stringFloat
-                                                      ? 'Descrição + Valor'
-                                                      : 'Tempo + Valor',
-                                                  style: theme.textTheme.bodySmall?.copyWith(
-                                                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                                                  ),
+                                                () {
+                                                  switch (opcao.tipo) {
+                                                    case TipoOpcaoExtra.stringFloat:
+                                                      return 'Descrição + Valor';
+
+                                                    case TipoOpcaoExtra.floatFloat:
+                                                      return 'Tempo + Valor';
+
+                                                    case TipoOpcaoExtra.percentFloat:
+                                                      return '% + Valor';
+                                                  }
+                                                }(),
+                                                style: theme.textTheme.bodySmall?.copyWith(
+                                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                                                 ),
+                                              ),
                                               ],
                                             ),
                                           ),
@@ -2094,6 +2149,11 @@ class _OpcaoExtraEditorDialogState extends State<_OpcaoExtraEditorDialog> {
                               RadioListTile<TipoOpcaoExtra>(
                                 value: TipoOpcaoExtra.floatFloat,
                                 title: const Text('Tempo + Valor'),
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                              RadioListTile<TipoOpcaoExtra>(
+                                value: TipoOpcaoExtra.percentFloat,
+                                title: const Text('% + Valor'),
                                 contentPadding: EdgeInsets.zero,
                               ),
                             ],

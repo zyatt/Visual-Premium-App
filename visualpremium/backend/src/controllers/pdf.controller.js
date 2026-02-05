@@ -119,9 +119,13 @@ class PdfController {
       }
       
       // Adicionar caminhão munck
+      let caminhaoMunckHorasConvertidas = 0;
+      let caminhaoMunckTotal = 0;
+      
       if (pedido.caminhaoMunck && pedido.caminhaoMunckHoras && pedido.caminhaoMunckValorHora) {
-        const horasConvertidas = pedido.caminhaoMunckHoras / 60; // ✅ CONVERTER MINUTOS PARA HORAS
-        totalGeral += horasConvertidas * pedido.caminhaoMunckValorHora;
+        caminhaoMunckHorasConvertidas = pedido.caminhaoMunckHoras / 60; // Converter minutos para horas
+        caminhaoMunckTotal = caminhaoMunckHorasConvertidas * pedido.caminhaoMunckValorHora;
+        totalGeral += caminhaoMunckTotal;
       }
       
       // Preparar dados para o PDF
@@ -161,8 +165,9 @@ class PdfController {
         freteValor: pedido.freteValor,
         
         caminhaoMunck: pedido.caminhaoMunck || false,
-        caminhaoMunckHoras: pedido.caminhaoMunckHoras, // Mantém em minutos
-        caminhaoMunckValorHora: pedido.caminhaoMunckValorHora
+        caminhaoMunckHoras: caminhaoMunckHorasConvertidas, // Agora em horas
+        caminhaoMunckValorHora: pedido.caminhaoMunckValorHora,
+        caminhaoMunckTotal: caminhaoMunckTotal // Total calculado
       };
       
       // Gerar PDF com tipo 'pedido'

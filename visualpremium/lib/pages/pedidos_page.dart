@@ -80,6 +80,7 @@ class PedidosPage extends StatefulWidget {
 
 class _PedidosPageState extends State<PedidosPage> {
   final _api = OrcamentosApiRepository();
+  final _scrollController = ScrollController();
   bool _loading = true;
   List<PedidoItem> _items = const [];
   List<ProdutoItem> _allProdutos = [];
@@ -87,12 +88,41 @@ class _PedidosPageState extends State<PedidosPage> {
   int? _downloadingId;
   SortOption _sortOption = SortOption.newestFirst;
   PedidoFilters _filters = const PedidoFilters();
+  bool _showScrollToTopButton = false;
 
   @override
   void initState() {
     super.initState();
     _load();
     _loadProdutos();
+    
+    // ✅ ADICIONAR listener
+    _scrollController.addListener(() {
+      if (_scrollController.offset >= 300 && !_showScrollToTopButton) {
+        setState(() {
+          _showScrollToTopButton = true;
+        });
+      } else if (_scrollController.offset < 300 && _showScrollToTopButton) {
+        setState(() {
+          _showScrollToTopButton = false;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();  // ✅ ADICIONAR
+    super.dispose();
+  }
+
+  // ✅ ADICIONAR método
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
   }
 
   Future<void> _loadProdutos() async {
@@ -531,6 +561,7 @@ class _PedidosPageState extends State<PedidosPage> {
           RefreshIndicator(
             onRefresh: _load,
             child: SingleChildScrollView(
+              controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(32.0),
               child: Row(
@@ -788,6 +819,23 @@ class _PedidosPageState extends State<PedidosPage> {
                   valueColor: AlwaysStoppedAnimation<Color>(
                     theme.colorScheme.primary,
                   ),
+                ),
+              ),
+            ),
+             if (_showScrollToTopButton)
+            Positioned(
+              right: 32,
+              bottom: 32,
+              child: AnimatedOpacity(
+                opacity: _showScrollToTopButton ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: FloatingActionButton(
+                  onPressed: _scrollToTop,
+                  tooltip: 'Voltar ao topo',
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                  elevation: 4,
+                  child: const Icon(Icons.arrow_upward),
                 ),
               ),
             ),
@@ -2714,58 +2762,58 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                                       ),
                                                     ],
                                                   ),
-                                                ] else ...[
-                                                  Row(
-                                                    children: [
-                                                      Expanded(
-                                                        child: Container(
-                                                          padding: const EdgeInsets.all(8),
-                                                          decoration: BoxDecoration(
-                                                            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                                                            borderRadius: BorderRadius.circular(6),
-                                                          ),
-                                                          child: Text(
-                                                            '${opcao.valorFloat1 ?? 0} min',
-                                                            style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
-                                                          ),
+                                               ] else ...[
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: Container(
+                                                        padding: const EdgeInsets.all(8),
+                                                        decoration: BoxDecoration(
+                                                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                                                          borderRadius: BorderRadius.circular(6),
+                                                        ),
+                                                        child: Text(
+                                                          '${(opcao.valorFloat1 ?? 0).toStringAsFixed(2).replaceAll('.', ',')} h',  // ✅ MOSTRAR COMO HORAS
+                                                          style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
                                                         ),
                                                       ),
-                                                      const SizedBox(width: 8),
-                                                      Expanded(
-                                                        child: Container(
-                                                          padding: const EdgeInsets.all(8),
-                                                          decoration: BoxDecoration(
-                                                            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                                                            borderRadius: BorderRadius.circular(6),
-                                                          ),
-                                                          child: Text(
-                                                            '${currency.format(opcao.valorFloat2 ?? 0)}/h',
-                                                            style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
-                                                          ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Expanded(
+                                                      child: Container(
+                                                        padding: const EdgeInsets.all(8),
+                                                        decoration: BoxDecoration(
+                                                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                                                          borderRadius: BorderRadius.circular(6),
+                                                        ),
+                                                        child: Text(
+                                                          '${currency.format(opcao.valorFloat2 ?? 0)}/h',
+                                                          style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
                                                         ),
                                                       ),
-                                                      const SizedBox(width: 8),
-                                                      Expanded(
-                                                        child: Container(
-                                                          padding: const EdgeInsets.all(8),
-                                                          decoration: BoxDecoration(
-                                                            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
-                                                            borderRadius: BorderRadius.circular(6),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Expanded(
+                                                      child: Container(
+                                                        padding: const EdgeInsets.all(8),
+                                                        decoration: BoxDecoration(
+                                                          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                                                          borderRadius: BorderRadius.circular(6),
+                                                        ),
+                                                        child: Text(
+                                                          currency.format((opcao.valorFloat1 ?? 0) * (opcao.valorFloat2 ?? 0)),  // ✅ CÁLCULO DIRETO
+                                                          style: theme.textTheme.bodySmall?.copyWith(
+                                                            fontSize: 11,
+                                                            fontWeight: FontWeight.w600,
+                                                            color: theme.colorScheme.primary,
                                                           ),
-                                                          child: Text(
-                                                            currency.format(((opcao.valorFloat1 ?? 0) / 60) * (opcao.valorFloat2 ?? 0)),
-                                                            style: theme.textTheme.bodySmall?.copyWith(
-                                                              fontSize: 11,
-                                                              fontWeight: FontWeight.w600,
-                                                              color: theme.colorScheme.primary,
-                                                            ),
-                                                            textAlign: TextAlign.right,
-                                                          ),
+                                                          textAlign: TextAlign.right,
                                                         ),
                                                       ),
-                                                    ],
-                                                  ),
-                                                ],
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
                                               ],
                                             ),
                                           );
