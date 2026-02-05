@@ -31,7 +31,8 @@ class LogItem {
       entidadeId: json['entidadeId'] as int,
       descricao: json['descricao'] as String,
       detalhes: json['detalhes'] as Map<String, dynamic>?,
-      createdAt: DateTime.parse(json['createdAt'] as String),
+      // ✅ Converte para horário local
+      createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
     );
   }
 

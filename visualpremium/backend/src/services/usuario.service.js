@@ -166,6 +166,11 @@ class UsuarioService {
       throw new Error('Usuário não encontrado');
     }
 
+    // ✅ NOVA VALIDAÇÃO: Impedir auto-exclusão
+    if (user && user.id === id) {
+      throw new Error('Você não pode deletar sua própria conta');
+    }
+
     await prisma.usuario.delete({
       where: { id },
     });

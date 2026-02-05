@@ -68,7 +68,7 @@ class PdfService {
        .fillColor('#666')
        .text(titulo, infoBlockX, y, { width: infoBlockWidth, align: 'center' });
     
-    doc.fontSize(22)
+    doc.fontSize( )
        .font('Helvetica-Bold')
        .fillColor('#1a1a1a')
        .text(numeroStr, infoBlockX, y + 11, { width: infoBlockWidth, align: 'center' });

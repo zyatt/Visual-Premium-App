@@ -2085,11 +2085,16 @@ class _OrcamentoCard extends StatelessWidget {
                         color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                       ),
                       const SizedBox(width: 4),
-                      Text(
-                        item.produtoNome,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                          fontSize: 12,
+                      Expanded(
+                        child: Text(
+                          item.produtoNome,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                            fontSize: 10,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: true,
                         ),
                       ),
                     ],
@@ -3296,7 +3301,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                 style: const TextStyle(fontSize: 12),
                                 decoration: const InputDecoration(
                                   labelText: 'Tempo',
-                                  helperText: 'Digite as horas',
                                   helperStyle: TextStyle(fontSize: 10),
                                   isDense: true,
                                   suffixText: 'h',
@@ -3350,7 +3354,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                   style: const TextStyle(fontSize: 12),
                                   decoration: const InputDecoration(
                                     labelText: 'Tempo',
-                                    helperText: 'Digite em horas',
                                     helperStyle: TextStyle(fontSize: 10),
                                     isDense: true,
                                     suffixText: 'h',  // ✅ ADICIONADO: indicador visual
@@ -3380,7 +3383,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                   style: const TextStyle(fontSize: 12),
                                   decoration: const InputDecoration(
                                     labelText: 'Valor/Hora',
-                                    helperText: 'Valor por hora',
                                     helperStyle: TextStyle(fontSize: 10),
                                     isDense: true,
                                     prefixText: 'R\$ ',
@@ -3415,7 +3417,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                 style: const TextStyle(fontSize: 12),
                                 decoration: const InputDecoration(
                                   labelText: 'Percentual',
-                                  helperText: 'Digite o percentual',
                                   helperStyle: TextStyle(fontSize: 10),
                                   isDense: true,
                                   suffixText: '%',
@@ -3444,8 +3445,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                 ],
                                 style: const TextStyle(fontSize: 12),
                                 decoration: const InputDecoration(
-                                  labelText: 'Valor Base',
-                                  helperText: 'Valor de referência',
+                                  labelText: 'Valor',
                                   helperStyle: TextStyle(fontSize: 10),
                                   isDense: true,
                                   prefixText: 'R\$ ',

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import 'package:visualpremium/providers/auth_provider.dart';
 import '../../../data/usuarios_repository.dart';
 import '../../models/usuario_item.dart';
 
@@ -55,48 +57,53 @@ class _UsuariosPageState extends State<UsuariosPage> {
   }
 
   Future<void> _deleteUsuario(UsuarioItem usuario) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirmar exclusão'),
-        content: Text('Deseja realmente excluir o usuário "${usuario.nome}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Confirmar exclusão'),
+      content: Text('Deseja realmente excluir o usuário "${usuario.nome}"?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancelar'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: TextButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: const Text('Excluir'),
-          ),
-        ],
-      ),
-    );
+          child: const Text('Excluir'),
+        ),
+      ],
+    ),
+  );
 
-    if (confirm != true) return;
+  if (confirm != true) return;
 
-    try {
-      await _repository.deleteUsuario(usuario.id);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Usuário excluído com sucesso')),
-        );
-        _loadUsuarios();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao excluir usuário: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+  try {
+    await _repository.deleteUsuario(usuario.id);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Usuário excluído com sucesso')),
+      );
+      _loadUsuarios();
+    }
+  } catch (e) {
+    if (mounted) {
+      // ✅ Mensagem mais amigável
+      final errorMessage = e.toString().contains('própria conta')
+          ? 'Ñão permitido'
+          : 'Erro ao excluir usuário: $e';
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -226,6 +233,8 @@ class _UsuarioCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final authProvider = Provider.of<AuthProvider>(context);
+    final isCurrentUser = authProvider.currentUser?.id == usuario.id;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -273,6 +282,24 @@ class _UsuarioCard extends StatelessWidget {
                 ),
               ),
             const SizedBox(width: 8),
+            // ✅ Badge "VOCÊ" para o usuário atual
+            if (isCurrentUser)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'VOCÊ',
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.blue,
+                  ),
+                ),
+              ),
+            const SizedBox(width: 8),
             if (!usuario.ativo)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -303,11 +330,16 @@ class _UsuarioCard extends StatelessWidget {
               onPressed: onEdit,
               tooltip: 'Editar',
             ),
+            // ✅ Desabilitar botão de deletar para o próprio usuário
             IconButton(
               icon: const Icon(Icons.delete_outline),
-              onPressed: onDelete,
-              tooltip: 'Excluir',
-              color: theme.colorScheme.error,
+              onPressed: isCurrentUser ? null : onDelete,
+              tooltip: isCurrentUser 
+                  ? 'Não permitido'
+                  : 'Excluir',
+              color: isCurrentUser 
+                  ? theme.disabledColor 
+                  : theme.colorScheme.error,
             ),
           ],
         ),

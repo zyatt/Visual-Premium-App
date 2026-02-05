@@ -2051,11 +2051,16 @@ class _PedidoCard extends StatelessWidget {
                         color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                       ),
                       const SizedBox(width: 4),
-                      Text(
-                        item.produtoNome,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                          fontSize: 12,
+                      Expanded(
+                        child: Text(
+                          item.produtoNome,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                            fontSize: 10,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: true,
                         ),
                       ),
                     ],
@@ -2923,7 +2928,7 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                   child: ExcludeFocus(
                                     child: ElevatedButton(
                                       onPressed: _save,
-                                      child: const Text('Salvar'),
+                                      child: const Text('Finalizar'),
                                     ),
                                   ),
                                 ),

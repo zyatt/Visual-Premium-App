@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "TipoOpcaoExtra" AS ENUM ('STRING_FLOAT', 'FLOAT_FLOAT');
+CREATE TYPE "TipoOpcaoExtra" AS ENUM ('STRINGFLOAT', 'FLOATFLOAT', 'PERCENTFLOAT');
 
 -- CreateTable
 CREATE TABLE "logs" (
@@ -85,7 +85,7 @@ CREATE TABLE "pedidos" (
     "id" SERIAL NOT NULL,
     "cliente" TEXT NOT NULL,
     "numero" INTEGER,
-    "status" TEXT NOT NULL DEFAULT 'Em Andamento',
+    "status" TEXT NOT NULL,
     "produtoId" INTEGER NOT NULL,
     "formaPagamento" TEXT NOT NULL,
     "condicoesPagamento" TEXT NOT NULL,
@@ -181,7 +181,13 @@ CREATE UNIQUE INDEX "usuarios_username_key" ON "usuarios"("username");
 CREATE UNIQUE INDEX "produto_opcoes_extras_produtoId_nome_key" ON "produto_opcoes_extras"("produtoId", "nome");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "orcamentos_numero_key" ON "orcamentos"("numero");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "orcamento_opcoes_extras_orcamentoId_produtoOpcaoId_key" ON "orcamento_opcoes_extras"("orcamentoId", "produtoOpcaoId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "pedidos_numero_key" ON "pedidos"("numero");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "pedidos_orcamentoId_key" ON "pedidos"("orcamentoId");

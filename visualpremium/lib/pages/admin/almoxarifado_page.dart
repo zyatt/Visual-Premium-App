@@ -519,9 +519,8 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
     for (final material in widget.orcamento.materiais) {
       final controller = _valorControllers[material.materialId];
       if (controller != null && controller.text.trim().isNotEmpty) {
-        final valorUnitario = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0.0;
-        final quantidade = material.quantidade;
-        total += valorUnitario * quantidade;
+        final valorTotal = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0.0;
+        total += valorTotal; // SEM multiplicar pela quantidade
       }
     }
     
@@ -653,7 +652,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                           ),
                           const SizedBox(height: 20),
                           Text(
-                            'Registre o valor de compra de cada material',
+                            'Registre o custo total de cada material',
                             style: theme.textTheme.titleSmall?.copyWith(
                               fontWeight: FontWeight.w600,
                               color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
@@ -668,10 +667,6 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                               return const SizedBox();
                             }
                             
-                            final quantidade = material.quantidade;
-                            final valorUnitario = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0.0;
-                            final subtotal = valorUnitario * quantidade;
-                            
                             return Container(
                               margin: const EdgeInsets.only(bottom: 12),
                               padding: const EdgeInsets.all(16),
@@ -685,110 +680,40 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              material.materialNome,
-                                              style: theme.textTheme.titleSmall?.copyWith(
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Row(
-                                              children: [
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 2,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                                                    borderRadius: BorderRadius.circular(4),
-                                                  ),
-                                                  child: Text(
-                                                    'Qtd: ${material.quantidade} ${material.materialUnidade}',
-                                                    style: theme.textTheme.bodySmall?.copyWith(
-                                                      color: theme.colorScheme.primary,
-                                                      fontWeight: FontWeight.w500,
-                                                      fontSize: 11,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
+                                  Text(
+                                    material.materialNome,
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                   const SizedBox(height: 12),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: TextFormField(
-                                          controller: controller,
-                                          focusNode: focusNode,
-                                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                          inputFormatters: [
-                                            FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                          ],
-                                          decoration: InputDecoration(
-                                            labelText: 'Valor de Compra (por ${material.materialUnidade})',
-                                            isDense: true,
-                                            prefixText: 'R\$ ',
-                                            contentPadding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 10,
-                                            ),
-                                          ),
-                                          validator: (v) {
-                                            if (v == null || v.trim().isEmpty) {
-                                              return 'Informe o valor de compra';
-                                            }
-                                            final value = double.tryParse(v.replaceAll(',', '.'));
-                                            if (value == null || value <= 0) {
-                                              return 'Valor inválido';
-                                            }
-                                            return null;
-                                          },
-                                          onChanged: (_) => setState(() {}),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 8,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.end,
-                                          children: [
-                                            Text(
-                                              'Subtotal',
-                                              style: theme.textTheme.bodySmall?.copyWith(
-                                                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                                                fontSize: 10,
-                                              ),
-                                            ),
-                                            Text(
-                                              currency.format(subtotal),
-                                              style: theme.textTheme.titleMedium?.copyWith(
-                                                fontWeight: FontWeight.w700,
-                                                color: theme.colorScheme.primary,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
+                                  TextFormField(
+                                    controller: controller,
+                                    focusNode: focusNode,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
                                     ],
+                                    decoration: const InputDecoration(
+                                      labelText: 'Custo Total do Material',
+                                      isDense: true,
+                                      prefixText: 'R\$ ',
+                                      contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 10,
+                                      ),
+                                    ),
+                                    validator: (v) {
+                                      if (v == null || v.trim().isEmpty) {
+                                        return 'Informe o custo total';
+                                      }
+                                      final value = double.tryParse(v.replaceAll(',', '.'));
+                                      if (value == null || value <= 0) {
+                                        return 'Valor inválido';
+                                      }
+                                      return null;
+                                    },
+                                    onChanged: (_) => setState(() {}),
                                   ),
                                 ],
                               ),
