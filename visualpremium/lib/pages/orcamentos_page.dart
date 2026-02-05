@@ -2282,13 +2282,14 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   late final List<String> _initialDespesasValor;
   late final Map<int, double> _initialQuantities;
 
-  final Map<int, bool> _opcoesExtrasEnabled = {};
+  final Map<int, bool?> _opcoesExtrasEnabled = {};
   final Map<int, TextEditingController> _opcaoExtraStringControllers = {};
   final Map<int, TextEditingController> _opcaoExtraFloat1Controllers = {};
   final Map<int, TextEditingController> _opcaoExtraFloat2Controllers = {};
   final Map<int, FocusNode> _opcaoExtraStringFocusNodes = {};
   final Map<int, FocusNode> _opcaoExtraFloat1FocusNodes = {};
   final Map<int, FocusNode> _opcaoExtraFloat2FocusNodes = {};
+
 
   final List<String> _formaPagamentoOptions = [
     'A COMBINAR',
@@ -2651,11 +2652,11 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     for (final opcao in _selectedProduto!.opcoesExtras) {
       final existingOpcao = widget.initial?.opcoesExtras.firstWhere(
         (o) => o.produtoOpcaoId == opcao.id,
-        orElse: () => const OrcamentoOpcaoExtraItem(  // ✅ Add const
+        orElse: () => const OrcamentoOpcaoExtraItem(
           id: 0,
           produtoOpcaoId: 0,
           nome: '',
-          tipo: TipoOpcaoExtra.stringFloat,  // ✅ Use enum value instead of empty string
+          tipo: TipoOpcaoExtra.stringFloat,
           valorString: null,
           valorFloat1: null,
           valorFloat2: null,
@@ -2663,33 +2664,33 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       );
       
       if (existingOpcao != null && existingOpcao.id != 0) {
-        _opcoesExtrasEnabled[opcao.id] = true;
-        
-        final stringCtrl = TextEditingController(text: existingOpcao.valorString ?? '');
-        final float1Ctrl = TextEditingController(
-          text: existingOpcao.valorFloat1 != null ? existingOpcao.valorFloat1.toString() : ''
-        );
-        final float2Ctrl = TextEditingController(
-          text: existingOpcao.valorFloat2 != null ? existingOpcao.valorFloat2.toString() : ''
-        );
-        
-        final stringFocus = FocusNode();
-        final float1Focus = FocusNode();
-        final float2Focus = FocusNode();
-        
-        stringCtrl.addListener(_updateTotal);
-        float1Ctrl.addListener(_updateTotal);
-        float2Ctrl.addListener(_updateTotal);
-        stringFocus.addListener(_onFieldFocusChange);
-        float1Focus.addListener(_onFieldFocusChange);
-        float2Focus.addListener(_onFieldFocusChange);
-        
-        _opcaoExtraStringControllers[opcao.id] = stringCtrl;
-        _opcaoExtraFloat1Controllers[opcao.id] = float1Ctrl;
-        _opcaoExtraFloat2Controllers[opcao.id] = float2Ctrl;
-        _opcaoExtraStringFocusNodes[opcao.id] = stringFocus;
-        _opcaoExtraFloat1FocusNodes[opcao.id] = float1Focus;
-        _opcaoExtraFloat2FocusNodes[opcao.id] = float2Focus;
+      _opcoesExtrasEnabled[opcao.id] = true;
+      
+      final stringCtrl = TextEditingController(text: existingOpcao.valorString ?? '');
+      final float1Ctrl = TextEditingController(
+        text: existingOpcao.valorFloat1 != null ? existingOpcao.valorFloat1.toString() : ''
+      );
+      final float2Ctrl = TextEditingController(
+        text: existingOpcao.valorFloat2 != null ? existingOpcao.valorFloat2.toString() : ''
+      );
+      
+      final stringFocus = FocusNode();
+      final float1Focus = FocusNode();
+      final float2Focus = FocusNode();
+      
+      stringCtrl.addListener(_updateTotal);
+      float1Ctrl.addListener(_updateTotal);
+      float2Ctrl.addListener(_updateTotal);
+      stringFocus.addListener(_onFieldFocusChange);
+      float1Focus.addListener(_onFieldFocusChange);
+      float2Focus.addListener(_onFieldFocusChange);
+      
+      _opcaoExtraStringControllers[opcao.id] = stringCtrl;
+      _opcaoExtraFloat1Controllers[opcao.id] = float1Ctrl;
+      _opcaoExtraFloat2Controllers[opcao.id] = float2Ctrl;
+      _opcaoExtraStringFocusNodes[opcao.id] = stringFocus;
+      _opcaoExtraFloat1FocusNodes[opcao.id] = float1Focus;
+      _opcaoExtraFloat2FocusNodes[opcao.id] = float2Focus;
       }
     }
   }
@@ -3089,217 +3090,239 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         ),
         const SizedBox(height: 8),
         ..._selectedProduto!.opcoesExtras.map((opcao) {
-          final isEnabled = _opcoesExtrasEnabled[opcao.id] ?? false;
+          final isEnabled = _opcoesExtrasEnabled[opcao.id];
           
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isEnabled
-                    ? theme.colorScheme.primary.withValues(alpha: 0.3)
-                    : theme.dividerColor.withValues(alpha: 0.1),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          return FormField<bool>(
+            initialValue: isEnabled,
+            validator: (value) {
+              if (value == null) {
+                return 'Selecione Sim ou Não';
+              }
+              return null;
+            },
+            builder: (formFieldState) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: formFieldState.hasError
+                        ? theme.colorScheme.error
+                        : isEnabled == true
+                            ? theme.colorScheme.primary.withValues(alpha: 0.3)
+                            : theme.dividerColor.withValues(alpha: 0.1),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Icon(
-                        opcao.tipo == TipoOpcaoExtra.stringFloat  // ✅ Comparar com enum
-                            ? Icons.text_fields
-                            : Icons.calculate_outlined,
-                        size: 16,
-                        color: theme.colorScheme.onSecondaryContainer,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            opcao.nome,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                     Row(
                       children: [
-                        _buildToggleButton('Não', !isEnabled, () {
-                          setState(() {
-                            _opcoesExtrasEnabled[opcao.id] = false;
-                            _opcaoExtraStringControllers[opcao.id]?.clear();
-                            _opcaoExtraFloat1Controllers[opcao.id]?.clear();
-                            _opcaoExtraFloat2Controllers[opcao.id]?.clear();
-                          });
-                        }),
-                        const SizedBox(width: 6),
-                        _buildToggleButton('Sim', isEnabled, () {
-                          setState(() {
-                            _opcoesExtrasEnabled[opcao.id] = true;
-                            
-                            // Criar controllers se não existirem
-                            if (!_opcaoExtraStringControllers.containsKey(opcao.id)) {
-                              final stringCtrl = TextEditingController();
-                              final float1Ctrl = TextEditingController();
-                              final float2Ctrl = TextEditingController();
-                              final stringFocus = FocusNode();
-                              final float1Focus = FocusNode();
-                              final float2Focus = FocusNode();
-                              
-                              stringCtrl.addListener(_updateTotal);
-                              float1Ctrl.addListener(_updateTotal);
-                              float2Ctrl.addListener(_updateTotal);
-                              stringFocus.addListener(_onFieldFocusChange);
-                              float1Focus.addListener(_onFieldFocusChange);
-                              float2Focus.addListener(_onFieldFocusChange);
-                              
-                              _opcaoExtraStringControllers[opcao.id] = stringCtrl;
-                              _opcaoExtraFloat1Controllers[opcao.id] = float1Ctrl;
-                              _opcaoExtraFloat2Controllers[opcao.id] = float2Ctrl;
-                              _opcaoExtraStringFocusNodes[opcao.id] = stringFocus;
-                              _opcaoExtraFloat1FocusNodes[opcao.id] = float1Focus;
-                              _opcaoExtraFloat2FocusNodes[opcao.id] = float2Focus;
-                            }
-                          });
-                        }),
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Icon(
+                            opcao.tipo == TipoOpcaoExtra.stringFloat
+                                ? Icons.text_fields
+                                : Icons.calculate_outlined,
+                            size: 16,
+                            color: theme.colorScheme.onSecondaryContainer,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                opcao.nome,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            _buildToggleButton('Não', isEnabled == false, () {
+                              setState(() {
+                                _opcoesExtrasEnabled[opcao.id] = false;
+                                _opcaoExtraStringControllers[opcao.id]?.clear();
+                                _opcaoExtraFloat1Controllers[opcao.id]?.clear();
+                                _opcaoExtraFloat2Controllers[opcao.id]?.clear();
+                              });
+                              formFieldState.didChange(false);
+                            }),
+                            const SizedBox(width: 6),
+                            _buildToggleButton('Sim', isEnabled == true, () {
+                              setState(() {
+                                _opcoesExtrasEnabled[opcao.id] = true;
+                                
+                                if (!_opcaoExtraStringControllers.containsKey(opcao.id)) {
+                                  final stringCtrl = TextEditingController();
+                                  final float1Ctrl = TextEditingController();
+                                  final float2Ctrl = TextEditingController();
+                                  final stringFocus = FocusNode();
+                                  final float1Focus = FocusNode();
+                                  final float2Focus = FocusNode();
+                                  
+                                  stringCtrl.addListener(_updateTotal);
+                                  float1Ctrl.addListener(_updateTotal);
+                                  float2Ctrl.addListener(_updateTotal);
+                                  stringFocus.addListener(_onFieldFocusChange);
+                                  float1Focus.addListener(_onFieldFocusChange);
+                                  float2Focus.addListener(_onFieldFocusChange);
+                                  
+                                  _opcaoExtraStringControllers[opcao.id] = stringCtrl;
+                                  _opcaoExtraFloat1Controllers[opcao.id] = float1Ctrl;
+                                  _opcaoExtraFloat2Controllers[opcao.id] = float2Ctrl;
+                                  _opcaoExtraStringFocusNodes[opcao.id] = stringFocus;
+                                  _opcaoExtraFloat1FocusNodes[opcao.id] = float1Focus;
+                                  _opcaoExtraFloat2FocusNodes[opcao.id] = float2Focus;
+                                }
+                              });
+                              formFieldState.didChange(true);
+                            }),
+                          ],
+                        ),
                       ],
                     ),
+                    if (formFieldState.hasError) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        formFieldState.errorText ?? '',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                    if (isEnabled == true) ...[
+                      const SizedBox(height: 10),
+                      if (opcao.tipo == TipoOpcaoExtra.stringFloat) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: TextFormField(
+                                controller: _opcaoExtraStringControllers[opcao.id],
+                                focusNode: _opcaoExtraStringFocusNodes[opcao.id],
+                                style: const TextStyle(fontSize: 12),
+                                decoration: const InputDecoration(
+                                  labelText: 'Descrição',
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                ),
+                                validator: (v) => (v == null || v.trim().isEmpty) 
+                                    ? 'Informe a descrição' 
+                                    : null,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _opcaoExtraFloat1Controllers[opcao.id],
+                                focusNode: _opcaoExtraFloat1FocusNodes[opcao.id],
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                ],
+                                style: const TextStyle(fontSize: 12),
+                                decoration: const InputDecoration(
+                                  labelText: 'Valor',
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                ),
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) {
+                                    return 'Informe o valor';
+                                  }
+                                  final value = double.tryParse(v.replaceAll(',', '.'));
+                                  if (value == null || value < 0) {
+                                    return 'Inválido';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _opcaoExtraFloat1Controllers[opcao.id],
+                                focusNode: _opcaoExtraFloat1FocusNodes[opcao.id],
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                ],
+                                style: const TextStyle(fontSize: 12),
+                                decoration: const InputDecoration(
+                                  labelText: 'Tempo',
+                                  helperText: 'Digite em minutos',
+                                  helperStyle: TextStyle(fontSize: 10),
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                ),
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) {
+                                    return 'Informe o tempo';
+                                  }
+                                  final value = double.tryParse(v.replaceAll(',', '.'));
+                                  if (value == null || value < 0) {
+                                    return 'Inválido';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _opcaoExtraFloat2Controllers[opcao.id],
+                                focusNode: _opcaoExtraFloat2FocusNodes[opcao.id],
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                ],
+                                style: const TextStyle(fontSize: 12),
+                                decoration: const InputDecoration(
+                                  labelText: 'Valor/Hora',
+                                  helperText: 'Valor por hora',
+                                  helperStyle: TextStyle(fontSize: 10),
+                                  isDense: true,
+                                  prefixText: 'R\$ ',
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                ),
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) {
+                                    return 'Informe o valor/h';
+                                  }
+                                  final value = double.tryParse(v.replaceAll(',', '.'));
+                                  if (value == null || value < 0) {
+                                    return 'Inválido';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
                   ],
                 ),
-                if (isEnabled) ...[
-                  const SizedBox(height: 10),
-                  if (opcao.tipo == TipoOpcaoExtra.stringFloat) ...[  // ✅ Comparar com enum
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: TextFormField(
-                            controller: _opcaoExtraStringControllers[opcao.id],
-                            focusNode: _opcaoExtraStringFocusNodes[opcao.id],
-                            style: const TextStyle(fontSize: 12),
-                            decoration: const InputDecoration(
-                              labelText: 'Descrição',
-                              isDense: true,
-                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                            ),
-                            validator: (v) => (v == null || v.trim().isEmpty) 
-                                ? 'Informe a descrição' 
-                                : null,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextFormField(
-                            controller: _opcaoExtraFloat1Controllers[opcao.id],
-                            focusNode: _opcaoExtraFloat1FocusNodes[opcao.id],
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                            ],
-                            style: const TextStyle(fontSize: 12),
-                            decoration: const InputDecoration(
-                              labelText: 'Valor',
-                              isDense: true,
-                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                            ),
-                            validator: (v) {
-                              if (v == null || v.trim().isEmpty) {
-                                return 'Informe';
-                              }
-                              final value = double.tryParse(v.replaceAll(',', '.'));
-                              if (value == null || value < 0) {
-                                return 'Inválido';
-                              }
-                              return null;
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ] else ...[
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _opcaoExtraFloat1Controllers[opcao.id],
-                            focusNode: _opcaoExtraFloat1FocusNodes[opcao.id],
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                            ],
-                            style: const TextStyle(fontSize: 12),
-                            decoration: const InputDecoration(
-                              labelText: 'Minutos',
-                              hintText: 'Ex: 30, 90, 120',
-                              helperText: 'Digite em minutos',
-                              helperStyle: TextStyle(fontSize: 10),
-                              isDense: true,
-                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                            ),
-                            validator: (v) {
-                              if (v == null || v.trim().isEmpty) {
-                                return 'Informe';
-                              }
-                              final value = double.tryParse(v.replaceAll(',', '.'));
-                              if (value == null || value < 0) {
-                                return 'Inválido';
-                              }
-                              return null;
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextFormField(
-                            controller: _opcaoExtraFloat2Controllers[opcao.id],
-                            focusNode: _opcaoExtraFloat2FocusNodes[opcao.id],
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                            ],
-                            style: const TextStyle(fontSize: 12),
-                            decoration: const InputDecoration(
-                              labelText: 'Valor/Hora',
-                              hintText: 'R\$ por hora',
-                              helperText: 'Valor por hora',
-                              helperStyle: TextStyle(fontSize: 10),
-                              isDense: true,
-                              prefixText: 'R\$ ',
-                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                            ),
-                            validator: (v) {
-                              if (v == null || v.trim().isEmpty) {
-                                return 'Informe';
-                              }
-                              final value = double.tryParse(v.replaceAll(',', '.'));
-                              if (value == null || value < 0) {
-                                return 'Inválido';
-                              }
-                              return null;
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ],
-            ),
+              );
+            },
           );
         }),
       ],
@@ -3473,7 +3496,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                     isDense: true,
                                     contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                                   ),
-                                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe' : null,
+                                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe a descrição' : null,
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -3494,7 +3517,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                   ),
                                   validator: (v) {
                                     if (v == null || v.trim().isEmpty) {
-                                      return 'Informe';
+                                      return 'Informe o valor';
                                     }
                                     final value = double.tryParse(v.replaceAll(',', '.'));
                                     if (value == null || value <= 0) {
@@ -3881,9 +3904,52 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                               ],
                                             )
                                           else ...[
-                                            Text(
-                                              'Materiais',
-                                              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  flex: 2,
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.only(left: 0), // → direita
+                                                    child: Text(
+                                                      'Materiais',
+                                                      style: theme.textTheme.titleSmall?.copyWith(
+                                                        fontWeight: FontWeight.w600,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+
+                                                SizedBox(
+                                                  width: 90,
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.only(right: 15), // → direita
+                                                    child: Text(
+                                                      'Quantidade',
+                                                      textAlign: TextAlign.center,
+                                                      style: theme.textTheme.titleSmall?.copyWith(
+                                                        fontWeight: FontWeight.w600,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+
+                                                SizedBox(
+                                                  width: 75,
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.only(right: 15), // ← esquerda
+                                                    child: Text(
+                                                      'Total',
+                                                      textAlign: TextAlign.right,
+                                                      style: theme.textTheme.titleSmall?.copyWith(
+                                                        fontWeight: FontWeight.w600,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                             const SizedBox(height: 8),
                                             
@@ -4052,7 +4118,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                             labelText: 'Especifique as condições',
                                                             isDense: true,
                                                             contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                                            hintText: 'Ex: 15/30/45 dias',
                                                           ),
                                                           validator: (v) => (v == null || v.trim().isEmpty) 
                                                               ? 'Informe as condições' 

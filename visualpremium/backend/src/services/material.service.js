@@ -6,11 +6,20 @@ class MaterialService {
     return prisma.material.findMany();
   }
 
-  async criar(data, user) { // ✅ ADICIONAR PARÂMETRO user
+  async criar(data, user) {
     const { nome, custo, unidade, quantidade } = data;
     
-    if (!nome || !custo || !unidade || !quantidade) {
+    // ✅ ALTERADO: Verificar se os campos existem (não são undefined/null), permitindo valor 0
+    if (nome === undefined || nome === null || 
+        custo === undefined || custo === null || 
+        unidade === undefined || unidade === null || 
+        quantidade === undefined || quantidade === null) {
       throw new Error('Todos os campos são obrigatórios');
+    }
+
+    // ✅ ALTERADO: Verificar se nome não está vazio após trim
+    if (nome.trim() === '') {
+      throw new Error('Nome não pode estar vazio');
     }
 
     const nomeNormalizado = nome.trim().toLowerCase();
@@ -28,20 +37,26 @@ class MaterialService {
     }
 
     const quantidadeNum = parseFloat(quantidade);
+    // ✅ ALTERADO: Remover validação quantidadeNum < 0, permitindo 0
     if (isNaN(quantidadeNum) || quantidadeNum < 0) {
       throw new Error('Quantidade inválida');
+    }
+
+    // ✅ ALTERADO: Validar custo (permitindo 0)
+    const custoNum = parseFloat(custo);
+    if (isNaN(custoNum) || custoNum < 0) {
+      throw new Error('Custo inválido');
     }
 
     const material = await prisma.material.create({
       data: {
         nome: nome.trim(),
-        custo: parseFloat(custo),
+        custo: custoNum,
         unidade,
         quantidade: quantidadeNum,
       },
     });
 
-    // ✅ USAR DADOS DO USUÁRIO AUTENTICADO
     await logService.registrar({
       usuarioId: user?.id || 1,
       usuarioNome: user?.nome || 'Sistema',
@@ -55,7 +70,7 @@ class MaterialService {
     return material;
   }
 
-  async atualizar(id, data, user) { // ✅ ADICIONAR PARÂMETRO user
+  async atualizar(id, data, user) {
     const { nome, custo, unidade, quantidade } = data;
 
     const materialAntigo = await prisma.material.findUnique({
@@ -88,8 +103,18 @@ class MaterialService {
     let quantidadeNum;
     if (quantidade !== undefined) {
       quantidadeNum = parseFloat(quantidade);
+      // ✅ ALTERADO: Permitir quantidade = 0
       if (isNaN(quantidadeNum) || quantidadeNum < 0) {
         throw new Error('Quantidade inválida');
+      }
+    }
+
+    // ✅ ALTERADO: Validar custo se fornecido (permitindo 0)
+    let custoNum;
+    if (custo !== undefined) {
+      custoNum = parseFloat(custo);
+      if (isNaN(custoNum) || custoNum < 0) {
+        throw new Error('Custo inválido');
       }
     }
 
@@ -97,13 +122,12 @@ class MaterialService {
       where: { id },
       data: {
         nome: nome ? nome.trim() : undefined,
-        custo: custo ? parseFloat(custo) : undefined,
+        custo: custoNum !== undefined ? custoNum : undefined,
         unidade,
         quantidade: quantidadeNum,
       },
     });
 
-    // ✅ USAR DADOS DO USUÁRIO AUTENTICADO
     await logService.registrar({
       usuarioId: user?.id || 1,
       usuarioNome: user?.nome || 'Sistema',
@@ -120,7 +144,7 @@ class MaterialService {
     return material;
   }
 
-  async deletar(id, user) { // ✅ ADICIONAR PARÂMETRO user
+  async deletar(id, user) {
     const material = await prisma.material.findUnique({
       where: { id }
     });

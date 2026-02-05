@@ -83,11 +83,13 @@ class MaterialsPage extends StatefulWidget {
 
 class _MaterialsPageState extends State<MaterialsPage> {
   final _api = MaterialsApiRepository();
+  final _scrollController = ScrollController(); // Adicionar controller
   bool _loading = true;
   List<MaterialItem> _items = const [];
   String _searchQuery = '';
   SortOption _sortOption = SortOption.newestFirst;
   MaterialFilters _filters = const MaterialFilters();
+  bool _showScrollToTopButton = false; // Adicionar flag para mostrar botão
 
   Future<void> _showMaterialEditor(MaterialItem? initial) async {
     final result = await showDialog<MaterialItem>(
@@ -145,6 +147,33 @@ class _MaterialsPageState extends State<MaterialsPage> {
   void initState() {
     super.initState();
     _load();
+    
+    // Adicionar listener para detectar scroll
+    _scrollController.addListener(() {
+      if (_scrollController.offset >= 300 && !_showScrollToTopButton) {
+        setState(() {
+          _showScrollToTopButton = true;
+        });
+      } else if (_scrollController.offset < 300 && _showScrollToTopButton) {
+        setState(() {
+          _showScrollToTopButton = false;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose(); // Não esquecer de fazer dispose
+    super.dispose();
+  }
+
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
   }
 
   Future<void> _load() async {
@@ -486,6 +515,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
           RefreshIndicator(
             onRefresh: _load,
             child: SingleChildScrollView(
+              controller: _scrollController, // Adicionar controller ao scroll
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(32.0),
               child: Row(
@@ -751,6 +781,23 @@ class _MaterialsPageState extends State<MaterialsPage> {
                   valueColor: AlwaysStoppedAnimation<Color>(
                     theme.colorScheme.primary,
                   ),
+                ),
+              ),
+            ),
+            if (_showScrollToTopButton)
+            Positioned(
+              right: 32,
+              bottom: 32,
+              child: AnimatedOpacity(
+                opacity: _showScrollToTopButton ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: FloatingActionButton(
+                  onPressed: _scrollToTop,
+                  tooltip: 'Voltar ao topo',
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                  elevation: 4,
+                  child: const Icon(Icons.arrow_upward),
                 ),
               ),
             ),
@@ -1339,7 +1386,7 @@ class _MaterialCard extends StatelessWidget {
                     style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
                   ),
                   Text(
-                    'Unidade: ${item.unit} • Qtd: ${_formatQuantityDisplay(item.quantity)}',
+                    '${item.unit} • Qtd: ${_formatQuantityDisplay(item.quantity)}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                     ),

@@ -88,12 +88,6 @@ class PedidoService {
       materiais,
       despesasAdicionais,
       opcoesExtras,
-      frete,
-      freteDesc,
-      freteValor,
-      caminhaoMunck,
-      caminhaoMunckHoras,
-      caminhaoMunckValorHora,
       formaPagamento,
       condicoesPagamento,
       prazoEntrega,
@@ -147,28 +141,6 @@ class PedidoService {
 
     if (!produto) {
       throw new Error('Produto não encontrado');
-    }
-
-    // Validações condicionais
-    const freteBool = frete === true || frete === 'true';
-    const caminhaoMunckBool = caminhaoMunck === true || caminhaoMunck === 'true';
-
-    if (freteBool) {
-      if (!freteDesc || freteDesc.trim() === '') {
-        throw new Error('Descrição do frete é obrigatória');
-      }
-      if (!freteValor || freteValor <= 0) {
-        throw new Error('Valor do frete deve ser maior que zero');
-      }
-    }
-
-    if (caminhaoMunckBool) {
-      if (!caminhaoMunckHoras || caminhaoMunckHoras <= 0) {
-        throw new Error('Quantidade de minutos do caminhão munck deve ser maior que zero');
-      }
-      if (!caminhaoMunckValorHora || caminhaoMunckValorHora <= 0) {
-        throw new Error('Valor por hora do caminhão munck deve ser maior que zero');
-      }
     }
 
     // Validar despesas adicionais
@@ -275,12 +247,7 @@ class PedidoService {
       formaPagamento: formaPagamento.trim(),
       condicoesPagamento: condicoesPagamento.trim(),
       prazoEntrega: prazoEntrega.trim(),
-      frete: freteBool,
-      freteDesc: freteBool ? freteDesc?.trim() : null,
-      freteValor: freteBool ? parseFloat(freteValor) : null,
-      caminhaoMunck: caminhaoMunckBool,
-      caminhaoMunckHoras: caminhaoMunckBool ? parseFloat(caminhaoMunckHoras) / 60 : null,
-      caminhaoMunckValorHora: caminhaoMunckBool ? parseFloat(caminhaoMunckValorHora) : null,
+     
       orcamentoId: orcamentoId || null
     };
 
@@ -346,7 +313,7 @@ class PedidoService {
       acao: 'CRIAR',
       entidade: 'PEDIDO',
       entidadeId: pedido.id,
-      descricao: `Criou o pedido ${pedido.numero ? `#${pedido.numero}` : `(ID: ${pedido.id})`}`,
+      descricao: `Criou o pedido "${pedido.numero ? `#${pedido.numero}"` : `(ID: ${pedido.id})`}`,
       detalhes: pedido,
     });
 
@@ -362,12 +329,7 @@ class PedidoService {
       status,
       despesasAdicionais,
       opcoesExtras,
-      frete,
-      freteDesc,
-      freteValor,
-      caminhaoMunck,
-      caminhaoMunckHoras,
-      caminhaoMunckValorHora,
+     
       formaPagamento,
       condicoesPagamento,
       prazoEntrega
@@ -431,26 +393,8 @@ class PedidoService {
       throw new Error('Prazo de entrega é obrigatório');
     }
 
-    const freteBool = frete === true || frete === 'true';
-    const caminhaoMunckBool = caminhaoMunck === true || caminhaoMunck === 'true';
 
-    if (frete !== undefined && freteBool) {
-      if (!freteDesc || freteDesc.trim() === '') {
-        throw new Error('Descrição do frete é obrigatória');
-      }
-      if (!freteValor || freteValor <= 0) {
-        throw new Error('Valor do frete deve ser maior que zero');
-      }
-    }
-
-    if (caminhaoMunck !== undefined && caminhaoMunckBool) {
-      if (!caminhaoMunckHoras || caminhaoMunckHoras <= 0) {
-        throw new Error('Quantidade de horas do caminhão munck deve ser maior que zero');
-      }
-      if (!caminhaoMunckValorHora || caminhaoMunckValorHora <= 0) {
-        throw new Error('Valor por hora do caminhão munck deve ser maior que zero');
-      }
-    }
+    
 
     // Buscar produto se necessário
     let produto;
@@ -616,31 +560,7 @@ class PedidoService {
     if (status !== undefined) updateData.status = status;
     if (produtoId !== undefined) updateData.produtoId = produtoId;
     if (numero !== undefined) updateData.numero = numero;
-    
-    // Campos de frete
-    if (frete !== undefined) {
-      updateData.frete = freteBool;
-      if (freteBool) {
-        updateData.freteDesc = freteDesc?.trim() || null;
-        updateData.freteValor = parseFloat(freteValor) || null;
-      } else {
-        updateData.freteDesc = null;
-        updateData.freteValor = null;
-      }
-    }
-    
-    // Campos de caminhão munck
-    if (caminhaoMunck !== undefined) {
-      updateData.caminhaoMunck = caminhaoMunckBool;
-      if (caminhaoMunckBool) {
-        updateData.caminhaoMunckHoras = parseFloat(caminhaoMunckHoras) || null;
-        updateData.caminhaoMunckValorHora = parseFloat(caminhaoMunckValorHora) || null;
-      } else {
-        updateData.caminhaoMunckHoras = null;
-        updateData.caminhaoMunckValorHora = null;
-      }
-    }
-    
+   
     // Outros campos
     if (formaPagamento !== undefined) updateData.formaPagamento = formaPagamento.trim();
     if (condicoesPagamento !== undefined) updateData.condicoesPagamento = condicoesPagamento.trim();
@@ -709,7 +629,7 @@ class PedidoService {
       acao: 'EDITAR',
       entidade: 'PEDIDO',
       entidadeId: id,
-      descricao: `Editou o pedido ${pedidoAtualizado.numero ? `#${pedidoAtualizado.numero}` : `(ID: ${id})`}`,
+      descricao: `Editou o pedido "${pedidoAtualizado.numero ? `#${pedidoAtualizado.numero}"` : `(ID: ${id})`}`,
       detalhes: {
         antes: pedidoAntigo,
         depois: pedidoAtualizado,
@@ -774,7 +694,7 @@ class PedidoService {
       acao: 'EDITAR',
       entidade: 'PEDIDO',
       entidadeId: id,
-      descricao: `Alterou o status do pedido ${pedido.numero ? `#${pedido.numero}` : `(ID: ${id})`} de "${statusAnterior}" para "${status}"`,
+      descricao: `Alterou o status do pedido "${pedido.numero ? `#${pedido.numero}"` : `(ID: ${id})`} de "${statusAnterior}" para "${status}"`,
       detalhes: {
         statusAnterior,
         statusNovo: status
@@ -823,7 +743,7 @@ class PedidoService {
       acao: 'DELETAR',
       entidade: 'PEDIDO',
       entidadeId: id,
-      descricao: `Excluiu o pedido ${pedido.numero ? `#${pedido.numero}` : `(ID: ${id})`}`,
+      descricao: `Excluiu o pedido "${pedido.numero ? `#${pedido.numero}"` : `(ID: ${id})`}`,
       detalhes: pedido,
     });
 

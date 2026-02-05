@@ -13,15 +13,24 @@ class PdfService {
     this._desenharInfoPrincipal(doc, data.cliente, data.produtoNome);
     this._desenharTabelaMateriais(doc, data.materiais);
     
-    // Verificar se há itens adicionais para desenhar
+    // Verificar se há itens adicionais para desenhar (apenas despesas e opções extras do produto)
     const temItensAdicionais = 
       (data.despesasAdicionais?.length > 0) || 
-      (data.opcoesExtras?.length > 0) ||
-      (data.frete && type === 'pedido') || 
-      (data.caminhaoMunck && type === 'pedido');
+      (data.opcoesExtras?.length > 0);
     
     if (temItensAdicionais) {
-      this._desenharItensAdicionais(doc, data, type);
+      this._desenharItensAdicionais(doc, data);
+    }
+    
+    // Desenhar frete e caminhão munck separadamente (apenas para pedido)
+    if (type === 'pedido') {
+      const temFreteOuMunck = 
+        (data.frete && data.freteDesc && data.freteValor) ||
+        (data.caminhaoMunck && data.caminhaoMunckHoras && data.caminhaoMunckValorHora);
+      
+      if (temFreteOuMunck) {
+        this._desenharFreteEMunck(doc, data);
+      }
     }
     
     this._desenharInfoPagamentoETotal(doc, data, type);
@@ -302,7 +311,7 @@ class PdfService {
     return y;
   }
 
-  _desenharItensAdicionais(doc, data, type) {
+  _desenharItensAdicionais(doc, data) {
     const margin = doc.page.margins.left;
     const pageWidth = doc.page.width;
     const contentWidth = pageWidth - 2 * margin;
@@ -317,27 +326,27 @@ class PdfService {
     const subtotalBoxX = pageWidth - margin - subtotalBoxWidth;
     
     doc.fontSize(7)
-       .font('Helvetica')
-       .fillColor('#6b7280')
-       .text('Subtotal Materiais', subtotalBoxX, y, { 
-         width: subtotalBoxWidth - 87, 
-         align: 'right' 
-       });
+      .font('Helvetica')
+      .fillColor('#6b7280')
+      .text('Subtotal Materiais', subtotalBoxX, y, { 
+        width: subtotalBoxWidth - 87, 
+        align: 'right' 
+      });
     
     doc.fontSize(8)
-       .font('Helvetica-Bold')
-       .fillColor('#1f2937')
-       .text(this._formatarMoeda(subtotal), subtotalBoxX + subtotalBoxWidth - 105, y, { 
-         width: 80, 
-         align: 'right' 
-       });
+      .font('Helvetica-Bold')
+      .fillColor('#1f2937')
+      .text(this._formatarMoeda(subtotal), subtotalBoxX + subtotalBoxWidth - 105, y, { 
+        width: 80, 
+        align: 'right' 
+      });
     
     y += 25;
     
     doc.fontSize(8)
-       .font('Helvetica-Bold')
-       .fillColor('#1a1a1a')
-       .text('INFORMAÇÕES ADICIONAIS', margin, y);
+      .font('Helvetica-Bold')
+      .fillColor('#1a1a1a')
+      .text('INFORMAÇÕES ADICIONAIS DO PRODUTO', margin, y);
     
     y += 16;
     
@@ -352,9 +361,9 @@ class PdfService {
       const titulo = data.despesasAdicionais.length === 1 ? 'DESPESA ADICIONAL' : 'DESPESAS ADICIONAIS';
       
       doc.fontSize(6)
-         .font('Helvetica-Bold')
-         .fillColor('#6b7280')
-         .text(titulo, margin + padding, boxContentY);
+        .font('Helvetica-Bold')
+        .fillColor('#6b7280')
+        .text(titulo, margin + padding, boxContentY);
       
       boxContentY += 12;
       
@@ -363,38 +372,38 @@ class PdfService {
         const itemStartY = boxContentY;
         
         doc.fontSize(7)
-           .font('Helvetica-Bold')
-           .fillColor('#6b7280')
-           .text(`${index + 1}.`, margin + padding, boxContentY, { 
-             width: numeroWidth, 
-             align: 'left' 
-           });
+          .font('Helvetica-Bold')
+          .fillColor('#6b7280')
+          .text(`${index + 1}.`, margin + padding, boxContentY, { 
+            width: numeroWidth, 
+            align: 'left' 
+          });
         
         doc.fontSize(7)
-           .font('Helvetica')
-           .fillColor('#1f2937')
-           .text(despesa.descricao, margin + padding + numeroWidth, boxContentY, { 
-             width: contentWidth - 2 * padding - numeroWidth - 100 
-           });
+          .font('Helvetica')
+          .fillColor('#1f2937')
+          .text(despesa.descricao, margin + padding + numeroWidth, boxContentY, { 
+            width: contentWidth - 2 * padding - numeroWidth - 100 
+          });
         
         const descricaoEndY = doc.y;
         
         doc.fontSize(7)
-           .font('Helvetica-Bold')
-           .fillColor('#1a1a1a')
-           .text(this._formatarMoeda(despesa.valor), pageWidth - margin - padding - 90, itemStartY, { 
-             width: 90, 
-             align: 'right' 
-           });
+          .font('Helvetica-Bold')
+          .fillColor('#1a1a1a')
+          .text(this._formatarMoeda(despesa.valor), pageWidth - margin - padding - 90, itemStartY, { 
+            width: 90, 
+            align: 'right' 
+          });
         
         boxContentY = Math.max(descricaoEndY, doc.y) + lineSpacing;
         
         if (index < data.despesasAdicionais.length - 1) {
           doc.moveTo(margin + padding, boxContentY - lineSpacing/2)
-             .lineTo(pageWidth - margin - padding, boxContentY - lineSpacing/2)
-             .strokeColor('#e5e7eb')
-             .lineWidth(0.5)
-             .stroke();
+            .lineTo(pageWidth - margin - padding, boxContentY - lineSpacing/2)
+            .strokeColor('#e5e7eb')
+            .lineWidth(0.5)
+            .stroke();
         }
       });
       
@@ -405,18 +414,18 @@ class PdfService {
     if (data.opcoesExtras && data.opcoesExtras.length > 0) {
       if (needsDivider) {
         doc.moveTo(margin + padding, boxContentY - lineSpacing/2)
-           .lineTo(pageWidth - margin - padding, boxContentY - lineSpacing/2)
-           .strokeColor('#e5e7eb')
-           .lineWidth(0.5)
-           .stroke();
+          .lineTo(pageWidth - margin - padding, boxContentY - lineSpacing/2)
+          .strokeColor('#e5e7eb')
+          .lineWidth(0.5)
+          .stroke();
       }
       
       const titulo = data.opcoesExtras.length === 1 ? 'OPÇÃO EXTRA' : 'OPÇÕES EXTRAS';
       
       doc.fontSize(6)
-         .font('Helvetica-Bold')
-         .fillColor('#6b7280')
-         .text(titulo, margin + padding, boxContentY);
+        .font('Helvetica-Bold')
+        .fillColor('#6b7280')
+        .text(titulo, margin + padding, boxContentY);
       
       boxContentY += 12;
       
@@ -425,67 +434,104 @@ class PdfService {
         const itemStartY = boxContentY;
         
         doc.fontSize(7)
-           .font('Helvetica-Bold')
-           .fillColor('#6b7280')
-           .text(`${index + 1}.`, margin + padding, boxContentY, { 
-             width: numeroWidth, 
-             align: 'left' 
-           });
+          .font('Helvetica-Bold')
+          .fillColor('#6b7280')
+          .text(`${index + 1}.`, margin + padding, boxContentY, { 
+            width: numeroWidth, 
+            align: 'left' 
+          });
         
-        // Montar descrição baseada no tipo
+        // ✅ Montar descrição baseada no tipo
         let descricao = opcao.nome;
+        let valorOpcao = 0;
+        
         if (opcao.tipo === 'STRING_FLOAT') {
           descricao += `: ${opcao.valorString}`;
-        } else if (opcao.tipo === 'FLOAT_FLOAT') {
-          descricao += `: ${this._formatarQuantidade(opcao.valorFloat1, 'un')} × ${this._formatarQuantidade(opcao.valorFloat2, 'un')}`;
+          valorOpcao = opcao.valorFloat1 || 0;
+        } else if (opcao.tipo === 'FLOAT_FLOAT' && opcao.valorFloat1 && opcao.valorFloat2) {
+          // Verificar se a opção representa tempo (minutos) × custo/hora
+          const ehTempo = opcao.nome.toLowerCase().includes('hora') || 
+                          opcao.nome.toLowerCase().includes('tempo') ||
+                          opcao.nome.toLowerCase().includes('munck') ||
+                          opcao.nome.toLowerCase().includes('caminhão');
+          
+          if (ehTempo) {
+            // ✅ FORMATO: "120 min (2 horas) × 3"
+            const minutos = opcao.valorFloat1;
+            const horas = minutos / 60;
+            const horasTexto = horas % 1 === 0 ? horas.toFixed(0) : horas.toFixed(1);
+            const custoFormatado = this._formatarQuantidade(opcao.valorFloat2, 'un');
+            
+            descricao += `: ${minutos} min (${horasTexto} horas) × ${custoFormatado}`;
+            valorOpcao = horas * opcao.valorFloat2;
+          } else {
+            // Formato normal para outros tipos de FLOAT_FLOAT
+            const val1 = this._formatarQuantidade(opcao.valorFloat1, 'un');
+            const val2 = this._formatarQuantidade(opcao.valorFloat2, 'un');
+            descricao += `: ${val1} × ${val2}`;
+            valorOpcao = opcao.valorFloat1 * opcao.valorFloat2;
+          }
+        } else if (opcao.valorFloat1) {
+          valorOpcao = opcao.valorFloat1;
         }
         
         doc.fontSize(7)
-           .font('Helvetica')
-           .fillColor('#1f2937')
-           .text(descricao, margin + padding + numeroWidth, boxContentY, { 
-             width: contentWidth - 2 * padding - numeroWidth - 100 
-           });
+          .font('Helvetica')
+          .fillColor('#1f2937')
+          .text(descricao, margin + padding + numeroWidth, boxContentY, { 
+            width: contentWidth - 2 * padding - numeroWidth - 100 
+          });
         
         const descricaoEndY = doc.y;
         
-        // Calcular valor total da opção
-        let valorOpcao = 0;
-        if (opcao.valorFloat1) valorOpcao += opcao.valorFloat1;
-        if (opcao.valorFloat2) valorOpcao += opcao.valorFloat2;
-        
         doc.fontSize(7)
-           .font('Helvetica-Bold')
-           .fillColor('#1a1a1a')
-           .text(this._formatarMoeda(valorOpcao), pageWidth - margin - padding - 90, itemStartY, { 
-             width: 90, 
-             align: 'right' 
-           });
+          .font('Helvetica-Bold')
+          .fillColor('#1a1a1a')
+          .text(this._formatarMoeda(valorOpcao), pageWidth - margin - padding - 90, itemStartY, { 
+            width: 90, 
+            align: 'right' 
+          });
         
         boxContentY = Math.max(descricaoEndY, doc.y) + lineSpacing;
         
         if (index < data.opcoesExtras.length - 1) {
           doc.moveTo(margin + padding, boxContentY - lineSpacing/2)
-             .lineTo(pageWidth - margin - padding, boxContentY - lineSpacing/2)
-             .strokeColor('#e5e7eb')
-             .lineWidth(0.5)
-             .stroke();
+            .lineTo(pageWidth - margin - padding, boxContentY - lineSpacing/2)
+            .strokeColor('#e5e7eb')
+            .lineWidth(0.5)
+            .stroke();
         }
       });
-      
-      needsDivider = true;
     }
     
-    // Desenhar frete (apenas para pedido)
-    if (type === 'pedido' && data.frete && data.freteDesc && data.freteValor) {
-      if (needsDivider) {
-        doc.moveTo(margin + padding, boxContentY - lineSpacing/2)
-           .lineTo(pageWidth - margin - padding, boxContentY - lineSpacing/2)
-           .strokeColor('#e5e7eb')
-           .lineWidth(0.5)
-           .stroke();
-      }
-      
+    const boxHeight = boxContentY - boxStartY + padding - lineSpacing;
+    doc.roundedRect(margin, boxStartY, contentWidth, boxHeight, 4)
+      .strokeColor('#d1d5db')
+      .lineWidth(1)
+      .stroke();
+  }
+
+  _desenharFreteEMunck(doc, data) {
+    const margin = doc.page.margins.left;
+    const pageWidth = doc.page.width;
+    const contentWidth = pageWidth - 2 * margin;
+    let y = doc.y + 15;
+    
+    doc.fontSize(8)
+       .font('Helvetica-Bold')
+       .fillColor('#1a1a1a')
+       .text('SERVIÇOS ADICIONAIS', margin, y);
+    
+    y += 16;
+    
+    const boxStartY = y;
+    const padding = 12;
+    const lineSpacing = 12;
+    let boxContentY = y + padding;
+    let needsDivider = false;
+    
+    // Desenhar frete
+    if (data.frete && data.freteDesc && data.freteValor) {
       doc.fontSize(6)
          .font('Helvetica-Bold')
          .fillColor('#6b7280')
@@ -510,44 +556,57 @@ class PdfService {
          .text(this._formatarMoeda(data.freteValor), pageWidth - margin - padding - 90, itemStartY, { 
            width: 90, 
            align: 'right' 
-         });
+           });
       
       boxContentY = Math.max(freteDescEndY, doc.y) + lineSpacing;
       needsDivider = true;
     }
     
-    // Desenhar caminhão munck (apenas para pedido)
-    if (type === 'pedido' && data.caminhaoMunck && data.caminhaoMunckHoras && data.caminhaoMunckValorHora) {
-      const horasConvertidas = data.caminhaoMunckHoras / 60; // ✅ CONVERTER
-      const totalMunck = horasConvertidas * data.caminhaoMunckValorHora;
+    // Desenhar caminhão munck
+    if (data.caminhaoMunck && data.caminhaoMunckHoras && data.caminhaoMunckValorHora) {
+      if (needsDivider) {
+        doc.moveTo(margin + padding, boxContentY - lineSpacing/2)
+           .lineTo(pageWidth - margin - padding, boxContentY - lineSpacing/2)
+           .strokeColor('#e5e7eb')
+           .lineWidth(0.5)
+           .stroke();
+      }
+      
+      // ✅ O valor no banco JÁ está em MINUTOS, então converter para horas para exibir
+      const minutos = data.caminhaoMunckHoras; // valor em minutos
+      const horas = minutos / 60; // converter para horas
+      const totalMunck = horas * data.caminhaoMunckValorHora; // calcular total
       
       doc.fontSize(6)
-        .font('Helvetica-Bold')
-        .fillColor('#6b7280')
-        .text('CAMINHÃO MUNCK', margin + padding, boxContentY);
+         .font('Helvetica-Bold')
+         .fillColor('#6b7280')
+         .text('CAMINHÃO MUNCK', margin + padding, boxContentY);
       
       boxContentY += 12;
       
       const itemStartY = boxContentY;
       
-      // ✅ MOSTRAR MINUTOS E HORAS
+      // Mostrar minutos e horas convertidas
+      const horasFormatadas = horas.toFixed(2).replace('.', ',');
       doc.fontSize(7)
-        .font('Helvetica')
-        .fillColor('#1f2937')
-        .text(`${data.caminhaoMunckHoras} min (${horasConvertidas.toFixed(2)}h) × ${this._formatarMoeda(data.caminhaoMunckValorHora)}/h`, 
-                margin + padding, boxContentY, { 
-                  width: contentWidth - 2 * padding - 100 
-                });
+         .font('Helvetica')
+         .fillColor('#1f2937')
+         .text(
+           `${minutos} min (${horasFormatadas}h) × ${this._formatarMoeda(data.caminhaoMunckValorHora)}/h`, 
+           margin + padding, 
+           boxContentY, 
+           { width: contentWidth - 2 * padding - 100 }
+         );
       
       const munckDescEndY = doc.y;
       
       doc.fontSize(7)
-        .font('Helvetica-Bold')
-        .fillColor('#1a1a1a')
-        .text(this._formatarMoeda(totalMunck), pageWidth - margin - padding - 90, itemStartY, { 
-          width: 90, 
-          align: 'right' 
-        });
+         .font('Helvetica-Bold')
+         .fillColor('#1a1a1a')
+         .text(this._formatarMoeda(totalMunck), pageWidth - margin - padding - 90, itemStartY, { 
+           width: 90, 
+           align: 'right' 
+         });
       
       boxContentY = Math.max(munckDescEndY, doc.y) + lineSpacing;
     }
@@ -661,13 +720,26 @@ class PdfService {
       totalGeral += data.despesasAdicionais.reduce((sum, d) => sum + d.valor, 0);
     }
     
-    // Somar opções extras
-    if (data.opcoesExtras && data.opcoesExtras.length > 0) {
-      data.opcoesExtras.forEach(opcao => {
-        if (opcao.valorFloat1) totalGeral += opcao.valorFloat1;
-        if (opcao.valorFloat2) totalGeral += opcao.valorFloat2;
-      });
-    }
+    // Somar opções extras (corrigido: multiplicar FLOAT_FLOAT)
+   if (data.opcoesExtras && data.opcoesExtras.length > 0) {
+    data.opcoesExtras.forEach(opcao => {
+      if (opcao.tipo === 'FLOAT_FLOAT' && opcao.valorFloat1 && opcao.valorFloat2) {
+        // ✅ Verificar se é tempo
+        const ehTempo = opcao.nome.toLowerCase().includes('hora') || 
+                        opcao.nome.toLowerCase().includes('tempo') ||
+                        opcao.nome.toLowerCase().includes('munck');
+        
+        if (ehTempo) {
+          const horas = opcao.valorFloat1 / 60;
+          totalGeral += horas * opcao.valorFloat2;
+        } else {
+          totalGeral += opcao.valorFloat1 * opcao.valorFloat2;
+        }
+      } else if (opcao.valorFloat1) {
+        totalGeral += opcao.valorFloat1;
+      }
+    });
+  }
     
     // Somar frete (apenas para pedido)
     if (type === 'pedido' && data.freteValor) {
@@ -675,9 +747,11 @@ class PdfService {
     }
     
     // Somar caminhão munck (apenas para pedido)
+    // ✅ O valor no banco JÁ está em MINUTOS, então converter para horas antes de calcular
     if (type === 'pedido' && data.caminhaoMunckHoras && data.caminhaoMunckValorHora) {
-      const horasConvertidas = data.caminhaoMunckHoras / 60; // ✅ CONVERTER
-      totalGeral += horasConvertidas * data.caminhaoMunckValorHora;
+      const minutos = data.caminhaoMunckHoras;
+      const horas = minutos / 60;
+      totalGeral += horas * data.caminhaoMunckValorHora;
     }
     
     doc.fontSize(7)

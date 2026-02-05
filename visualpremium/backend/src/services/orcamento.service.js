@@ -76,12 +76,6 @@ class OrcamentoService {
       materiais,
       despesasAdicionais,
       opcoesExtras,
-      frete,
-      freteDesc,
-      freteValor,
-      caminhaoMunck,
-      caminhaoMunckHoras,
-      caminhaoMunckValorHora,
       formaPagamento,
       condicoesPagamento,
       prazoEntrega
@@ -119,28 +113,6 @@ class OrcamentoService {
 
     if (!produto) {
       throw new Error('Produto não encontrado');
-    }
-
-    // Validações condicionais
-    const freteBool = frete === true || frete === 'true';
-    const caminhaoMunckBool = caminhaoMunck === true || caminhaoMunck === 'true';
-
-    if (freteBool) {
-      if (!freteDesc || freteDesc.trim() === '') {
-        throw new Error('Descrição do frete é obrigatória');
-      }
-      if (!freteValor || freteValor <= 0) {
-        throw new Error('Valor do frete deve ser maior que zero');
-      }
-    }
-
-    if (caminhaoMunckBool) {
-      if (!caminhaoMunckHoras || caminhaoMunckHoras <= 0) {
-        throw new Error('Quantidade de horas do caminhão munck deve ser maior que zero');
-      }
-      if (!caminhaoMunckValorHora || caminhaoMunckValorHora <= 0) {
-        throw new Error('Valor por hora do caminhão munck deve ser maior que zero');
-      }
     }
 
     // Validar despesas adicionais
@@ -247,9 +219,6 @@ class OrcamentoService {
       formaPagamento: formaPagamento.trim(),
       condicoesPagamento: condicoesPagamento.trim(),
       prazoEntrega: prazoEntrega.trim(),
-      caminhaoMunck: caminhaoMunckBool,
-      caminhaoMunckHoras: caminhaoMunckBool ? parseFloat(caminhaoMunckHoras) / 60 : null, // ✅ DIVIDIR POR 60
-      caminhaoMunckValorHora: caminhaoMunckBool ? parseFloat(caminhaoMunckValorHora) : null,
     };
 
     // Adicionar materiais apenas se houver
@@ -630,7 +599,7 @@ class OrcamentoService {
         formaPagamento: orcamento.formaPagamento,
         condicoesPagamento: orcamento.condicoesPagamento,
         prazoEntrega: orcamento.prazoEntrega,
-        orcamentoId: orcamento.id
+        orcamentoId: orcamento.id,
       };
 
       // Adicionar materiais do orçamento ao pedido
@@ -669,9 +638,26 @@ class OrcamentoService {
       return await prisma.$transaction(async (tx) => {
         // Criar o pedido
         const pedidoCriado = await tx.pedido.create({
-          data: pedidoData
+          data: pedidoData,
+          include: {
+            materiais: {
+              include: {
+                material: true
+              }
+            },
+            despesasAdicionais: true,
+            opcoesExtras: {
+              include: {
+                produtoOpcao: true
+              }
+            }
+          }
         });
-
+        console.log('Pedido criado com opções extras:', {
+          pedidoId: pedidoCriado.id,
+          opcoesExtrasCount: pedidoCriado.opcoesExtras?.length || 0,
+          opcoesExtras: pedidoCriado.opcoesExtras
+        });
         // Atualizar o status do orçamento
         const orcamentoAtualizado = await tx.orcamento.update({
           where: { id },
@@ -702,7 +688,7 @@ class OrcamentoService {
         });
 
         // REGISTRAR LOG DE APROVAÇÃO E CRIAÇÃO DE PEDIDO
-        await logService.registrar({
+       await logService.registrar({
           usuarioId: user?.id || 1,
           usuarioNome: user?.nome || 'Sistema',
           acao: 'EDITAR',
@@ -712,7 +698,8 @@ class OrcamentoService {
           detalhes: {
             statusAnterior: orcamento.status,
             statusNovo: status,
-            pedidoCriado: pedidoCriado.id
+            pedidoCriado: pedidoCriado.id,
+            opcoesExtrasTransferidas: pedidoCriado.opcoesExtras?.length || 0
           },
         });
 
