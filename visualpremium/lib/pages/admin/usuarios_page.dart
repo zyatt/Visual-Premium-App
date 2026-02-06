@@ -265,7 +265,9 @@ class _UsuarioCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            if (usuario.isAdmin)
+            
+            // ✅ Badge ADMIN
+            if (usuario.role == 'admin')
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
@@ -281,8 +283,48 @@ class _UsuarioCard extends StatelessWidget {
                   ),
                 ),
               ),
+            
+            // ✅ Badge ALMOXARIFE
+            if (usuario.role == 'almoxarife')
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'ALMOXARIFE',
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.orange,
+                  ),
+                ),
+              ),
+            
+            // ✅ Badge ORÇAMENTISTA (CORRIGIDO)
+            if (usuario.role == 'user')
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'ORÇAMENTISTA',
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: theme.brightness == Brightness.dark
+                        ? Colors.grey.shade300
+                        : Colors.grey.shade700,
+                  ),
+                ),
+              ),
+            
             const SizedBox(width: 8),
-            // ✅ Badge "VOCÊ" para o usuário atual
+            
+            // Badge "VOCÊ"
             if (isCurrentUser)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -299,48 +341,6 @@ class _UsuarioCard extends StatelessWidget {
                   ),
                 ),
               ),
-            const SizedBox(width: 8),
-            if (!usuario.ativo)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.error.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  'INATIVO',
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: theme.colorScheme.error,
-                  ),
-                ),
-              ),
-          ],
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text('@${usuario.username}'),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: onEdit,
-              tooltip: 'Editar',
-            ),
-            // ✅ Desabilitar botão de deletar para o próprio usuário
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              onPressed: isCurrentUser ? null : onDelete,
-              tooltip: isCurrentUser 
-                  ? 'Não permitido'
-                  : 'Excluir',
-              color: isCurrentUser 
-                  ? theme.disabledColor 
-                  : theme.colorScheme.error,
-            ),
           ],
         ),
       ),
@@ -545,6 +545,7 @@ class _UsuarioDialogState extends State<_UsuarioDialog> {
                 ),
                 items: const [
                   DropdownMenuItem(value: 'user', child: Text('Usuário')),
+                  DropdownMenuItem(value: 'almoxarife', child: Text('Almoxarife')), // ✅ NOVO
                   DropdownMenuItem(value: 'admin', child: Text('Administrador')),
                 ],
                 onChanged: (value) {

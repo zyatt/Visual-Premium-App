@@ -50,6 +50,12 @@ class UsuarioService {
       throw new Error('A senha deve ter no mínimo 6 caracteres');
     }
 
+    // ✅ Validar roles permitidas
+    const rolesPermitidas = ['admin', 'almoxarife', 'user'];
+    if (role && !rolesPermitidas.includes(role)) {
+      throw new Error('Role inválida. Use: admin, almoxarife ou user');
+    }
+
     const existente = await prisma.usuario.findUnique({
       where: { username },
     });
@@ -65,7 +71,7 @@ class UsuarioService {
         username,
         password: hashedPassword,
         nome,
-        role: role || 'user',
+        role: role || 'user', // ✅ default continua 'user'
         ativo: typeof ativo === 'boolean' ? ativo : true,
       },
       select: {
@@ -91,6 +97,7 @@ class UsuarioService {
 
     return usuario;
   }
+
 
   async atualizar(id, data, user) {
     const { username, password, nome, role, ativo } = data;

@@ -2431,6 +2431,13 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
 
   bool? _despesasAdicionais;
 
+  String _formatQuantity(double value) {
+    if (value == value.toInt()) {
+      return value.toInt().toString();
+    }
+    return value.toString();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -2453,11 +2460,17 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         _opcoesExtrasEnabled[opcaoValor.produtoOpcaoId] = true;
         
         final stringCtrl = TextEditingController(text: opcaoValor.valorString ?? '');
+        
+        // ✅ MODIFIQUE ESTAS LINHAS
         final float1Ctrl = TextEditingController(
-          text: opcaoValor.valorFloat1 != null ? opcaoValor.valorFloat1.toString() : ''
+          text: opcaoValor.valorFloat1 != null 
+              ? _formatQuantity(opcaoValor.valorFloat1!) 
+              : ''
         );
         final float2Ctrl = TextEditingController(
-          text: opcaoValor.valorFloat2 != null ? opcaoValor.valorFloat2.toString() : ''
+          text: opcaoValor.valorFloat2 != null 
+              ? _formatQuantity(opcaoValor.valorFloat2!) 
+              : ''
         );
         
         final stringFocus = FocusNode();
@@ -2682,7 +2695,10 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                 quantidade: 0))
         .quantidade ?? 0;
     
-    final controller = TextEditingController(text: existingQty > 0 ? existingQty.toString() : '');
+    // ✅ MODIFIQUE ESTA LINHA
+    final controller = TextEditingController(
+      text: existingQty > 0 ? _formatQuantity(existingQty) : ''
+    );
     final focusNode = FocusNode();
     
     controller.addListener(_updateTotal);
@@ -2715,15 +2731,20 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                        existingOpcao.valorFloat2 != null;
       
       if (hasValues) {
-        // Opção foi marcada como "Sim" e tem valores
         _opcoesExtrasEnabled[opcao.id] = true;
         
         final stringCtrl = TextEditingController(text: existingOpcao.valorString ?? '');
+        
+        // ✅ MODIFIQUE ESTAS LINHAS
         final float1Ctrl = TextEditingController(
-          text: existingOpcao.valorFloat1 != null ? existingOpcao.valorFloat1.toString() : ''
+          text: existingOpcao.valorFloat1 != null 
+              ? _formatQuantity(existingOpcao.valorFloat1!) 
+              : ''
         );
         final float2Ctrl = TextEditingController(
-          text: existingOpcao.valorFloat2 != null ? existingOpcao.valorFloat2.toString() : ''
+          text: existingOpcao.valorFloat2 != null 
+              ? _formatQuantity(existingOpcao.valorFloat2!) 
+              : ''
         );
         
         final stringFocus = FocusNode();

@@ -2234,6 +2234,20 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
   late final String _initialNumero;
   bool _isShowingDiscardDialog = false;
 
+  String _formatQuantity(double value) {
+    if (value == value.toInt()) {
+      return value.toInt().toString();
+    }
+    return value.toString();
+  }
+
+  String _formatUnit(String unit, double quantity) {
+    if (unit.toLowerCase() == 'unidade' && quantity > 1) {
+      return 'Unidades';
+    }
+    return unit;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -2611,8 +2625,9 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                                   color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                                                   borderRadius: BorderRadius.circular(6),
                                                 ),
+                                                // ✅ MODIFIQUE ESTA LINHA
                                                 child: Text(
-                                                  '${mat.quantidade} ${mat.materialUnidade}',
+                                                  '${_formatQuantity(mat.quantidade)} ${_formatUnit(mat.materialUnidade, mat.quantidade)}',
                                                   style: theme.textTheme.bodySmall?.copyWith(
                                                     fontSize: 11,
                                                     fontWeight: FontWeight.w600,
@@ -2709,9 +2724,16 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                                         borderRadius: BorderRadius.circular(6),
                                                       ),
                                                       child: Icon(
-                                                        opcao.tipo == TipoOpcaoExtra.stringFloat
-                                                            ? Icons.text_fields
-                                                            : Icons.calculate_outlined,
+                                                        () {
+                                                          switch (opcao.tipo) {
+                                                            case TipoOpcaoExtra.stringFloat:
+                                                              return Icons.text_fields;
+                                                            case TipoOpcaoExtra.floatFloat:
+                                                              return Icons.timelapse;
+                                                            case TipoOpcaoExtra.percentFloat:
+                                                              return Icons.percent;
+                                                          }
+                                                        }(),
                                                         size: 16,
                                                         color: theme.colorScheme.onSecondaryContainer,
                                                       ),
@@ -2729,6 +2751,7 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                                   ],
                                                 ),
                                                 const SizedBox(height: 8),
+                                                
                                                 if (opcao.tipo == TipoOpcaoExtra.stringFloat) ...[
                                                   Row(
                                                     children: [
@@ -2767,58 +2790,111 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                                       ),
                                                     ],
                                                   ),
-                                               ] else ...[
-                                                Row(
-                                                  children: [
-                                                    Expanded(
-                                                      child: Container(
-                                                        padding: const EdgeInsets.all(8),
-                                                        decoration: BoxDecoration(
-                                                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                                                          borderRadius: BorderRadius.circular(6),
-                                                        ),
-                                                        child: Text(
-                                                          '${(opcao.valorFloat1 ?? 0).toStringAsFixed(2).replaceAll('.', ',')} h',  // ✅ MOSTRAR COMO HORAS
-                                                          style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    Expanded(
-                                                      child: Container(
-                                                        padding: const EdgeInsets.all(8),
-                                                        decoration: BoxDecoration(
-                                                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                                                          borderRadius: BorderRadius.circular(6),
-                                                        ),
-                                                        child: Text(
-                                                          '${currency.format(opcao.valorFloat2 ?? 0)}/h',
-                                                          style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    Expanded(
-                                                      child: Container(
-                                                        padding: const EdgeInsets.all(8),
-                                                        decoration: BoxDecoration(
-                                                          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
-                                                          borderRadius: BorderRadius.circular(6),
-                                                        ),
-                                                        child: Text(
-                                                          currency.format((opcao.valorFloat1 ?? 0) * (opcao.valorFloat2 ?? 0)),  // ✅ CÁLCULO DIRETO
-                                                          style: theme.textTheme.bodySmall?.copyWith(
-                                                            fontSize: 11,
-                                                            fontWeight: FontWeight.w600,
-                                                            color: theme.colorScheme.primary,
+                                                ]
+                                                else if (opcao.tipo == TipoOpcaoExtra.floatFloat) ...[
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Container(
+                                                          padding: const EdgeInsets.all(8),
+                                                          decoration: BoxDecoration(
+                                                            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                                                            borderRadius: BorderRadius.circular(6),
                                                           ),
-                                                          textAlign: TextAlign.right,
+                                                          child: Text(
+                                                            '${_formatQuantity(opcao.valorFloat1 ?? 0)} h',
+                                                            style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                                                          ),
                                                         ),
                                                       ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ],
+                                                      const SizedBox(width: 8),
+                                                      Expanded(
+                                                        child: Container(
+                                                          padding: const EdgeInsets.all(8),
+                                                          decoration: BoxDecoration(
+                                                            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                                                            borderRadius: BorderRadius.circular(6),
+                                                          ),
+                                                          child: Text(
+                                                            '${currency.format(opcao.valorFloat2 ?? 0)}/h',
+                                                            style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Expanded(
+                                                        child: Container(
+                                                          padding: const EdgeInsets.all(8),
+                                                          decoration: BoxDecoration(
+                                                            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                                                            borderRadius: BorderRadius.circular(6),
+                                                          ),
+                                                          child: Text(
+                                                            currency.format((opcao.valorFloat1 ?? 0) * (opcao.valorFloat2 ?? 0)),
+                                                            style: theme.textTheme.bodySmall?.copyWith(
+                                                              fontSize: 11,
+                                                              fontWeight: FontWeight.w600,
+                                                              color: theme.colorScheme.primary,
+                                                            ),
+                                                            textAlign: TextAlign.right,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ]
+                                                else if (opcao.tipo == TipoOpcaoExtra.percentFloat) ...[
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Container(
+                                                          padding: const EdgeInsets.all(8),
+                                                          decoration: BoxDecoration(
+                                                            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                                                            borderRadius: BorderRadius.circular(6),
+                                                          ),
+                                                          child: Text(
+                                                            '${_formatQuantity(opcao.valorFloat1 ?? 0)}%',
+                                                            style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Expanded(
+                                                        child: Container(
+                                                          padding: const EdgeInsets.all(8),
+                                                          decoration: BoxDecoration(
+                                                            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                                                            borderRadius: BorderRadius.circular(6),
+                                                          ),
+                                                          child: Text(
+                                                            currency.format(opcao.valorFloat2 ?? 0),
+                                                            style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      Expanded(
+                                                        child: Container(
+                                                          padding: const EdgeInsets.all(8),
+                                                          decoration: BoxDecoration(
+                                                            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                                                            borderRadius: BorderRadius.circular(6),
+                                                          ),
+                                                          child: Text(
+                                                            currency.format(((opcao.valorFloat1 ?? 0) / 100.0) * (opcao.valorFloat2 ?? 0)),
+                                                            style: theme.textTheme.bodySmall?.copyWith(
+                                                              fontSize: 11,
+                                                              fontWeight: FontWeight.w600,
+                                                              color: theme.colorScheme.primary,
+                                                            ),
+                                                            textAlign: TextAlign.right,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
                                               ],
                                             ),
                                           );
@@ -2878,7 +2954,6 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                           ),
                         ),
                       ),
-                      
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(

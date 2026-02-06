@@ -6,6 +6,7 @@ import '../config/config.dart';
 
 enum UserRole {
   admin,
+  almoxarife,  // ✅ NOVO
   user,
 }
 
@@ -44,15 +45,17 @@ class User {
 
 class AuthProvider extends ChangeNotifier {
   static const String _userKey = 'logged_user';
-  static const String _tokenKey = 'auth_token'; // ✅ Chave para o token
+  static const String _tokenKey = 'auth_token';
   
   User? _currentUser;
-  String? _token; // ✅ Armazena o token
+  String? _token; 
   bool _isLoading = true;
   bool _shouldShowWelcome = false;
+  bool get isAlmoxarife => _currentUser?.role == UserRole.almoxarife;
+  bool get hasAlmoxarifadoAccess => isAdmin || isAlmoxarife;
 
   User? get currentUser => _currentUser;
-  String? get token => _token; // ✅ Getter para o token
+  String? get token => _token;
   bool get isAuthenticated => _currentUser != null && _token != null;
   bool get isAdmin => _currentUser?.role == UserRole.admin;
   bool get isLoading => _isLoading;

@@ -112,8 +112,8 @@ class _Sidebar extends StatelessWidget {
                   route: '/materiais',
                 ),
                 
-                // ✅ Menu Admin (apenas para administradores)
-                if (authProvider.isAdmin) ...[
+                // ✅ Seção Administração - visibilidade controlada
+                if (authProvider.hasAlmoxarifadoAccess || authProvider.isAdmin) ...[
                   const SizedBox(height: 16),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -127,16 +127,22 @@ class _Sidebar extends StatelessWidget {
                       ),
                     ),
                   ),
-                  _NavItem(
-                    icon: Icons.inventory_2,
-                    label: 'Almoxarifado',
-                    route: '/almoxarifado',
-                  ),
-                  _NavItem(
-                    icon: Icons.admin_panel_settings,
-                    label: 'Painel Admin',
-                    route: '/admin',
-                  ),
+                  
+                  // ✅ Almoxarifado - admin E almoxarife veem
+                  if (authProvider.hasAlmoxarifadoAccess)
+                    _NavItem(
+                      icon: Icons.inventory_2,
+                      label: 'Almoxarifado',
+                      route: '/almoxarifado',
+                    ),
+                  
+                  // ✅ Painel Admin - APENAS admin vê
+                  if (authProvider.isAdmin)
+                    _NavItem(
+                      icon: Icons.admin_panel_settings,
+                      label: 'Painel Admin',
+                      route: '/admin',
+                    ),
                 ],
               ],
             ),

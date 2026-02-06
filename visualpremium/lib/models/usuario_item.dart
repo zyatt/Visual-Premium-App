@@ -42,4 +42,6 @@ class UsuarioItem {
   }
 
   bool get isAdmin => role == 'admin';
+  bool get isAlmoxarife => role == 'almoxarife';
+  bool get hasAlmoxarifadoAccess => isAdmin || isAlmoxarife;
 }

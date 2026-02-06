@@ -28,30 +28,30 @@ class AppRouter {
         final isLoading = authProvider.isLoading;
         final isAuthenticated = authProvider.isAuthenticated;
         final isAdmin = authProvider.isAdmin;
+        final hasAlmoxarifadoAccess = authProvider.hasAlmoxarifadoAccess;
 
         final location = state.uri.toString();
 
         final isGoingToLogin = location == '/login';
         final isGoingToSplash = location == '/splash';
-        final isGoingToAdmin = location.startsWith('/admin') || location.startsWith('/almoxarifado');
+        final isGoingToAdminPanel = location.startsWith('/admin');
+        final isGoingToAlmoxarifado = location.startsWith('/almoxarifado');
 
-        // Splash sempre pode permanecer — ela navega sozinha após animação
         if (isGoingToSplash) return null;
-
-        // Durante carregamento inicial, força splash
         if (isLoading) return '/splash';
 
-        // Não autenticado → login
         if (!isAuthenticated) {
           if (!isGoingToLogin) return '/login';
           return null;
         }
 
-        // Autenticado
         if (isGoingToLogin) return '/';
 
-        // Protege todas as rotas admin
-        if (isGoingToAdmin && !isAdmin) return '/';
+        // ✅ Protege /admin/* - apenas admin
+        if (isGoingToAdminPanel && !isAdmin) return '/';
+        
+        // ✅ Protege almoxarifado - admin ou almoxarife
+        if (isGoingToAlmoxarifado && !hasAlmoxarifadoAccess) return '/';
 
         return null;
       },
