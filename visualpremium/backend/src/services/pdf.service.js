@@ -51,9 +51,14 @@ class PdfService {
       }
     }
     
-    const numeroStr = numero !== null && numero !== undefined 
-      ? numero.toString() 
-      : 'S/N';
+    // Garantir que sempre tenha um valor válido para exibir
+    let numeroStr = 'S/N';
+    if (numero !== null && numero !== undefined && numero !== '') {
+      const numConverted = numero.toString().trim();
+      if (numConverted !== '' && numConverted !== 'null' && numConverted !== 'undefined') {
+        numeroStr = numConverted;
+      }
+    }
     
     const now = new Date();
     const dataFormatada = now.toLocaleDateString('pt-BR');
@@ -68,7 +73,7 @@ class PdfService {
        .fillColor('#666')
        .text(titulo, infoBlockX, y, { width: infoBlockWidth, align: 'center' });
     
-    doc.fontSize( )
+    doc.fontSize(24)
        .font('Helvetica-Bold')
        .fillColor('#1a1a1a')
        .text(numeroStr, infoBlockX, y + 11, { width: infoBlockWidth, align: 'center' });
@@ -477,7 +482,7 @@ class PdfService {
         } else if (opcao.tipo === 'FLOATFLOAT') {
           const valor1 = parseFloat(opcao.valorFloat1) || 0;
           const valor2 = parseFloat(opcao.valorFloat2) || 0;
-          descricao += `: ${this._formatarQuantidade(valor1, 'un')} × ${this._formatarMoeda(valor2)}`;
+          descricao += `: ${this._formatarHoras(valor1)} × ${this._formatarMoeda(valor2)}/hora`;
           valorOpcao = valor1 * valor2;
         } else if (opcao.tipo === 'PERCENTFLOAT') {
           const percentual = parseFloat(opcao.valorFloat1) || 0;
@@ -583,7 +588,7 @@ class PdfService {
       doc.fontSize(6)
         .font('Helvetica')
         .fillColor('#1f2937')
-        .text(`${this._formatarQuantidade(horas, 'h')} horas × ${this._formatarMoeda(valorHora)}/hora`, 
+        .text(`${this._formatarHoras(horas)} × ${this._formatarMoeda(valorHora)}/hora`, 
                 margin + padding, boxContentY, { 
                   width: contentWidth - 2 * padding - 100 
                 });
@@ -818,6 +823,19 @@ class PdfService {
     }
     
     return num.toString();
+  }
+
+  _formatarHoras(horas) {
+    const num = parseFloat(horas.toString().replace(',', '.'));
+    
+    // Se for número inteiro, não mostrar casas decimais
+    const isInteiro = num % 1 === 0;
+    const valorFormatado = isInteiro ? num.toString() : num.toFixed(2).replace('.', ',');
+    
+    // Singular ou plural
+    const texto = num === 1 ? 'hora' : 'horas';
+    
+    return `${valorFormatado} ${texto}`;
   }
 
   _calcularTotalItem(quantidade, custo) {

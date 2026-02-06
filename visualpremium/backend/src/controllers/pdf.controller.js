@@ -128,6 +128,14 @@ class PdfController {
         totalGeral += caminhaoMunckTotal;
       }
       
+      // Debug: verificar o valor do número
+      console.log('📄 Gerando PDF do Pedido:', {
+        id: pedido.id,
+        numero: pedido.numero,
+        tipoNumero: typeof pedido.numero,
+        numeroFinal: pedido.numero || 'S/N'
+      });
+      
       // Preparar dados para o PDF
       const dadosPdf = {
         numero: pedido.numero || 'S/N',

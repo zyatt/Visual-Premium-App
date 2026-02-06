@@ -12,7 +12,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await dotenv.load(fileName: ".env");
+  await dotenv.load(fileName: '.env.production');
   //print('🌍 BASE_URL: ${dotenv.env['BASE_URL']}');
 
   await windowManager.ensureInitialized();

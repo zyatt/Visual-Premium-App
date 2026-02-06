@@ -1,3 +1,5 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class Config {
-  static const String baseUrl = 'http://192.168.0.7:3000';
+  static String get baseUrl => dotenv.env['BASE_URL']!;
 }

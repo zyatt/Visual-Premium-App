@@ -5,32 +5,31 @@ const { PrismaPg } = require('@prisma/adapter-pg');
 const pg = require('pg');
 const bcrypt = require('bcrypt');
 
-// Criar o pool do PostgreSQL
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-// Criar o adapter
 const adapter = new PrismaPg(pool);
-
-// Criar o PrismaClient com o adapter
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
   console.log('🌱 Iniciando seed...');
+  console.log('🧠 DATABASE_URL:', process.env.DATABASE_URL);
 
   const adminPassword = await bcrypt.hash('mvds01', 10);
 
-  const admin = await prisma.usuario.upsert({
-    where: { username: 'mattvds' },  // ALTERADO AQUI
+  await prisma.usuario.upsert({
+    where: { username: 'mattvds' },
     update: {},
     create: {
-      username: 'mattvds',           // ALTERADO AQUI
+      username: 'mattvds',
       password: adminPassword,
       nome: 'Matheus',
       role: 'admin',
     },
   });
+
+  console.log('✅ Admin criado/confirmado');
 }
 
 main()
@@ -40,5 +39,5 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect();
-    await pool.end();c
+    await pool.end();
   });
