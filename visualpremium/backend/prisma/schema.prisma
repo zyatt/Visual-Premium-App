@@ -44,6 +44,7 @@ model Produto {
   nome         String
   materiais    ProdutoMaterial[]
   opcoesExtras ProdutoOpcaoExtra[]
+  avisos       ProdutoAviso[]
   orcamentos   Orcamento[]
   pedidos      Pedido[]
   createdAt    DateTime            @default(now())
@@ -52,14 +53,30 @@ model Produto {
   @@map("produtos")
 }
 
+model ProdutoAviso {
+  id            Int                @id @default(autoincrement())
+  produtoId     Int
+  mensagem      String
+  materialId    Int?               // ✅ Aviso pode ser associado a um material
+  opcaoExtraId  Int?               // ✅ NOVO: Aviso pode ser associado a uma opção extra
+  produto       Produto            @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  material      Material?          @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  opcaoExtra    ProdutoOpcaoExtra? @relation(fields: [opcaoExtraId], references: [id], onDelete: SetNull)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@map("produto_avisos")
+}
+
 model ProdutoOpcaoExtra {
   id        Int            @id @default(autoincrement())
   produtoId Int
   nome      String
   tipo      TipoOpcaoExtra
 
-  produto   Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  produto   Produto        @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  avisos    ProdutoAviso[] // ✅ NOVO: Opções extras podem ter avisos
+  createdAt DateTime       @default(now())
 
   orcamentoOpcoes OrcamentoOpcaoExtra[]
   pedidoOpcoes    PedidoOpcaoExtra[]
@@ -176,6 +193,7 @@ model Material {
   unidade            String
   quantidade         Float
   produtos           ProdutoMaterial[]
+  avisos             ProdutoAviso[]      // ✅ Materiais podem ter avisos associados
   orcamentoMaterials OrcamentoMaterial[]
   pedidoMaterials    PedidoMaterial[]
   createdAt          DateTime            @default(now())

@@ -31,12 +31,10 @@ class ProductOpcaoExtra {
         break;
     }
     
-    // ✅ CORREÇÃO: Incluir o ID quando for uma opção existente (id > 0)
-    // IDs gerados pelo frontend são timestamps enormes, então consideramos > 1000000 como "novo"
     final isExisting = id > 0 && id < 1000000;
     
     return {
-      if (isExisting) 'id': id, // ✅ Incluir ID apenas se for opção existente
+      if (isExisting) 'id': id,
       'nome': nome,
       'tipo': tipoStr,
     };
@@ -118,11 +116,167 @@ class ProductMaterial {
   }
 }
 
+class ProductAviso {
+  final int id;
+  final String mensagem;
+  final int? materialId;           // ✅ OPCIONAL: Pode ser null
+  final String? materialNome;      // ✅ OPCIONAL: Pode ser null
+  final int? opcaoExtraId;         // ✅ NOVO: Pode ser null
+  final String? opcaoExtraNome;    // ✅ NOVO: Pode ser null
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  const ProductAviso({
+    required this.id,
+    required this.mensagem,
+    this.materialId,
+    this.materialNome,
+    this.opcaoExtraId,              // ✅ NOVO
+    this.opcaoExtraNome,            // ✅ NOVO
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  // ✅ Helpers para verificar status do aviso
+  bool get temMaterialAtribuido => materialId != null;
+  bool get temOpcaoExtraAtribuida => opcaoExtraId != null;
+  bool get aguardandoAtribuicao => materialId == null && opcaoExtraId == null;
+  bool get temAtribuicao => materialId != null || opcaoExtraId != null;
+
+  Map<String, Object?> toMap() {
+    final isExisting = id > 0 && id < 1000000;
+    
+    return {
+      if (isExisting) 'id': id,
+      'mensagem': mensagem.trim(),
+      'materialId': materialId,        // ✅ Pode ser null
+      'opcaoExtraId': opcaoExtraId,    // ✅ Pode ser null
+    };
+  }
+
+  static ProductAviso? tryFromMap(Map<String, Object?> map) {
+    try {
+      final id = map['id'];
+      final mensagem = map['mensagem'];
+      final materialId = map['materialId'];
+      final material = map['material'];
+      final opcaoExtraId = map['opcaoExtraId'];      // ✅ NOVO
+      final opcaoExtra = map['opcaoExtra'];          // ✅ NOVO
+      
+      final createdAtRaw = map['created_at'] ?? 
+                          map['createdAt'] ?? 
+                          map['criado_em'] ??
+                          map['criadoEm'];
+                          
+      final updatedAtRaw = map['updated_at'] ?? 
+                          map['updatedAt'] ?? 
+                          map['atualizado_em'] ??
+                          map['atualizadoEm'];
+
+      // ✅ Validação: apenas id e mensagem são obrigatórios
+      if (id == null || mensagem is! String) {
+        return null;
+      }
+
+      final cleanedMensagem = mensagem.trim();
+      if (cleanedMensagem.isEmpty) return null;
+
+      // ✅ Processar materialId (opcional)
+      int? parsedMaterialId;
+      if (materialId != null) {
+        parsedMaterialId = (materialId is int) 
+          ? materialId 
+          : int.tryParse(materialId.toString());
+      }
+      
+      // ✅ Processar materialNome (opcional)
+      String? materialNome;
+      if (material is Map && material['nome'] != null) {
+        materialNome = material['nome'].toString();
+      }
+
+      // ✅ NOVO: Processar opcaoExtraId (opcional)
+      int? parsedOpcaoExtraId;
+      if (opcaoExtraId != null) {
+        parsedOpcaoExtraId = (opcaoExtraId is int) 
+          ? opcaoExtraId 
+          : int.tryParse(opcaoExtraId.toString());
+      }
+      
+      // ✅ NOVO: Processar opcaoExtraNome (opcional)
+      String? opcaoExtraNome;
+      if (opcaoExtra is Map && opcaoExtra['nome'] != null) {
+        opcaoExtraNome = opcaoExtra['nome'].toString();
+      }
+
+      DateTime? createdAt;
+      DateTime? updatedAt;
+
+      if (createdAtRaw != null) {
+        if (createdAtRaw is String) {
+          createdAt = DateTime.tryParse(createdAtRaw);
+        } else if (createdAtRaw is int) {
+          createdAt = DateTime.fromMillisecondsSinceEpoch(createdAtRaw);
+        } else if (createdAtRaw is DateTime) {
+          createdAt = createdAtRaw;
+        }
+      }
+      
+      if (updatedAtRaw != null) {
+        if (updatedAtRaw is String) {
+          updatedAt = DateTime.tryParse(updatedAtRaw);
+        } else if (updatedAtRaw is int) {
+          updatedAt = DateTime.fromMillisecondsSinceEpoch(updatedAtRaw);
+        } else if (updatedAtRaw is DateTime) {
+          updatedAt = updatedAtRaw;
+        }
+      }
+
+      return ProductAviso(
+        id: int.parse(id.toString()),
+        mensagem: cleanedMensagem,
+        materialId: parsedMaterialId,
+        materialNome: materialNome,
+        opcaoExtraId: parsedOpcaoExtraId,      // ✅ NOVO
+        opcaoExtraNome: opcaoExtraNome,        // ✅ NOVO
+        createdAt: createdAt ?? DateTime.now(),
+        updatedAt: updatedAt ?? DateTime.now(),
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+  
+  // ✅ Método copyWith atualizado
+  ProductAviso copyWith({
+    int? id,
+    String? mensagem,
+    int? materialId,
+    String? materialNome,
+    int? opcaoExtraId,
+    String? opcaoExtraNome,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return ProductAviso(
+      id: id ?? this.id,
+      mensagem: mensagem ?? this.mensagem,
+      materialId: materialId ?? this.materialId,
+      materialNome: materialNome ?? this.materialNome,
+      opcaoExtraId: opcaoExtraId ?? this.opcaoExtraId,
+      opcaoExtraNome: opcaoExtraNome ?? this.opcaoExtraNome,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+}
+
 class ProductItem {
   final String id;
   final String name;
   final List<ProductMaterial> materials;
   final List<ProductOpcaoExtra> opcoesExtras;
+  final List<ProductAviso> avisos;
   final DateTime createdAt;
   final DateTime? updatedAt;
 
@@ -131,6 +285,7 @@ class ProductItem {
     required this.name,
     required this.materials,
     this.opcoesExtras = const [],
+    this.avisos = const [],
     required this.createdAt,
     this.updatedAt,
   });
@@ -139,6 +294,7 @@ class ProductItem {
     String? name,
     List<ProductMaterial>? materials,
     List<ProductOpcaoExtra>? opcoesExtras,
+    List<ProductAviso>? avisos,
     DateTime? updatedAt,
   }) =>
       ProductItem(
@@ -146,17 +302,20 @@ class ProductItem {
         name: name ?? this.name,
         materials: materials ?? this.materials,
         opcoesExtras: opcoesExtras ?? this.opcoesExtras,
+        avisos: avisos ?? this.avisos,
         createdAt: createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
       );
 
   Map<String, Object?> toMap() {
     final opcoesExtrasMap = opcoesExtras.map((o) => o.toMap()).toList();
+    final avisosMap = avisos.map((a) => a.toMap()).toList();
     
     return {
       'nome': name,
       'materiais': materials.map((m) => m.toMap()).toList(),
       'opcoesExtras': opcoesExtrasMap,
+      'avisos': avisosMap,
     };
   }
 
@@ -166,6 +325,7 @@ class ProductItem {
       final nome = map['nome'];
       final materiaisData = map['materiais'];
       final opcoesExtrasData = map['opcoesExtras'];
+      final avisosData = map['avisos'];
 
       final createdAtRaw = map['created_at'] ?? 
                           map['createdAt'] ?? 
@@ -221,6 +381,16 @@ class ProductItem {
         }
       }
 
+      final avisos = <ProductAviso>[];
+      if (avisosData is List) {
+        for (final a in avisosData) {
+          if (a is Map) {
+            final item = ProductAviso.tryFromMap(a.map((k, v) => MapEntry(k.toString(), v)));
+            if (item != null) avisos.add(item);
+          }
+        }
+      }
+
       DateTime? createdAt;
       DateTime? updatedAt;
 
@@ -249,6 +419,7 @@ class ProductItem {
         name: cleanedName,
         materials: materials,
         opcoesExtras: opcoesExtras,
+        avisos: avisos,
         createdAt: createdAt ?? DateTime.now(),
         updatedAt: updatedAt,
       );
@@ -280,6 +451,6 @@ class ProductItem {
 
   @override
   String toString() {
-    return 'ProductItem(id: $id, name: $name, materials: ${materials.length}, opcoesExtras: ${opcoesExtras.length}, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'ProductItem(id: $id, name: $name, materials: ${materials.length}, opcoesExtras: ${opcoesExtras.length}, avisos: ${avisos.length}, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 }

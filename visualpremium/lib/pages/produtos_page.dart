@@ -5,6 +5,7 @@
   import 'package:visualpremium/data/materials_repository.dart';
   import 'package:visualpremium/models/product_item.dart';
   import 'package:visualpremium/models/material_item.dart';
+  import 'package:visualpremium/widgets/product_avisos_section.dart';
   import 'package:visualpremium/theme.dart';
 
   enum SortOption {
@@ -256,10 +257,27 @@
         setState(() => _loading = false);
         
         final errorMessage = e.toString();
+        
+        // ✅ Verificar se é erro de produto em uso
         if (errorMessage.contains('Produto em uso') || 
             errorMessage.contains('sendo usado') ||
-            errorMessage.contains('orçamento')) {
-          _showProductInUseDialog(item.name, errorMessage);
+            errorMessage.contains('orçamento') ||
+            errorMessage.contains('pedido')) {
+          
+          // ✅ Determinar se está em orçamentos, pedidos ou ambos
+          final emOrcamentos = errorMessage.contains('orçamento');
+          final emPedidos = errorMessage.contains('pedido');
+          
+          String tipo;
+          if (emOrcamentos && emPedidos) {
+            tipo = 'orçamentos e pedidos';
+          } else if (emPedidos) {
+            tipo = 'pedidos';
+          } else {
+            tipo = 'orçamentos';
+          }
+          
+          _showProductInUseDialog(item.name, tipo);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Erro ao deletar produto: $e')),
@@ -268,7 +286,7 @@
       }
     }
 
-    Future<void> _showProductInUseDialog(String productName, String errorMessage) {
+    Future<void> _showProductInUseDialog(String productName, String tipo) {
       final theme = Theme.of(context);
       return showDialog(
         context: context,
@@ -304,8 +322,9 @@
                       ],
                     ),
                     const SizedBox(height: 16),
+                    // ✅ NOVA mensagem dinâmica
                     Text(
-                      'O produto "$productName" não pode ser excluído porque está sendo usado em um ou mais orçamentos.',
+                      'O produto "$productName" não pode ser excluído porque está sendo usado em um ou mais $tipo.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
@@ -330,7 +349,8 @@
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'Para excluir este produto, primeiro remova-o dos orçamentos que o utilizam.',
+                              // ✅ NOVA instrução dinâmica
+                              'Para excluir este produto, primeiro remova-o dos $tipo que o utilizam.',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
                               ),
@@ -1453,6 +1473,33 @@
                             ),
                           ),
                         ],
+                        // ✅ ADICIONAR AVISOS
+                        if (item.avisos.isNotEmpty) ...[
+                          Text(
+                            ' • ',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                            ),
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                size: 14,
+                                color: theme.colorScheme.error.withValues(alpha: 0.7),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${item.avisos.length} ${item.avisos.length == 1 ? 'aviso' : 'avisos'}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.error.withValues(alpha: 0.7),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -1572,6 +1619,8 @@
     late final TextEditingController _nameCtrl;
     final Set<int> _selectedMaterialIds = {};
     final List<ProductOpcaoExtra> _opcoesExtras = [];
+    final List<ProductAviso> _avisos = [];
+
     final FocusNode _dialogFocusNode = FocusNode();
     final FocusNode _nameFocusNode = FocusNode();
     bool _isShowingDiscardDialog = false;
@@ -1579,6 +1628,8 @@
     late final String _initialName;
     late final Set<int> _initialMaterialIds;
     late final List<ProductOpcaoExtra> _initialOpcoesExtras;
+    late final List<ProductAviso> _initialAvisos;
+
 
     @override
     void initState() {
@@ -1591,11 +1642,13 @@
           _selectedMaterialIds.add(pm.materialId);
         }
         _opcoesExtras.addAll(widget.initial!.opcoesExtras);
+        _avisos.addAll(widget.initial!.avisos);
       }
       
       _initialMaterialIds = Set.from(_selectedMaterialIds);
       _initialOpcoesExtras = List.from(_opcoesExtras);
-      
+      _initialAvisos = List.from(_avisos);
+
       _nameFocusNode.addListener(_onFieldFocusChange);
       
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1635,6 +1688,29 @@
         );
         
         if (initial.id == -1 || current.nome != initial.nome || current.tipo != initial.tipo) {
+          return true;
+        }
+      }
+      
+      if (_avisos.length != _initialAvisos.length) {
+        return true;
+      }
+      
+      for (int i = 0; i < _avisos.length; i++) {
+        final current = _avisos[i];
+        final initial = _initialAvisos.firstWhere(
+          (a) => a.id == current.id,
+          orElse: () => ProductAviso(
+            id: -1, 
+            mensagem: '', 
+            materialId: -1,
+          materialNome: '',
+            createdAt: DateTime.now(), 
+            updatedAt: DateTime.now()
+          ),
+        );
+        
+        if (initial.id == -1 || current.mensagem != initial.mensagem) {
           return true;
         }
       }
@@ -1907,7 +1983,7 @@
         backgroundColor: theme.colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 860),
+          constraints: const BoxConstraints(maxWidth: 1200),          
           child: PopScope(
             canPop: false,
             onPopInvokedWithResult: (didPop, result) async {
@@ -1934,304 +2010,391 @@
                   }
                   return KeyEventResult.ignored;
                 },
-                child: AnimatedPadding(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOut,
-                  padding: EdgeInsets.only(bottom: bottomInset),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                child: Column(
+  mainAxisSize: MainAxisSize.min,
+  children: [
+    // ========== HEADER ==========
+    Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              widget.initial == null ? 'Novo produto' : 'Editar produto',
+              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          ExcludeFocus(
+            child: IconButton(
+              onPressed: () async {
+                final shouldClose = await _onWillPop();
+                if (shouldClose && context.mounted) {
+                  context.pop();
+                }
+              },
+              icon: const Icon(Icons.close),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              tooltip: 'Fechar (Esc)',
+            ),
+          ),
+        ],
+      ),
+    ),
+    const Divider(height: 1),
+    
+    // ========== CONTEÚDO PRINCIPAL COM DUAS COLUNAS ==========
+    Flexible(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 🔵 COLUNA ESQUERDA: Nome, Materiais, Opções
+          Expanded(
+            flex: 3,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 20, 12, 24),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // NOME DO PRODUTO
+                    TextFormField(
+                      controller: _nameCtrl,
+                      focusNode: _nameFocusNode,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(labelText: 'Nome do produto'),
+                      validator: _validateProductName,
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    // MATERIAIS
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                widget.initial == null ? 'Novo produto' : 'Editar produto',
-                                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                              ),
-                            ),
-                            ExcludeFocus(
-                              child: IconButton(
-                                onPressed: () async {
-                                  final shouldClose = await _onWillPop();
-                                  if (shouldClose && context.mounted) {
-                                    context.pop();
-                                  }
-                                },
-                                icon: const Icon(Icons.close),
-                                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                                tooltip: 'Fechar (Esc)',
-                              ),
-                            ),
-                          ],
+                        Text(
+                          'Materiais',
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
                         ),
-                        const SizedBox(height: 12),
-                        Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              TextFormField(
-                                controller: _nameCtrl,
-                                focusNode: _nameFocusNode,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(labelText: 'Nome do produto'),
-                                validator: _validateProductName,
-                              ),
-                              const SizedBox(height: 24),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Materiais',
-                                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-                                  ),
-                                  ExcludeFocus(
-                                    child: ElevatedButton.icon(
-                                      onPressed: _showMaterialSelector,
-                                      icon: const Icon(Icons.add, size: 18),
-                                      label: Text(_selectedMaterialIds.isEmpty ? 'Selecionar materiais' : 'Editar seleção'),
-                                      style: ElevatedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              if (_selectedMaterialIds.isEmpty)
-                                Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      'Nenhum material selecionado',
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              else
-                                ExcludeFocus(
-                                  child: Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: selectedMaterials.map((material) {
-                                      final materialId = int.parse(material.id);
-                                      return Chip(
-                                        label: Text(material.name),
-                                        deleteIcon: const Icon(Icons.close, size: 18),
-                                        onDeleted: () => _removeMaterial(materialId),
-                                        backgroundColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
-                                        labelStyle: TextStyle(
-                                          color: theme.colorScheme.onPrimaryContainer,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                        deleteIconColor: theme.colorScheme.onPrimaryContainer,
-                                      );
-                                    }).toList(),
-                                  ),
-                                ),
-                              const SizedBox(height: 24),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Outros',
-                                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-                                  ),
-                                  ExcludeFocus(
-                                    child: ElevatedButton.icon(
-                                      onPressed: () => _showOpcaoExtraEditor(),
-                                      icon: const Icon(Icons.add, size: 18),
-                                      label: const Text('Adicionar opção'),
-                                      style: ElevatedButton.styleFrom(
-                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              if (_opcoesExtras.isEmpty)
-                                Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      'Nenhuma opção extra cadastrada',
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              else
-                                ExcludeFocus(
-                                  child: Column(
-                                    children: _opcoesExtras.map((opcao) {
-                                      return Container(
-                                        margin: const EdgeInsets.only(bottom: 8),
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                                          borderRadius: BorderRadius.circular(8),
-                                          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.all(8),
-                                              decoration: BoxDecoration(
-                                                color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.5),
-                                                borderRadius: BorderRadius.circular(6),
-                                              ),
-                                              child: Icon(
-                                                () {
-                                                  switch (opcao.tipo) {
-                                                    case TipoOpcaoExtra.stringFloat:
-                                                      return Icons.text_fields;
-                                                    case TipoOpcaoExtra.floatFloat:
-                                                      return Icons.timelapse;
-                                                    case TipoOpcaoExtra.percentFloat:
-                                                      return Icons.percent;
-                                                  }
-                                                }(),
-                                                size: 18,
-                                                color: theme.colorScheme.onSecondaryContainer,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    opcao.nome,
-                                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                                      fontWeight: FontWeight.w600,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 2),
-                                                  Text(
-                                                  () {
-                                                    switch (opcao.tipo) {
-                                                      case TipoOpcaoExtra.stringFloat:
-                                                        return 'Descrição + Valor';
-
-                                                      case TipoOpcaoExtra.floatFloat:
-                                                        return 'Tempo + Valor';
-
-                                                      case TipoOpcaoExtra.percentFloat:
-                                                        return '% + Valor';
-                                                    }
-                                                  }(),
-                                                  style: theme.textTheme.bodySmall?.copyWith(
-                                                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                                                  ),
-                                                ),
-                                                ],
-                                              ),
-                                            ),
-                                            IconButton(
-                                              onPressed: () => _showOpcaoExtraEditor(opcao),
-                                              icon: const Icon(Icons.edit_outlined, size: 18),
-                                              tooltip: 'Editar',
-                                              color: theme.colorScheme.primary,
-                                            ),
-                                           IconButton(
-                                            onPressed: () => _removeOpcaoExtra(opcao),
-                                            icon: const Icon(Icons.delete_outline, size: 18),
-                                            tooltip: 'Remover',
-                                            color: theme.colorScheme.error,
-                                          ),
-                                          ],
-                                        ),
-                                      );
-                                    }).toList(),
-                                  ),
-                                ),
-                            ],
+                        ExcludeFocus(
+                          child: ElevatedButton.icon(
+                            onPressed: _showMaterialSelector,
+                            icon: const Icon(Icons.add, size: 18),
+                            label: Text(_selectedMaterialIds.isEmpty ? 'Selecionar materiais' : 'Editar seleção'),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ExcludeFocus(
-                                child: OutlinedButton(
-                                  onPressed: () async {
-                                    final shouldClose = await _onWillPop();
-                                    if (shouldClose && context.mounted) {
-                                      context.pop();
-                                    }
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
-                                    side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
-                                    foregroundColor: theme.colorScheme.onSurface,
-                                  ),
-                                  child: const Text('Cancelar'),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: ExcludeFocus(
-                                child: ElevatedButton(
-                                  onPressed: () {
-                                    if (!_formKey.currentState!.validate()) return;
-                                    
-                                    final validMaterials = _selectedMaterialIds
-                                        .map((id) {
-                                          final material = widget.availableMaterials.firstWhere(
-                                            (m) => m.id == id.toString(),
-                                          );
-                                          return ProductMaterial(
-                                            materialId: id,
-                                            materialNome: material.name,
-                                          );
-                                        })
-                                        .toList();
-
-                                    final now = DateTime.now();
-                                    final item = (widget.initial ??
-                                            ProductItem(
-                                              id: now.microsecondsSinceEpoch.toString(),
-                                              name: '',
-                                              materials: const [],
-                                              opcoesExtras: const [],
-                                              createdAt: now,
-                                            ))
-                                        .copyWith(
-                                      name: _nameCtrl.text.trim(),
-                                      materials: validMaterials,
-                                      opcoesExtras: _opcoesExtras,
-                                    );
-                                    context.pop(item);
-                                  },
-                                  child: Text(widget.initial == null ? 'Cadastrar' : 'Salvar'),
-                                ),
-                              ),
-                            ),
-                          ],
                         ),
                       ],
                     ),
+                    const SizedBox(height: 12),
+                    
+                    // CHIPS DE MATERIAIS
+                    if (_selectedMaterialIds.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                        ),
+                        child: Center(
+                          child: Text(
+                            'Nenhum material selecionado',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      ExcludeFocus(
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: selectedMaterials.map((material) {
+                            final materialId = int.parse(material.id);
+                            return Chip(
+                              label: Text(material.name),
+                              deleteIcon: const Icon(Icons.close, size: 18),
+                              onDeleted: () => _removeMaterial(materialId),
+                              backgroundColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+                              labelStyle: TextStyle(
+                                color: theme.colorScheme.onPrimaryContainer,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              deleteIconColor: theme.colorScheme.onPrimaryContainer,
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    const SizedBox(height: 24),
+                    
+                    // OPÇÕES EXTRAS
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Outros',
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        ExcludeFocus(
+                          child: ElevatedButton.icon(
+                            onPressed: () => _showOpcaoExtraEditor(),
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text('Adicionar opção'),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    
+                    // LISTA DE OPÇÕES EXTRAS (mantém seu código atual)
+                    if (_opcoesExtras.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                        ),
+                        child: Center(
+                          child: Text(
+                            'Nenhuma opção extra cadastrada',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      ExcludeFocus(
+                        child: Column(
+                          children: _opcoesExtras.map((opcao) {
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Icon(
+                                      () {
+                                        switch (opcao.tipo) {
+                                          case TipoOpcaoExtra.stringFloat:
+                                            return Icons.text_fields;
+                                          case TipoOpcaoExtra.floatFloat:
+                                            return Icons.timelapse;
+                                          case TipoOpcaoExtra.percentFloat:
+                                            return Icons.percent;
+                                        }
+                                      }(),
+                                      size: 18,
+                                      color: theme.colorScheme.onSecondaryContainer,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          opcao.nome,
+                                          style: theme.textTheme.bodyMedium?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          () {
+                                            switch (opcao.tipo) {
+                                              case TipoOpcaoExtra.stringFloat:
+                                                return 'Descrição + Valor';
+                                              case TipoOpcaoExtra.floatFloat:
+                                                return 'Tempo + Valor';
+                                              case TipoOpcaoExtra.percentFloat:
+                                                return '% + Valor';
+                                            }
+                                          }(),
+                                          style: theme.textTheme.bodySmall?.copyWith(
+                                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () => _showOpcaoExtraEditor(opcao),
+                                    icon: const Icon(Icons.edit_outlined, size: 18),
+                                    tooltip: 'Editar',
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                  IconButton(
+                                    onPressed: () => _removeOpcaoExtra(opcao),
+                                    icon: const Icon(Icons.delete_outline, size: 18),
+                                    tooltip: 'Remover',
+                                    color: theme.colorScheme.error,
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          
+          Expanded(
+            flex: 2,
+            child: Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerLowest,
+                border: Border(
+                  left: BorderSide(
+                    color: theme.dividerColor.withValues(alpha: 0.1),
+                    width: 1,
                   ),
                 ),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Avisos importantes',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    
+                    // ✅ WIDGET DE AVISOS
+                    ProductAvisosSection(
+                      avisos: _avisos,
+                      opcoesExtras: _opcoesExtras,
+                      materiais: _selectedMaterialIds
+                          .map((id) {
+                            final material = widget.availableMaterials.firstWhere(
+                              (m) => m.id == id.toString(),
+                              orElse: () => MaterialItem(
+                                id: '-1',
+                                name: '',
+                                costCents: 0,
+                                unit: '',
+                                quantity: '',
+                                createdAt: DateTime.now(),
+                              ),
+                            );
+                            return ProductMaterial(
+                              materialId: id,
+                              materialNome: material.name,
+                            );
+                          })
+                          .where((m) => m.materialId > 0)
+                          .toList(),
+                      onAvisosChanged: (novosAvisos) {
+                        setState(() {
+                          _avisos.clear();
+                          _avisos.addAll(novosAvisos);
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+    
+    // ========== FOOTER COM BOTÕES ==========
+    const Divider(height: 1),
+    Padding(
+      padding: EdgeInsets.fromLTRB(24, 16, 24, 24 + bottomInset),
+      child: Row(
+        children: [
+          Expanded(
+            child: ExcludeFocus(
+              child: OutlinedButton(
+                onPressed: () async {
+                  final shouldClose = await _onWillPop();
+                  if (shouldClose && context.mounted) {
+                    context.pop();
+                  }
+                },
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                  side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
+                  foregroundColor: theme.colorScheme.onSurface,
+                ),
+                child: const Text('Cancelar'),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ExcludeFocus(
+              child: ElevatedButton(
+                onPressed: () {
+                  if (!_formKey.currentState!.validate()) return;
+                  
+                  final validMaterials = _selectedMaterialIds
+                      .map((id) {
+                        final material = widget.availableMaterials.firstWhere(
+                          (m) => m.id == id.toString(),
+                        );
+                        return ProductMaterial(
+                          materialId: id,
+                          materialNome: material.name,
+                        );
+                      })
+                      .toList();
+
+                  final now = DateTime.now();
+                  final item = (widget.initial ??
+                          ProductItem(
+                            id: now.microsecondsSinceEpoch.toString(),
+                            name: '',
+                            materials: const [],
+                            opcoesExtras: const [],
+                            avisos: const [], // ✅ JÁ INCLUÍDO
+                            createdAt: now,
+                          ))
+                      .copyWith(
+                    name: _nameCtrl.text.trim(),
+                    materials: validMaterials,
+                    opcoesExtras: _opcoesExtras,
+                    avisos: _avisos, // ✅ JÁ INCLUÍDO
+                  );
+                  context.pop(item);
+                },
+                child: Text(widget.initial == null ? 'Cadastrar' : 'Salvar'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  ],
+),
               ),
             ),
           ),

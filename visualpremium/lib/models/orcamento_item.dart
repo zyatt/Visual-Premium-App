@@ -227,55 +227,72 @@ class OrcamentoMaterialItem {
   }
 }
 
-class ProdutoItem {
+// ✅ NOVO: Classe para avisos do produto
+class ProdutoAvisoItem {
   final int id;
-  final String nome;
-  final List<ProdutoMaterialItem> materiais;
-  final List<ProdutoOpcaoExtraItem> opcoesExtras;
-
-  const ProdutoItem({
+  final String mensagem;
+  final int? materialId;
+  final String? materialNome;
+  final int? opcaoExtraId;
+  final String? opcaoExtraNome;
+  
+  const ProdutoAvisoItem({
     required this.id,
-    required this.nome,
-    required this.materiais,
-    this.opcoesExtras = const [],
+    required this.mensagem,
+    this.materialId,
+    this.materialNome,
+    this.opcaoExtraId,
+    this.opcaoExtraNome,
   });
 
-  static ProdutoItem? tryFromMap(Map<String, Object?> map) {
+  bool get isAvisoGeral => materialId == null && opcaoExtraId == null;
+  bool get isAvisoMaterial => materialId != null;
+  bool get isAvisoOpcaoExtra => opcaoExtraId != null;
+
+  static ProdutoAvisoItem? tryFromMap(Map<String, Object?> map) {
     try {
       final id = map['id'];
-      final nome = map['nome'];
-      final materiaisData = map['materiais'];
-      final opcoesExtrasData = map['opcoesExtras'];
+      final mensagem = map['mensagem'];
+      final materialId = map['materialId'];
+      final material = map['material'];
+      final opcaoExtraId = map['opcaoExtraId'];
+      final opcaoExtra = map['opcaoExtra'];
 
-      if (id == null || nome is! String) {
+      if (id == null || mensagem is! String) {
         return null;
       }
 
-      final materiais = <ProdutoMaterialItem>[];
-      if (materiaisData is List) {
-        for (final m in materiaisData) {
-          if (m is Map) {
-            final item = ProdutoMaterialItem.tryFromMap(m.map((k, v) => MapEntry(k.toString(), v)));
-            if (item != null) materiais.add(item);
-          }
-        }
+      int? parsedMaterialId;
+      String? materialNome;
+      int? parsedOpcaoExtraId;
+      String? opcaoExtraNome; 
+      if (materialId != null) {
+        parsedMaterialId = (materialId is int) 
+            ? materialId 
+            : int.tryParse(materialId.toString());
       }
 
-      final opcoesExtras = <ProdutoOpcaoExtraItem>[];
-      if (opcoesExtrasData is List) {
-        for (final o in opcoesExtrasData) {
-          if (o is Map) {
-            final item = ProdutoOpcaoExtraItem.tryFromMap(o.map((k, v) => MapEntry(k.toString(), v)));
-            if (item != null) opcoesExtras.add(item);
-          }
-        }
+      if (material is Map && material['nome'] != null) {
+        materialNome = material['nome'].toString();
       }
 
-      return ProdutoItem(
+      if (opcaoExtraId != null) {
+        parsedOpcaoExtraId = (opcaoExtraId is int) 
+            ? opcaoExtraId 
+            : int.tryParse(opcaoExtraId.toString());
+      }
+
+      if (opcaoExtra is Map && opcaoExtra['nome'] != null) {
+        opcaoExtraNome = opcaoExtra['nome'].toString();
+      }
+
+      return ProdutoAvisoItem(
         id: int.parse(id.toString()),
-        nome: nome.trim(),
-        materiais: materiais,
-        opcoesExtras: opcoesExtras,
+        mensagem: mensagem.trim(),
+        materialId: parsedMaterialId,
+        materialNome: materialNome,
+        opcaoExtraId: parsedOpcaoExtraId,
+        opcaoExtraNome: opcaoExtraNome,
       );
     } catch (e) {
       return null;
@@ -304,11 +321,20 @@ class ProdutoOpcaoExtraItem {
         return null;
       }
 
-      final tipo = tipoStr == 'STRINGFLOAT' 
-          ? TipoOpcaoExtra.stringFloat 
-          : tipoStr == 'PERCENTFLOAT'
-              ? TipoOpcaoExtra.percentFloat
-              : TipoOpcaoExtra.floatFloat;
+      TipoOpcaoExtra tipo;
+      switch (tipoStr) {
+        case 'STRINGFLOAT':
+          tipo = TipoOpcaoExtra.stringFloat;
+          break;
+        case 'FLOATFLOAT':
+          tipo = TipoOpcaoExtra.floatFloat;
+          break;
+        case 'PERCENTFLOAT':
+          tipo = TipoOpcaoExtra.percentFloat;
+          break;
+        default:
+          return null;
+      }
 
       return ProdutoOpcaoExtraItem(
         id: int.parse(id.toString()),
@@ -363,6 +389,77 @@ class ProdutoMaterialItem {
   }
 }
 
+class ProdutoItem {
+  final int id;
+  final String nome;
+  final List<ProdutoMaterialItem> materiais;
+  final List<ProdutoOpcaoExtraItem> opcoesExtras;
+  final List<ProdutoAvisoItem> avisos;  // ✅ ADICIONADO
+
+  const ProdutoItem({
+    required this.id,
+    required this.nome,
+    required this.materiais,
+    this.opcoesExtras = const [],
+    this.avisos = const [],  // ✅ ADICIONADO
+  });
+
+  static ProdutoItem? tryFromMap(Map<String, Object?> map) {
+    try {
+      final id = map['id'];
+      final nome = map['nome'];
+      final materiaisData = map['materiais'];
+      final opcoesExtrasData = map['opcoesExtras'];
+      final avisosData = map['avisos'];  // ✅ ADICIONADO
+
+      if (id == null || nome is! String) {
+        return null;
+      }
+
+      final materiais = <ProdutoMaterialItem>[];
+      if (materiaisData is List) {
+        for (final m in materiaisData) {
+          if (m is Map) {
+            final item = ProdutoMaterialItem.tryFromMap(m.map((k, v) => MapEntry(k.toString(), v)));
+            if (item != null) materiais.add(item);
+          }
+        }
+      }
+
+      final opcoesExtras = <ProdutoOpcaoExtraItem>[];
+      if (opcoesExtrasData is List) {
+        for (final o in opcoesExtrasData) {
+          if (o is Map) {
+            final item = ProdutoOpcaoExtraItem.tryFromMap(o.map((k, v) => MapEntry(k.toString(), v)));
+            if (item != null) opcoesExtras.add(item);
+          }
+        }
+      }
+
+      // ✅ ADICIONADO: Parse de avisos
+      final avisos = <ProdutoAvisoItem>[];
+      if (avisosData is List) {
+        for (final a in avisosData) {
+          if (a is Map) {
+            final item = ProdutoAvisoItem.tryFromMap(a.map((k, v) => MapEntry(k.toString(), v)));
+            if (item != null) avisos.add(item);
+          }
+        }
+      }
+
+      return ProdutoItem(
+        id: int.parse(id.toString()),
+        nome: nome.trim(),
+        materiais: materiais,
+        opcoesExtras: opcoesExtras,
+        avisos: avisos,  // ✅ ADICIONADO
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+}
+
 class OrcamentoItem {
   final int id;
   final String cliente;
@@ -409,14 +506,12 @@ class OrcamentoItem {
     
     for (final opcao in opcoesExtras) {
       if (opcao.tipo == TipoOpcaoExtra.stringFloat) {
-        // Descrição + Valor: o valor está em float1
         total += opcao.valorFloat1 ?? 0.0;
       } else if (opcao.tipo == TipoOpcaoExtra.floatFloat) {
-        final horas = opcao.valorFloat1 ?? 0.0;  // ✅ JÁ É HORAS (não precisa dividir por 60)
+        final horas = opcao.valorFloat1 ?? 0.0;
         final valorHora = opcao.valorFloat2 ?? 0.0;
         total += horas * valorHora;
       } else if (opcao.tipo == TipoOpcaoExtra.percentFloat) {
-        // % + Valor: calcular (percentual / 100) * valor
         final percentual = opcao.valorFloat1 ?? 0.0;
         final valor = opcao.valorFloat2 ?? 0.0;
         total += (percentual / 100.0) * valor;

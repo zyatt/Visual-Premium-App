@@ -3176,6 +3176,12 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         ..._selectedProduto!.opcoesExtras.map((opcao) {
           final isEnabled = _opcoesExtrasEnabled[opcao.id];
           
+          final avisosDaOpcao = _selectedProduto!.avisos
+              .where((aviso) => aviso.opcaoExtraId == opcao.id)
+              .toList();
+          
+          final temAviso = avisosDaOpcao.isNotEmpty;
+          
           return FormField<bool>(
             initialValue: isEnabled,
             validator: (value) {
@@ -3211,25 +3217,64 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Icon(
-                            opcao.tipo == TipoOpcaoExtra.stringFloat
-                                ? Icons.text_fields
-                                : Icons.calculate_outlined,
-                            size: 16,
+                            () {
+                              switch (opcao.tipo) {
+                                case TipoOpcaoExtra.stringFloat:
+                                  return Icons.text_fields;
+                                case TipoOpcaoExtra.floatFloat:
+                                  return Icons.timelapse;
+                                case TipoOpcaoExtra.percentFloat:
+                                  return Icons.percent;
+                              }
+                            }(),
+                            size: 18,
                             color: theme.colorScheme.onSecondaryContainer,
                           ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Row(
                             children: [
-                              Text(
-                                opcao.nome,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12,
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      opcao.nome,
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
+                              // ✅ NOVO: Ícone de aviso com tooltip
+                              if (temAviso) ...[
+                                const SizedBox(width: 6),
+                                Transform.translate(
+                                  offset: const Offset(-10, 0),  // Move 4 pixels para esquerda
+                                  child: Tooltip(
+                                    message: avisosDaOpcao.map((a) => a.mensagem).join('\n'),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.secondary,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    textStyle: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.surface,
+                                      fontSize: 11,
+                                    ),
+                                    preferBelow: false,
+                                    verticalOffset: 20,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    child: Icon(
+                                      Icons.info_outline,
+                                      size: 16,
+                                      color: theme.colorScheme.secondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -3300,7 +3345,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                 focusNode: _opcaoExtraStringFocusNodes[opcao.id],
                                 style: const TextStyle(fontSize: 12),
                                 decoration: const InputDecoration(
-                                  labelText: 'Tempo',
+                                  labelText: 'Descrição',
                                   helperStyle: TextStyle(fontSize: 10),
                                   isDense: true,
                                   suffixText: 'h',
@@ -3341,69 +3386,68 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                           ],
                         ),
                       ] else if (opcao.tipo == TipoOpcaoExtra.floatFloat) ...[
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _opcaoExtraFloat1Controllers[opcao.id],
-                                  focusNode: _opcaoExtraFloat1FocusNodes[opcao.id],
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                  ],
-                                  style: const TextStyle(fontSize: 12),
-                                  decoration: const InputDecoration(
-                                    labelText: 'Tempo',
-                                    helperStyle: TextStyle(fontSize: 10),
-                                    isDense: true,
-                                    suffixText: 'h',  // ✅ ADICIONADO: indicador visual
-                                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                  ),
-                                  validator: (v) {
-                                    if (v == null || v.trim().isEmpty) {
-                                      return 'Informe o tempo';
-                                    }
-                                    final value = double.tryParse(v.replaceAll(',', '.'));
-                                    if (value == null || value < 0) {
-                                      return 'Inválido';
-                                    }
-                                    return null;
-                                  },
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _opcaoExtraFloat1Controllers[opcao.id],
+                                focusNode: _opcaoExtraFloat1FocusNodes[opcao.id],
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                ],
+                                style: const TextStyle(fontSize: 12),
+                                decoration: const InputDecoration(
+                                  labelText: 'Tempo',
+                                  helperStyle: TextStyle(fontSize: 10),
+                                  isDense: true,
+                                  suffixText: 'h',
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                                 ),
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) {
+                                    return 'Informe o tempo';
+                                  }
+                                  final value = double.tryParse(v.replaceAll(',', '.'));
+                                  if (value == null || value < 0) {
+                                    return 'Inválido';
+                                  }
+                                  return null;
+                                },
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _opcaoExtraFloat2Controllers[opcao.id],
-                                  focusNode: _opcaoExtraFloat2FocusNodes[opcao.id],
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                  ],
-                                  style: const TextStyle(fontSize: 12),
-                                  decoration: const InputDecoration(
-                                    labelText: 'Valor/Hora',
-                                    helperStyle: TextStyle(fontSize: 10),
-                                    isDense: true,
-                                    prefixText: 'R\$ ',
-                                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                  ),
-                                  validator: (v) {
-                                    if (v == null || v.trim().isEmpty) {
-                                      return 'Informe o valor/h';
-                                    }
-                                    final value = double.tryParse(v.replaceAll(',', '.'));
-                                    if (value == null || value < 0) {
-                                      return 'Inválido';
-                                    }
-                                    return null;
-                                  },
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _opcaoExtraFloat2Controllers[opcao.id],
+                                focusNode: _opcaoExtraFloat2FocusNodes[opcao.id],
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                ],
+                                style: const TextStyle(fontSize: 12),
+                                decoration: const InputDecoration(
+                                  labelText: 'Valor/Hora',
+                                  helperStyle: TextStyle(fontSize: 10),
+                                  isDense: true,
+                                  prefixText: 'R\$ ',
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                                 ),
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) {
+                                    return 'Informe o valor/h';
+                                  }
+                                  final value = double.tryParse(v.replaceAll(',', '.'));
+                                  if (value == null || value < 0) {
+                                    return 'Inválido';
+                                  }
+                                  return null;
+                                },
                               ),
-                            ],
-                          ),
-                        ] else if (opcao.tipo == TipoOpcaoExtra.percentFloat) ...[
-                        // ✅ NOVO: Formulário para % + Valor
+                            ),
+                          ],
+                        ),
+                      ] else if (opcao.tipo == TipoOpcaoExtra.percentFloat) ...[
                         Row(
                           children: [
                             Expanded(
@@ -4121,21 +4165,63 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                   children: [
                                                     Expanded(
                                                       flex: 2,
-                                                      child: Column(
-                                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                                        children: [
-                                                          Text(
-                                                            mat.materialNome,
-                                                            style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 11),
-                                                          ),
-                                                          Text(
-                                                            '${currency.format(mat.materialCusto)} / ${mat.materialUnidade}',
-                                                            style: theme.textTheme.bodySmall?.copyWith(
-                                                              fontSize: 10,
-                                                              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                                                            ),
-                                                          ),
-                                                        ],
+                                                      child: Builder(
+                                                        builder: (context) {
+                                                          // ✅ Buscar avisos específicos deste material
+                                                          final avisosDoMaterial = _selectedProduto!.avisos
+                                                              .where((aviso) => aviso.materialId == mat.materialId)
+                                                              .toList();
+                                                          
+                                                          final temAviso = avisosDoMaterial.isNotEmpty;
+                                                          
+                                                          return Row(
+                                                            children: [
+                                                              Expanded(
+                                                                child: Column(
+                                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                                  children: [
+                                                                    Text(
+                                                                      mat.materialNome,
+                                                                      style: theme.textTheme.bodySmall?.copyWith(
+                                                                        fontWeight: FontWeight.w600,
+                                                                        fontSize: 11,
+                                                                      ),
+                                                                    ),
+                                                                    Text(
+                                                                      '${currency.format(mat.materialCusto)} / ${mat.materialUnidade}',
+                                                                      style: theme.textTheme.bodySmall?.copyWith(
+                                                                        fontSize: 10,
+                                                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                                                      ),
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                              ),
+                                                              if (temAviso) ...[
+                                                                const SizedBox(width: 6),
+                                                                Tooltip(
+                                                                  message: avisosDoMaterial.map((a) => a.mensagem).join('\n'),
+                                                                  decoration: BoxDecoration(
+                                                                    color: theme.colorScheme.secondary,
+                                                                    borderRadius: BorderRadius.circular(8),
+                                                                  ),
+                                                                  textStyle: theme.textTheme.bodySmall?.copyWith(
+                                                                    color: theme.colorScheme.surface,
+                                                                    fontSize: 11,
+                                                                  ),
+                                                                  preferBelow: false,
+                                                                  verticalOffset: 20,
+                                                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                                                  child: Icon(
+                                                                    Icons.info_outline,
+                                                                    size: 16,
+                                                                    color: theme.colorScheme.secondary,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ],
+                                                          );
+                                                        },
                                                       ),
                                                     ),
                                                     const SizedBox(width: 8),
@@ -4186,9 +4272,9 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                 ),
                                               );
                                             }),
-                                            
-                                            const SizedBox(height: 12),
-                                            
+                                        
+                                            const SizedBox(height: 16),
+
                                             _buildDespesasSection(),
                                             _buildOpcoesExtrasSection(),
  

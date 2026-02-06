@@ -825,7 +825,10 @@ class OrcamentoService {
             material: true
           }
         },
-        opcoesExtras: true
+        opcoesExtras: true,
+        avisos: {
+          orderBy: { createdAt: 'desc' }
+        },
       },
       orderBy: {
         nome: 'asc'
