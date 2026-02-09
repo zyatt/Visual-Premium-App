@@ -1,7 +1,7 @@
 name: visualpremium
-description: "Desvende o poder da organização financeira com este aplicativo de orçamento desktop, que oferece uma interface intuitiva para gerenciar orçamentos, produtos e materiais, tudo com um toque de elegância nos modos claro e escuro."
+description: "Software Visual Premium"
 publish_to: "none"
-version: 1.0.0
+version: 1.0.0+1
 
 environment:
   sdk: ^3.6.0
@@ -22,7 +22,7 @@ dependencies:
   url_launcher: ^6.3.1
   window_manager: ^0.5.1
   flutter_dotenv: ^5.1.0
-
+  package_info_plus: ^8.1.2
 dev_dependencies:
   flutter_test:
     sdk: flutter

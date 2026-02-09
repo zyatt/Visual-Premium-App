@@ -8,6 +8,7 @@ import 'providers/auth_provider.dart';
 import 'providers/data_provider.dart';
 import 'nav.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'widgets/update_checker_widget.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,13 +58,17 @@ class _MyAppState extends State<MyApp> {
           _router ??= AppRouter.createRouter(
             Provider.of<AuthProvider>(context, listen: false),
           );
-          return MaterialApp.router(
-            title: 'Visual Premium',
-            debugShowCheckedModeBanner: false,
-            theme: lightTheme,
-            darkTheme: darkTheme,
-            themeMode: themeProvider.themeMode,
-            routerConfig: _router!,
+          
+          // ✅ ENVOLVER O MaterialApp.router COM UpdateChecker
+          return UpdateChecker(
+            child: MaterialApp.router(
+              title: 'Visual Premium',
+              debugShowCheckedModeBanner: false,
+              theme: lightTheme,
+              darkTheme: darkTheme,
+              themeMode: themeProvider.themeMode,
+              routerConfig: _router!,
+            ),
           );
         },
       ),
