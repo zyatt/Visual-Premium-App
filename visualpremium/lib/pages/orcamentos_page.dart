@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:visualpremium/data/orcamentos_repository.dart';
+import 'package:visualpremium/data/faixas_custo_repository.dart';
 import 'package:visualpremium/models/orcamento_item.dart';
 import '../theme.dart';
 
@@ -2287,6 +2288,10 @@ class OrcamentoEditorSheet extends StatefulWidget {
 class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   final _formKey = GlobalKey<FormState>();
   final _api = OrcamentosApiRepository();
+  final _faixasApi = FaixasCustoRepository();
+
+  List<Map<String, dynamic>> _faixas = [];
+  Map<String, dynamic>? _valorSugeridoLocal;
   
   late final TextEditingController _clienteCtrl;
   late final TextEditingController _numeroCtrl;
@@ -2414,7 +2419,60 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   ];
 
   void _updateTotal() {
-    setState(() {});
+    setState(() {
+      _recalcularValorSugerido();
+    });
+  }
+
+  void _recalcularValorSugerido() {
+    if (_faixas.isEmpty) {
+      _valorSugeridoLocal = null;
+      return;
+    }
+    final custoTotal = _calculateTotal();
+    if (custoTotal <= 0) {
+      _valorSugeridoLocal = null;
+      return;
+    }
+
+    Map<String, dynamic>? faixaAplicavel;
+    for (final faixa in _faixas) {
+      final custoAte = faixa['custoAte'];
+      if (custoAte == null) {
+        faixaAplicavel = faixa;
+        break;
+      } else {
+        final custoAteDouble = (custoAte is int)
+            ? custoAte.toDouble()
+            : (custoAte as double);
+        if (custoTotal <= custoAteDouble) {
+          faixaAplicavel = faixa;
+          break;
+        }
+      }
+    }
+
+    // fallback: última faixa
+    if (faixaAplicavel == null && _faixas.isNotEmpty) {
+      faixaAplicavel = _faixas.last;
+    }
+
+    if (faixaAplicavel == null) {
+      _valorSugeridoLocal = null;
+      return;
+    }
+
+    final markup = (faixaAplicavel['markup'] is int)
+        ? (faixaAplicavel['markup'] as int).toDouble()
+        : faixaAplicavel['markup'] as double;
+
+    final valorSugerido = custoTotal * (1 + markup / 100);
+    _valorSugeridoLocal = {
+      'custoTotal': custoTotal,
+      'markup': markup,
+      'valorSugerido': valorSugerido,
+      'faixaId': faixaAplicavel['id'],
+    };
   }
   
   List<ProdutoItem> _produtos = [];
@@ -2586,6 +2644,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     });
     
     _loadProdutos();
+    _loadFaixas();
   }
 
   void _onFieldFocusChange() {
@@ -2665,6 +2724,22 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     }
     
     return false;
+  }
+
+  Future<void> _loadFaixas() async {
+    try {
+      final faixas = await _faixasApi.listar();
+      if (!mounted) return;
+      setState(() {
+        _faixas = faixas;
+        if (widget.initial?.valorSugerido != null) {
+          _valorSugeridoLocal = widget.initial!.valorSugerido;
+        } else {
+          _recalcularValorSugerido();
+        }
+      });
+    } catch (_) {
+    }
   }
 
   Future<void> _loadProdutos() async {
@@ -3568,7 +3643,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                           ),
                                           const SizedBox(width: 6),
                                           Text(
-                                            'Base de cálculo (calculado automaticamente):',
+                                            'Valor total do orçamento:',
                                             style: theme.textTheme.bodySmall?.copyWith(
                                               fontSize: 10,
                                               color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
@@ -3974,6 +4049,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                       _quantityControllers.clear();
                                                       _quantityFocusNodes.clear();
                                                       _initializeQuantityControllers();
+                                                      _recalcularValorSugerido();
                                                     });
                                                   },
                                                   borderRadius: BorderRadius.circular(8),
@@ -4393,7 +4469,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                       isDense: true,
                                                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                                     ),
-                                                    style: const TextStyle(fontSize: 13),
+                                                    style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface), // ← ADICIONADO
                                                     items: _formaPagamentoOptions.map((option) {
                                                       return DropdownMenuItem<String>(
                                                         value: option,
@@ -4424,7 +4500,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                           isDense: true,
                                                           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                                         ),
-                                                        style: const TextStyle(fontSize: 13),
+                                                        style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface), // ← ADICIONADO
                                                         items: _condicoesPagamentoOptions.map((option) {
                                                           return DropdownMenuItem<String>(
                                                             value: option,
@@ -4465,7 +4541,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                 ),
                                               ],
                                             ),
-                                            
                                             const SizedBox(height: 10),
                                             
                                             TextFormField(
@@ -4513,6 +4588,65 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                             ),
                                           ],
                                         ),
+                                        if (_valorSugeridoLocal != null) ...[
+                                          const SizedBox(height: 12),
+                                          Container(
+                                            padding: const EdgeInsets.all(12),
+                                            decoration: BoxDecoration(
+                                              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(
+                                                color: theme.colorScheme.primary.withValues(alpha: 0.3),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  padding: const EdgeInsets.all(6),
+                                                  decoration: BoxDecoration(
+                                                    color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                                                    borderRadius: BorderRadius.circular(6),
+                                                  ),
+                                                  child: Icon(
+                                                    Icons.lightbulb_outline,
+                                                    size: 18,
+                                                    color: theme.colorScheme.primary,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 10),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        'Valor sugerido para venda',
+                                                        style: theme.textTheme.bodySmall?.copyWith(
+                                                          fontWeight: FontWeight.w600,
+                                                          color: theme.colorScheme.primary,
+                                                          fontSize: 11,
+                                                        ),
+                                                      ),
+                                                      Text(
+                                                        'Markup de ${_valorSugeridoLocal!['markup']}% aplicado',
+                                                        style: theme.textTheme.bodySmall?.copyWith(
+                                                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                                          fontSize: 10,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                Text(
+                                                  currency.format(_valorSugeridoLocal!['valorSugerido']),
+                                                  style: theme.textTheme.titleMedium?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: theme.colorScheme.primary,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
                                         const SizedBox(height: 12),
                                         Row(
                                           children: [

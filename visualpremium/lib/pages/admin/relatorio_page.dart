@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:visualpremium/data/orcamentos_repository.dart';
 import '../../../theme.dart';
 
@@ -15,6 +18,7 @@ class _RelatoriosPageState extends State<RelatorioPage> {
   bool _loading = true;
   List<Map<String, dynamic>> _relatorios = [];
   String _searchQuery = '';
+  int? _downloadingId;
 
   @override
   void initState() {
@@ -48,9 +52,93 @@ class _RelatoriosPageState extends State<RelatorioPage> {
       context: context,
       barrierDismissible: true,
       builder: (dialogContext) {
-        return _RelatorioDetalhadoDialog(relatorio: relatorio);
+        return _RelatorioDetalhadoDialog(
+          relatorio: relatorio,
+          onDownloadPdf: () => _downloadPdf(relatorio),
+        );
       },
     );
+  }
+
+  Future<void> _downloadPdf(Map<String, dynamic> relatorio) async {
+    final relatorioId = relatorio['id'] as int;
+    final almox = relatorio['almoxarifado'] as Map<String, dynamic>?;
+    
+    if (almox == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dados do almoxarifado não encontrados')),
+      );
+      return;
+    }
+    
+    final almoxarifadoId = almox['id'] as int;
+    final orc = (almox['orcamento'] as Map<String, dynamic>?) ?? {};
+    final numero = orc['numero'] as int? ?? 0;
+    final cliente = orc['cliente'] as String? ?? 'cliente';
+    
+    setState(() => _downloadingId = relatorioId);
+    
+    try {
+      final directory = await getDownloadsDirectory() ?? 
+                        await getApplicationDocumentsDirectory();
+      final fileName = 'relatorio_${numero}_${cliente.replaceAll(' ', '_')}.pdf';
+      final filePath = '${directory.path}/$fileName';
+      final file = File(filePath);
+      
+      if (await file.exists()) {
+        await file.delete();
+      }
+      
+      final pdfBytes = await _api.downloadRelatorioPdfPorAlmoxarifado(almoxarifadoId);
+      
+      await file.writeAsBytes(pdfBytes);
+      
+      if (!mounted) return;
+      setState(() => _downloadingId = null);
+      
+      final uri = Uri.file(filePath);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+        
+        if (!mounted) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('PDF gerado com sucesso!'),
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        });
+      } else {
+        throw Exception('Não foi possível abrir o PDF');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _downloadingId = null);
+      
+      String errorMessage = 'Erro ao gerar PDF';
+      
+      if (e.toString().contains('não foi finalizado')) {
+        errorMessage = 'O almoxarifado precisa ser finalizado antes de gerar o relatório';
+      } else if (e.toString().contains('não encontrado')) {
+        errorMessage = 'Relatório não encontrado. Tente finalizar o almoxarifado novamente.';
+      } else if (e.toString().contains('401')) {
+        errorMessage = 'Sessão expirada. Faça login novamente.';
+      }
+      
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.red,
+          ),
+        );
+      });
+    }
   }
 
   List<Map<String, dynamic>> get _filteredRelatorios {
@@ -174,6 +262,8 @@ class _RelatoriosPageState extends State<RelatorioPage> {
                         relatorio: relatorio,
                         currency: currency,
                         onTap: () => _abrirRelatorio(relatorio),
+                        onDownloadPdf: () => _downloadPdf(relatorio),
+                        isDownloading: _downloadingId == relatorio['id'],
                       );
                     },
                   ),
@@ -235,11 +325,15 @@ class _RelatorioCard extends StatelessWidget {
   final Map<String, dynamic> relatorio;
   final NumberFormat currency;
   final VoidCallback onTap;
+  final VoidCallback onDownloadPdf;
+  final bool isDownloading;
 
   const _RelatorioCard({
     required this.relatorio,
     required this.currency,
     required this.onTap,
+    required this.onDownloadPdf,
+    required this.isDownloading,
   });
 
   @override
@@ -333,6 +427,23 @@ class _RelatorioCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                IconButton(
+                  onPressed: isDownloading ? null : onDownloadPdf,
+                  icon: isDownloading
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: theme.colorScheme.primary,
+                          ),
+                        )
+                      : Icon(Icons.picture_as_pdf, color: theme.colorScheme.primary, size: 20),
+                  tooltip: 'Baixar PDF',
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                ),
+                const SizedBox(width: 8),
                 Icon(
                   Icons.arrow_forward_ios,
                   size: 16,
@@ -452,11 +563,28 @@ class _RelatorioCard extends StatelessWidget {
   }
 }
 
-// Dialog de detalhes do relatório
+String _formatCurrency(double value) {
+  final valueIn1000 = (value * 1000).round();
+  final valueIn100 = (value * 100).round();
+  final hasThirdDecimal = valueIn1000 != valueIn100 * 10;
+  
+  final formatter = NumberFormat.currency(
+    locale: 'pt_BR',
+    symbol: 'R\$',
+    decimalDigits: hasThirdDecimal ? 3 : 2,
+  );
+  
+  return formatter.format(value);
+}
+
 class _RelatorioDetalhadoDialog extends StatelessWidget {
   final Map<String, dynamic> relatorio;
+  final VoidCallback onDownloadPdf;
 
-  const _RelatorioDetalhadoDialog({required this.relatorio});
+  const _RelatorioDetalhadoDialog({
+    required this.relatorio,
+    required this.onDownloadPdf,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -476,12 +604,9 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
     final despesas = (analiseDetalhada['despesas'] as List?)?.cast<Map<String, dynamic>>() ?? [];
     final opcoesExtrasRaw = (analiseDetalhada['opcoesExtras'] as List?)?.cast<Map<String, dynamic>>() ?? [];
     
-    // Filtrar opções extras que foram marcadas como "Não" (valorOrcado = 0 E valorRealizado = 0)
     final opcoesExtras = opcoesExtrasRaw.where((opcao) {
       final valorOrcado = (opcao['valorOrcado'] as num?)?.toDouble() ?? 0.0;
       final valorRealizado = (opcao['valorRealizado'] as num?)?.toDouble() ?? 0.0;
-      
-      // Só incluir se pelo menos um dos valores for diferente de zero
       return valorOrcado != 0.0 || valorRealizado != 0.0;
     }).toList();
     
@@ -501,7 +626,6 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
         ),
         child: Column(
           children: [
-            // Header
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -550,8 +674,6 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                 ],
               ),
             ),
-
-            // Content
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
@@ -569,7 +691,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      ...materiais.map((m) => _buildMaterialCard(theme, currency, m)),
+                      ...materiais.map((m) => _buildMaterialCard(theme, m)),
                       const SizedBox(height: 24),
                     ],
                     
@@ -581,7 +703,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      ...despesas.map((d) => _buildDespesaCard(theme, currency, d)),
+                      ...despesas.map((d) => _buildDespesaCard(theme, d)),
                       const SizedBox(height: 24),
                     ],
                     
@@ -593,14 +715,12 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      ...opcoesExtras.map((o) => _buildOpcaoExtraCard(theme, currency, o)),
+                      ...opcoesExtras.map((o) => _buildOpcaoExtraCard(theme, o)),
                     ],
                   ],
                 ),
               ),
             ),
-
-            // Footer
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -611,12 +731,23 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                   ),
                 ),
               ),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Fechar'),
-                ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onDownloadPdf,
+                      icon: const Icon(Icons.picture_as_pdf),
+                      label: const Text('Baixar PDF'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Fechar'),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -733,7 +864,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildMaterialCard(ThemeData theme, NumberFormat currency, Map<String, dynamic> material) {
+  Widget _buildMaterialCard(ThemeData theme, Map<String, dynamic> material) {
     final nome = material['materialNome'] as String? ?? 'N/A';
     final valorOrcado = (material['valorOrcado'] as num?)?.toDouble() ?? 0.0;
     final custoRealizado = (material['custoRealizadoTotal'] as num?)?.toDouble() ?? 0.0;
@@ -759,16 +890,11 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      nome,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  nome,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               Container(
@@ -815,7 +941,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      currency.format(valorOrcado),
+                      _formatCurrency(valorOrcado),
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
@@ -834,7 +960,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      currency.format(custoRealizado),
+                      _formatCurrency(custoRealizado),
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
@@ -853,7 +979,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      currency.format(diferenca.abs()),
+                      _formatCurrency(diferenca.abs()),
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: statusColor,
@@ -869,7 +995,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildDespesaCard(ThemeData theme, NumberFormat currency, Map<String, dynamic> despesa) {
+  Widget _buildDespesaCard(ThemeData theme, Map<String, dynamic> despesa) {
     final descricao = despesa['descricao'] as String? ?? 'N/A';
     final valorOrcado = (despesa['valorOrcado'] as num?)?.toDouble() ?? 0.0;
     final valorRealizado = (despesa['valorRealizado'] as num?)?.toDouble() ?? 0.0;
@@ -946,7 +1072,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      currency.format(valorOrcado),
+                      _formatCurrency(valorOrcado),
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
@@ -965,7 +1091,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      currency.format(valorRealizado),
+                      _formatCurrency(valorRealizado),
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
@@ -984,7 +1110,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      currency.format(diferenca.abs()),
+                      _formatCurrency(diferenca.abs()),
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: statusColor,
@@ -1000,7 +1126,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
     );
   }
 
-  Widget _buildOpcaoExtraCard(ThemeData theme, NumberFormat currency, Map<String, dynamic> opcaoExtra) {
+  Widget _buildOpcaoExtraCard(ThemeData theme, Map<String, dynamic> opcaoExtra) {
     final nome = opcaoExtra['nome'] as String? ?? 'N/A';
     final valorOrcado = (opcaoExtra['valorOrcado'] as num?)?.toDouble() ?? 0.0;
     final valorRealizado = (opcaoExtra['valorRealizado'] as num?)?.toDouble() ?? 0.0;
@@ -1026,16 +1152,11 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      nome,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  nome,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               Container(
@@ -1082,7 +1203,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      currency.format(valorOrcado),
+                      _formatCurrency(valorOrcado),
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
@@ -1101,7 +1222,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      currency.format(valorRealizado),
+                      _formatCurrency(valorRealizado),
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
@@ -1120,7 +1241,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      currency.format(diferenca.abs()),
+                      _formatCurrency(diferenca.abs()),
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                         color: statusColor,

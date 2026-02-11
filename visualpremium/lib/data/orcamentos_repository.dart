@@ -19,7 +19,6 @@ class OrcamentosApiRepository {
     };
   }
 
-  // ===== MÉTODOS EXISTENTES =====
 
   Future<List<OrcamentoItem>> fetchOrcamentos() async {
     try {
@@ -485,6 +484,96 @@ class OrcamentosApiRepository {
       }
     } catch (e) {
       rethrow;
+    }
+  }
+
+  Future<Uint8List> downloadRelatorioPdf(int id) async {
+    try {
+      final url = Uri.parse('$baseUrl/pdf/relatorio/$id');
+      final headers = await _getHeaders();
+      
+      final response = await http.get(
+        url,
+        headers: {
+          ...headers,
+          'Accept': 'application/pdf',
+        },
+      );
+
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
+      }
+
+      if (response.statusCode == 404) {
+        throw Exception('Relatório não encontrado');
+      }
+
+      if (response.statusCode == 200) {
+        if (response.bodyBytes.isEmpty) {
+          throw Exception('PDF vazio recebido do servidor');
+        }
+        return response.bodyBytes;
+      } else {
+        String errorMessage = 'Erro ao baixar PDF';
+        try {
+          final errorJson = jsonDecode(response.body);
+          if (errorJson is Map && errorJson.containsKey('error')) {
+            errorMessage = errorJson['error'];
+          }
+        } catch (_) {}
+        throw Exception('$errorMessage (${response.statusCode})');
+      }
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('Erro ao baixar PDF: $e');
+    }
+  }
+
+  Future<Uint8List> downloadRelatorioPdfPorAlmoxarifado(int almoxarifadoId) async {
+    try {
+      final url = Uri.parse('$baseUrl/pdf/relatorio/almoxarifado/$almoxarifadoId');
+      final headers = await _getHeaders();
+      
+      final response = await http.get(
+        url,
+        headers: {
+          ...headers,
+          'Accept': 'application/pdf',
+        },
+      );
+
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
+      }
+
+      if (response.statusCode == 404) {
+        throw Exception('Relatório não encontrado. O almoxarifado pode não ter sido finalizado.');
+      }
+
+      if (response.statusCode == 200) {
+        if (response.bodyBytes.isEmpty) {
+          throw Exception('PDF vazio recebido do servidor');
+        }
+        return response.bodyBytes;
+      } else {
+        String errorMessage = 'Erro ao baixar PDF';
+        try {
+          final errorJson = jsonDecode(response.body);
+          if (errorJson is Map && errorJson.containsKey('error')) {
+            errorMessage = errorJson['error'];
+          }
+        } catch (_) {
+        }
+        throw Exception('$errorMessage (${response.statusCode})');
+      }
+    } catch (e) {
+      print('❌ Erro ao baixar PDF: $e');
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('Erro ao baixar PDF: $e');
     }
   }
 }

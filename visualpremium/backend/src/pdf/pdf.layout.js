@@ -315,245 +315,224 @@ class PdfLayout {
     
     y += 10;
     
-    const boxStartY = y;
-    const padding = 9;
-    const lineSpacing = 9;
-    let boxContentY = y + padding;
-    let needsDivider = false;
+    const colWidths = {
+      numero: contentWidth * 0.06,
+      descricao: contentWidth * 0.74,
+      valor: contentWidth * 0.20
+    };
+    
+    const tableStartY = y;
+    const headerHeight = 15;
+    const rowHeight = 13;
+    
+    doc.roundedRect(margin, y, contentWidth, headerHeight, 3)
+       .fillAndStroke('#f3f4f6', '#d1d5db');
+    
+    doc.fontSize(6)
+       .font('Helvetica-Bold')
+       .fillColor('#374151');
+    
+    let x = margin;
+    doc.text('#', x, y + 4.5, { width: colWidths.numero, align: 'center' });
+    x += colWidths.numero;
+    
+    doc.text('DESCRIÇÃO', x, y + 4.5, { width: colWidths.descricao, align: 'center' });
+    x += colWidths.descricao;
+    
+    doc.text('VALOR', x, y + 4.5, { width: colWidths.valor, align: 'center' });
+    
+    y += headerHeight;
+    
+    let itemIndex = 0;
     
     if (data.despesasAdicionais && data.despesasAdicionais.length > 0) {
-      boxContentY = this._desenharDespesas(doc, data.despesasAdicionais, margin, pageWidth, contentWidth, padding, boxContentY, lineSpacing);
-      needsDivider = true;
+      data.despesasAdicionais.forEach((despesa) => {
+        if (itemIndex % 2 === 0) {
+          doc.rect(margin, y, contentWidth, rowHeight)
+             .fillColor('#fafafa')
+             .fill();
+        }
+        
+        x = margin;
+        const textY = y + 3.5;
+        
+        doc.fillColor('#6b7280')
+           .font('Helvetica-Bold')
+           .fontSize(6)
+           .text((itemIndex + 1).toString(), x, textY, { width: colWidths.numero, align: 'center' });
+        x += colWidths.numero;
+        
+        doc.fillColor('#1f2937')
+           .font('Helvetica')
+           .fontSize(6)
+           .text(despesa.descricao, x + 6, textY, { 
+             width: colWidths.descricao - 6, 
+             align: 'left',
+             lineBreak: false,
+             ellipsis: true
+           });
+        x += colWidths.descricao;
+        
+        doc.fillColor('#1f2937')
+           .font('Helvetica-Bold')
+           .fontSize(6)
+           .text(this._formatarMoeda(despesa.valor), x, textY, { width: colWidths.valor, align: 'center' });
+        
+        y += rowHeight;
+        itemIndex++;
+      });
     }
     
     if (data.opcoesExtras && data.opcoesExtras.length > 0) {
-      if (needsDivider) {
-        doc.moveTo(margin + padding, boxContentY - lineSpacing/2)
-          .lineTo(pageWidth - margin - padding, boxContentY - lineSpacing/2)
-          .strokeColor('#e5e7eb')
-          .lineWidth(0.5)
-          .stroke();
-      }
-      boxContentY = this._desenharOpcoesExtras(doc, data.opcoesExtras, margin, pageWidth, contentWidth, padding, boxContentY, lineSpacing);
-      needsDivider = true;
+      data.opcoesExtras.forEach((opcao) => {
+        if (itemIndex % 2 === 0) {
+          doc.rect(margin, y, contentWidth, rowHeight)
+             .fillColor('#fafafa')
+             .fill();
+        }
+        
+        x = margin;
+        const textY = y + 3.5;
+        
+        doc.fillColor('#6b7280')
+           .font('Helvetica-Bold')
+           .fontSize(6)
+           .text((itemIndex + 1).toString(), x, textY, { width: colWidths.numero, align: 'center' });
+        x += colWidths.numero;
+        
+        let descricao = opcao.nome;
+        let valorOpcao = 0;
+        
+        if (opcao.tipo === 'STRINGFLOAT') {
+          descricao += `: ${opcao.valorString}`;
+          valorOpcao = opcao.valorFloat1 || 0;
+        } else if (opcao.tipo === 'FLOATFLOAT') {
+          const valor1 = parseFloat(opcao.valorFloat1) || 0;
+          const valor2 = parseFloat(opcao.valorFloat2) || 0;
+          descricao += `: ${this._formatarHoras(valor1)} × ${this._formatarMoeda(valor2)}/hora`;
+          valorOpcao = valor1 * valor2;
+        } else if (opcao.tipo === 'PERCENTFLOAT') {
+          const percentual = parseFloat(opcao.valorFloat1) || 0;
+          const valorBase = parseFloat(opcao.valorFloat2) || 0;
+          descricao += `: ${percentual}% de ${this._formatarMoeda(valorBase)}`;
+          valorOpcao = (percentual / 100) * valorBase;
+        }
+        
+        doc.fillColor('#1f2937')
+           .font('Helvetica')
+           .fontSize(6)
+           .text(descricao, x + 6, textY, { 
+             width: colWidths.descricao - 6, 
+             align: 'left',
+             lineBreak: false,
+             ellipsis: true
+           });
+        x += colWidths.descricao;
+        
+        doc.fillColor('#1f2937')
+           .font('Helvetica-Bold')
+           .fontSize(6)
+           .text(this._formatarMoeda(valorOpcao), x, textY, { width: colWidths.valor, align: 'center' });
+        
+        y += rowHeight;
+        itemIndex++;
+      });
     }
     
     if (type === 'pedido' && data.frete && data.freteDesc && data.freteValor) {
-      if (needsDivider) {
-        doc.moveTo(margin + padding, boxContentY - lineSpacing/2)
-          .lineTo(pageWidth - margin - padding, boxContentY - lineSpacing/2)
-          .strokeColor('#e5e7eb')
-          .lineWidth(0.5)
-          .stroke();
+      if (itemIndex % 2 === 0) {
+        doc.rect(margin, y, contentWidth, rowHeight)
+           .fillColor('#fafafa')
+           .fill();
       }
-      boxContentY = this._desenharFrete(doc, data, margin, pageWidth, contentWidth, padding, boxContentY, lineSpacing);
-      needsDivider = true;
+      
+      x = margin;
+      const textY = y + 3.5;
+      
+      doc.fillColor('#6b7280')
+         .font('Helvetica-Bold')
+         .fontSize(6)
+         .text((itemIndex + 1).toString(), x, textY, { width: colWidths.numero, align: 'center' });
+      x += colWidths.numero;
+      
+      doc.fillColor('#1f2937')
+         .font('Helvetica')
+         .fontSize(6)
+         .text(`Frete: ${data.freteDesc}`, x + 6, textY, { 
+           width: colWidths.descricao - 6, 
+           align: 'left',
+           lineBreak: false,
+           ellipsis: true
+         });
+      x += colWidths.descricao;
+      
+      doc.fillColor('#1f2937')
+         .font('Helvetica-Bold')
+         .fontSize(6)
+         .text(this._formatarMoeda(data.freteValor), x, textY, { width: colWidths.valor, align: 'center' });
+      
+      y += rowHeight;
+      itemIndex++;
     }
     
     if (type === 'pedido' && data.caminhaoMunck && data.caminhaoMunckHoras && data.caminhaoMunckValorHora) {
-      if (needsDivider) {
-        doc.moveTo(margin + padding, boxContentY - lineSpacing/2)
-          .lineTo(pageWidth - margin - padding, boxContentY - lineSpacing/2)
-          .strokeColor('#e5e7eb')
-          .lineWidth(0.5)
-          .stroke();
+      if (itemIndex % 2 === 0) {
+        doc.rect(margin, y, contentWidth, rowHeight)
+           .fillColor('#fafafa')
+           .fill();
       }
-      boxContentY = this._desenharCaminhaoMunck(doc, data, margin, pageWidth, contentWidth, padding, boxContentY, lineSpacing);
+      
+      x = margin;
+      const textY = y + 3.5;
+      const totalMunck = data.caminhaoMunckTotal || (data.caminhaoMunckHoras * data.caminhaoMunckValorHora);
+      
+      doc.fillColor('#6b7280')
+         .font('Helvetica-Bold')
+         .fontSize(6)
+         .text((itemIndex + 1).toString(), x, textY, { width: colWidths.numero, align: 'center' });
+      x += colWidths.numero;
+      
+      doc.fillColor('#1f2937')
+         .font('Helvetica')
+         .fontSize(6)
+         .text(`Caminhão Munck: ${this._formatarHoras(data.caminhaoMunckHoras)} × ${this._formatarMoeda(data.caminhaoMunckValorHora)}/hora`, x + 6, textY, { 
+           width: colWidths.descricao - 6, 
+           align: 'left',
+           lineBreak: false,
+           ellipsis: true
+         });
+      x += colWidths.descricao;
+      
+      doc.fillColor('#1f2937')
+         .font('Helvetica-Bold')
+         .fontSize(6)
+         .text(this._formatarMoeda(totalMunck), x, textY, { width: colWidths.valor, align: 'center' });
+      
+      y += rowHeight;
+      itemIndex++;
     }
     
-    const boxHeight = boxContentY - boxStartY + padding - lineSpacing;
-    doc.roundedRect(margin, boxStartY, contentWidth, boxHeight, 4)
-      .strokeColor('#d1d5db')
-      .lineWidth(1)
-      .stroke();
+    const tableHeight = headerHeight + (itemIndex * rowHeight);
+    doc.roundedRect(margin, tableStartY, contentWidth, tableHeight, 4)
+       .strokeColor('#d1d5db')
+       .lineWidth(1)
+       .stroke();
     
-    return boxContentY + padding;
-  }
-
-  _desenharDespesas(doc, despesas, margin, pageWidth, contentWidth, padding, startY, lineSpacing) {
-    let y = startY;
-    const titulo = despesas.length === 1 ? 'DESPESA ADICIONAL' : 'DESPESAS ADICIONAIS';
+    x = margin + colWidths.numero;
+    doc.moveTo(x, tableStartY)
+       .lineTo(x, tableStartY + tableHeight)
+       .strokeColor('#e5e7eb')
+       .lineWidth(0.5)
+       .stroke();
     
-    doc.fontSize(6)
-      .font('Helvetica-Bold')
-      .fillColor('#6b7280')
-      .text(titulo, margin + padding, y);
+    x += colWidths.descricao;
+    doc.moveTo(x, tableStartY)
+       .lineTo(x, tableStartY + tableHeight)
+       .strokeColor('#e5e7eb')
+       .lineWidth(0.5)
+       .stroke();
     
-    y += 9;
-    
-    despesas.forEach((despesa, index) => {
-      const numeroWidth = 20;
-      const itemStartY = y;
-      
-      doc.fontSize(6)
-        .font('Helvetica-Bold')
-        .fillColor('#6b7280')
-        .text(`${index + 1}.`, margin + padding, y, { width: numeroWidth, align: 'left' });
-      
-      doc.fontSize(6)
-        .font('Helvetica')
-        .fillColor('#1f2937')
-        .text(despesa.descricao, margin + padding + numeroWidth, y, { 
-          width: contentWidth - 2 * padding - numeroWidth - 100 
-        });
-      
-      const descricaoEndY = doc.y;
-      
-      doc.fontSize(6)
-        .font('Helvetica-Bold')
-        .fillColor('#1a1a1a')
-        .text(this._formatarMoeda(despesa.valor), pageWidth - margin - padding - 90, itemStartY, { 
-          width: 90, 
-          align: 'right' 
-        });
-      
-      y = Math.max(descricaoEndY, doc.y) + lineSpacing;
-      
-      if (index < despesas.length - 1) {
-        doc.moveTo(margin + padding, y - lineSpacing/2)
-          .lineTo(pageWidth - margin - padding, y - lineSpacing/2)
-          .strokeColor('#e5e7eb')
-          .lineWidth(0.5)
-          .stroke();
-      }
-    });
-    
-    return y;
-  }
-
-  _desenharOpcoesExtras(doc, opcoes, margin, pageWidth, contentWidth, padding, startY, lineSpacing) {
-    let y = startY;
-    const titulo = opcoes.length === 1 ? 'OPÇÃO EXTRA' : 'OPÇÕES EXTRAS';
-    
-    doc.fontSize(6)
-      .font('Helvetica-Bold')
-      .fillColor('#6b7280')
-      .text(titulo, margin + padding, y);
-    
-    y += 9;
-    
-    opcoes.forEach((opcao, index) => {
-      const numeroWidth = 20;
-      const itemStartY = y;
-      
-      doc.fontSize(6)
-        .font('Helvetica-Bold')
-        .fillColor('#6b7280')
-        .text(`${index + 1}.`, margin + padding, y, { width: numeroWidth, align: 'left' });
-      
-      let descricao = opcao.nome;
-      let valorOpcao = 0;
-      
-      if (opcao.tipo === 'STRINGFLOAT') {
-        descricao += `: ${opcao.valorString}`;
-        valorOpcao = opcao.valorFloat1 || 0;
-      } else if (opcao.tipo === 'FLOATFLOAT') {
-        const valor1 = parseFloat(opcao.valorFloat1) || 0;
-        const valor2 = parseFloat(opcao.valorFloat2) || 0;
-        descricao += `: ${this._formatarHoras(valor1)} × ${this._formatarMoeda(valor2)}/hora`;
-        valorOpcao = valor1 * valor2;
-      } else if (opcao.tipo === 'PERCENTFLOAT') {
-        const percentual = parseFloat(opcao.valorFloat1) || 0;
-        const valorBase = parseFloat(opcao.valorFloat2) || 0;
-        descricao += `: ${percentual}% de ${this._formatarMoeda(valorBase)}`;
-        valorOpcao = (percentual / 100) * valorBase;
-      }
-      
-      doc.fontSize(6)
-        .font('Helvetica')
-        .fillColor('#1f2937')
-        .text(descricao, margin + padding + numeroWidth, y, { 
-          width: contentWidth - 2 * padding - numeroWidth - 100 
-        });
-      
-      const descricaoEndY = doc.y;
-      
-      doc.fontSize(6)
-        .font('Helvetica-Bold')
-        .fillColor('#1a1a1a')
-        .text(this._formatarMoeda(valorOpcao), pageWidth - margin - padding - 90, itemStartY, { 
-          width: 90, 
-          align: 'right' 
-        });
-      
-      y = Math.max(descricaoEndY, doc.y) + lineSpacing;
-      
-      if (index < opcoes.length - 1) {
-        doc.moveTo(margin + padding, y - lineSpacing/2)
-          .lineTo(pageWidth - margin - padding, y - lineSpacing/2)
-          .strokeColor('#e5e7eb')
-          .lineWidth(0.5)
-          .stroke();
-      }
-    });
-    
-    return y;
-  }
-
-  _desenharFrete(doc, data, margin, pageWidth, contentWidth, padding, startY, lineSpacing) {
-    let y = startY;
-    
-    doc.fontSize(6)
-      .font('Helvetica-Bold')
-      .fillColor('#6b7280')
-      .text('FRETE', margin + padding, y);
-    
-    y += 9;
-    
-    const itemStartY = y;
-    
-    doc.fontSize(6)
-      .font('Helvetica')
-      .fillColor('#1f2937')
-      .text(data.freteDesc, margin + padding, y, { 
-        width: contentWidth - 2 * padding - 100 
-      });
-    
-    const freteDescEndY = doc.y;
-    
-    doc.fontSize(6)
-      .font('Helvetica-Bold')
-      .fillColor('#1a1a1a')
-      .text(this._formatarMoeda(data.freteValor), pageWidth - margin - padding - 90, itemStartY, { 
-        width: 90, 
-        align: 'right' 
-      });
-    
-    return Math.max(freteDescEndY, doc.y) + lineSpacing;
-  }
-
-  _desenharCaminhaoMunck(doc, data, margin, pageWidth, contentWidth, padding, startY, lineSpacing) {
-    let y = startY;
-    
-    doc.fontSize(6)
-      .font('Helvetica-Bold')
-      .fillColor('#6b7280')
-      .text('CAMINHÃO MUNCK', margin + padding, y);
-    
-    y += 9;
-    
-    const itemStartY = y;
-    const totalMunck = data.caminhaoMunckTotal || (data.caminhaoMunckHoras * data.caminhaoMunckValorHora);
-    
-    doc.fontSize(6)
-      .font('Helvetica')
-      .fillColor('#1f2937')
-      .text(`${this._formatarHoras(data.caminhaoMunckHoras)} × ${this._formatarMoeda(data.caminhaoMunckValorHora)}/hora`, 
-            margin + padding, y, { 
-              width: contentWidth - 2 * padding - 100 
-            });
-    
-    const munckDescEndY = doc.y;
-    
-    doc.fontSize(6)
-      .font('Helvetica-Bold')
-      .fillColor('#1a1a1a')
-      .text(this._formatarMoeda(totalMunck), pageWidth - margin - padding - 90, itemStartY, { 
-        width: 90, 
-        align: 'right' 
-      });
-    
-    return Math.max(munckDescEndY, doc.y) + lineSpacing;
+    return y + 8;
   }
 
   _desenharInfoPagamentoETotal(doc, data, type, startY) {
@@ -579,98 +558,114 @@ class PdfLayout {
     
     y += 10;
     
-    const padding = 9;
-    const infoHeight = 40;
-    const totalHeight = 40;
-    const totalBoxHeight = infoHeight + totalHeight;
+    const colWidths = {
+      formaPagamento: contentWidth * 0.33,
+      condicoes: contentWidth * 0.34,
+      prazo: contentWidth * 0.33
+    };
     
+    const tableStartY = y;
+    const headerHeight = 15;
+    const rowHeight = 20;
+    
+    doc.roundedRect(margin, y, contentWidth, headerHeight, 3)
+       .fillAndStroke('#f3f4f6', '#d1d5db');
+    
+    doc.fontSize(6)
+       .font('Helvetica-Bold')
+       .fillColor('#374151');
+    
+    let x = margin;
+    doc.text('FORMA DE PAGAMENTO', x, y + 4.5, { width: colWidths.formaPagamento, align: 'center' });
+    x += colWidths.formaPagamento;
+    
+    doc.text('CONDIÇÕES DE PAGAMENTO', x, y + 4.5, { width: colWidths.condicoes, align: 'center' });
+    x += colWidths.condicoes;
+    
+    doc.text('PRAZO DE ENTREGA', x, y + 4.5, { width: colWidths.prazo, align: 'center' });
+    
+    y += headerHeight;
+    
+    doc.rect(margin, y, contentWidth, rowHeight)
+       .fillColor('#fafafa')
+       .fill();
+    
+    x = margin;
+    const textY = y + 6;
+    
+    doc.fillColor('#1f2937')
+       .font('Helvetica')
+       .fontSize(6)
+       .text(data.formaPagamento, x + 6, textY, { 
+         width: colWidths.formaPagamento - 12, 
+         align: 'left'
+       });
+    x += colWidths.formaPagamento;
+    
+    doc.fillColor('#1f2937')
+       .font('Helvetica')
+       .fontSize(6)
+       .text(data.condicoesPagamento, x + 6, textY, { 
+         width: colWidths.condicoes - 12, 
+         align: 'left'
+       });
+    x += colWidths.condicoes;
+    
+    doc.fillColor('#1f2937')
+       .font('Helvetica')
+       .fontSize(6)
+       .text(data.prazoEntrega, x + 6, textY, { 
+         width: colWidths.prazo - 12, 
+         align: 'left'
+       });
+    
+    y += rowHeight;
+    
+    const tableHeight = headerHeight + rowHeight;
+    doc.roundedRect(margin, tableStartY, contentWidth, tableHeight, 4)
+       .strokeColor('#d1d5db')
+       .lineWidth(1)
+       .stroke();
+    
+    x = margin + colWidths.formaPagamento;
+    doc.moveTo(x, tableStartY)
+       .lineTo(x, tableStartY + tableHeight)
+       .strokeColor('#e5e7eb')
+       .lineWidth(0.5)
+       .stroke();
+    
+    x += colWidths.condicoes;
+    doc.moveTo(x, tableStartY)
+       .lineTo(x, tableStartY + tableHeight)
+       .strokeColor('#e5e7eb')
+       .lineWidth(0.5)
+       .stroke();
+    
+    y += 8;
+    
+    const totalBoxHeight = 40;
     doc.roundedRect(margin, y, contentWidth, totalBoxHeight, 4)
        .strokeColor('#d1d5db')
        .lineWidth(1)
        .stroke();
     
-    const thirdWidth = (contentWidth - 2 * padding - 20) / 3;
-    const col1X = margin + padding;
-    const col2X = margin + padding + thirdWidth + 10;
-    const col3X = margin + padding + 2 * (thirdWidth + 10);
-    
     doc.fontSize(6)
        .font('Helvetica-Bold')
        .fillColor('#6b7280')
-       .text('FORMA DE PAGAMENTO', col1X, y + padding);
-    
-    doc.fontSize(6)
-       .font('Helvetica')
-       .fillColor('#1f2937')
-       .text(data.formaPagamento, col1X, y + padding + 8, { 
-         width: thirdWidth, 
-         align: 'left' 
-       });
-    
-    const divider1X = col1X + thirdWidth + 5;
-    doc.moveTo(divider1X, y + padding)
-       .lineTo(divider1X, y + infoHeight - padding)
-       .strokeColor('#e5e7eb')
-       .lineWidth(0.5)
-       .stroke();
-    
-    doc.fontSize(6)
-       .font('Helvetica-Bold')
-       .fillColor('#6b7280')
-       .text('CONDIÇÕES DE PAGAMENTO', col2X, y + padding);
-    
-    doc.fontSize(6)
-       .font('Helvetica')
-       .fillColor('#1f2937')
-       .text(data.condicoesPagamento, col2X, y + padding + 8, { 
-         width: thirdWidth, 
-         align: 'left' 
-       });
-    
-    const divider2X = col2X + thirdWidth + 5;
-    doc.moveTo(divider2X, y + padding)
-       .lineTo(divider2X, y + infoHeight - padding)
-       .strokeColor('#e5e7eb')
-       .lineWidth(0.5)
-       .stroke();
-    
-    doc.fontSize(6)
-       .font('Helvetica-Bold')
-       .fillColor('#6b7280')
-       .text('PRAZO DE ENTREGA', col3X, y + padding);
-    
-    doc.fontSize(6)
-       .font('Helvetica')
-       .fillColor('#1f2937')
-       .text(data.prazoEntrega, col3X, y + padding + 8, { 
-         width: thirdWidth, 
-         align: 'left' 
-       });
-    
-    y += infoHeight;
-    doc.moveTo(margin, y)
-       .lineTo(pageWidth - margin, y)
-       .strokeColor('#d1d5db')
-       .lineWidth(1)
-       .stroke();
-    
-    doc.fontSize(6)
-       .font('Helvetica-Bold')
-       .fillColor('#6b7280')
-       .text('VALOR TOTAL', margin + padding, y + 8, {
-         width: contentWidth - 2 * padding, 
+       .text('VALOR TOTAL', margin, y + 8, {
+         width: contentWidth, 
          align: 'center' 
        });
     
     doc.fontSize(14)
        .font('Helvetica-Bold')
        .fillColor('#1a1a1a')
-       .text(this._formatarMoeda(data.total), margin + padding, y + 19, {
-         width: contentWidth - 2 * padding, 
+       .text(this._formatarMoeda(data.total), margin, y + 19, {
+         width: contentWidth, 
          align: 'center' 
        });
     
-    return y + totalHeight;
+    return y + totalBoxHeight;
   }
 
   _desenharFooter(doc) {
@@ -707,7 +702,7 @@ class PdfLayout {
        });
   }
 
-  _formatarMoeda(valor) {
+  _formatarMoeda(valor){
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'

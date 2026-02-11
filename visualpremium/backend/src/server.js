@@ -18,7 +18,6 @@ const PORT = process.env.PORT;
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor rodando em http://0.0.0.0:${PORT}`);
-  console.log(`📍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
 });
 
 server.on('error', (error) => {

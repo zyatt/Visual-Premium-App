@@ -110,7 +110,6 @@ class OrcamentoController {
       const orcamento = await orcamentoService.atualizarStatus(
         parseInt(id), 
         status, 
-        {}, 
         req.user
       );
       

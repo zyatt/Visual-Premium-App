@@ -12,4 +12,5 @@ class AppRoutes {
   static const String logs = '/admin/logs';
   static const String almoxarifado = '/almoxarifado';
   static const String relatorio = '/relatorio';
-}
+  static const String faixacusto = '/faixacusto';
+}  

@@ -13,11 +13,18 @@
     "migrate:dev": "cross-env NODE_ENV=dev DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_dev prisma migrate dev",
     "migrate:prod": "cross-env NODE_ENV=prod DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_prod prisma migrate deploy",
 
+    "reset:dev": "cross-env NODE_ENV=dev DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_dev prisma migrate reset --force",
+    "reset:prod": "cross-env NODE_ENV=prod DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_prod prisma migrate reset --force",
+
     "seed:dev": "cross-env NODE_ENV=dev DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_dev prisma db seed",
     "seed:prod": "cross-env NODE_ENV=prod DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_prod prisma db seed",
-
+    
     "studio:dev": "cross-env DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_dev prisma studio",
-    "studio:prod": "cross-env DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_prod prisma studio"
+    "studio:prod": "cross-env DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_prod prisma studio",
+    
+    "pull:dev": "cross-env NODE_ENV=dev DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_dev prisma db pull",
+    "pull:prod": "cross-env NODE_ENV=prod DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_prod prisma db pull"
+  
   },
   "keywords": [],
   "author": "",

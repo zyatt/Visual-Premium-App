@@ -244,6 +244,9 @@ class _UsuarioCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
         onTap: onEdit,
+        splashColor: Colors.transparent,
+        hoverColor: Colors.transparent,
+        focusColor: Colors.transparent,
         contentPadding: const EdgeInsets.all(16),
         leading: CircleAvatar(
           radius: 24,
@@ -356,11 +359,6 @@ class _UsuarioCard extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              tooltip: 'Editar usuário',
-              onPressed: onEdit,
-            ),
             IconButton(
               icon: const Icon(Icons.delete_outline),
               tooltip: isCurrentUser 

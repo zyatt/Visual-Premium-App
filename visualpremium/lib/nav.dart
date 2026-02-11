@@ -16,6 +16,7 @@ import 'pages/loading/splash_page.dart';
 import 'pages/login/login_page.dart';
 import 'pages/admin/logs_page.dart';
 import '../widgets/update_checker_widget.dart';
+import 'pages/admin/faixas_custo_page.dart';
 
 class AppRouter {
   static final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -146,6 +147,13 @@ class AppRouter {
               name: 'relatorio',
               pageBuilder: (context, state) => NoTransitionPage(
                 child: const RelatorioPage(),
+              ),
+            ),
+            GoRoute(
+              path: AppRoutes.faixacusto,
+              name: 'faixacusto',
+              pageBuilder: (context, state) => NoTransitionPage(
+                child: const FaixasCustoPage(),
               ),
             ),
           ],

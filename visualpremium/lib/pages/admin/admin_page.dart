@@ -167,12 +167,10 @@ class AdminPage extends StatelessWidget {
                       _AdminFeatureCard(
                         icon: Icons.settings_outlined,
                         title: 'Configurações Avançadas',
-                        description: 'Configurar parâmetros do sistema',
+                        description: 'Configurar faixas de custo e markup',
                         color: Colors.purple,
                         onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Funcionalidade em desenvolvimento')),
-                          );
+                          context.go(AppRoutes.faixacusto);
                         },
                       ),
                     ],

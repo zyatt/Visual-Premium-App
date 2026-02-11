@@ -6,12 +6,6 @@ datasource db {
   provider = "postgresql"
 }
 
-enum TipoOpcaoExtra {
-  STRINGFLOAT
-  FLOATFLOAT
-  PERCENTFLOAT
-}
-
 model Log {
   id          Int      @id @default(autoincrement())
   usuarioId   Int
@@ -42,45 +36,43 @@ model Usuario {
 model Produto {
   id           Int                 @id @default(autoincrement())
   nome         String
-  materiais    ProdutoMaterial[]
-  opcoesExtras ProdutoOpcaoExtra[]
-  avisos       ProdutoAviso[]
-  orcamentos   Orcamento[]
-  pedidos      Pedido[]
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
+  orcamentos   Orcamento[]
+  pedidos      Pedido[]
+  avisos       ProdutoAviso[]
+  materiais    ProdutoMaterial[]
+  opcoesExtras ProdutoOpcaoExtra[]
 
   @@map("produtos")
 }
 
 model ProdutoAviso {
-  id            Int                @id @default(autoincrement())
-  produtoId     Int
-  mensagem      String
-  materialId    Int?
-  opcaoExtraId  Int?
-  produto       Produto            @relation(fields: [produtoId], references: [id], onDelete: Cascade)
-  material      Material?          @relation(fields: [materialId], references: [id], onDelete: SetNull)
-  opcaoExtra    ProdutoOpcaoExtra? @relation(fields: [opcaoExtraId], references: [id], onDelete: SetNull)
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  id           Int                @id @default(autoincrement())
+  produtoId    Int
+  mensagem     String
+  materialId   Int?
+  opcaoExtraId Int?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  material     Material?          @relation(fields: [materialId], references: [id])
+  opcaoExtra   ProdutoOpcaoExtra? @relation(fields: [opcaoExtraId], references: [id])
+  produto      Produto            @relation(fields: [produtoId], references: [id], onDelete: Cascade)
 
   @@map("produto_avisos")
 }
 
 model ProdutoOpcaoExtra {
-  id        Int            @id @default(autoincrement())
-  produtoId Int
-  nome      String
-  tipo      TipoOpcaoExtra
-
-  produto   Produto        @relation(fields: [produtoId], references: [id], onDelete: Cascade)
-  avisos    ProdutoAviso[]
-  createdAt DateTime       @default(now())
-
+  id                 Int                      @id @default(autoincrement())
+  produtoId          Int
+  nome               String
+  tipo               TipoOpcaoExtra
+  createdAt          DateTime                 @default(now())
+  almoxarifadoOpcoes AlmoxarifadoOpcaoExtra[]
   orcamentoOpcoes    OrcamentoOpcaoExtra[]
   pedidoOpcoes       PedidoOpcaoExtra[]
-  almoxarifadoOpcoes AlmoxarifadoOpcaoExtra[]
+  avisos             ProdutoAviso[]
+  produto            Produto                  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
 
   @@unique([produtoId, nome])
   @@map("produto_opcoes_extras")
@@ -92,34 +84,31 @@ model Orcamento {
   numero             Int                   @unique
   status             String
   produtoId          Int
-  produto            Produto               @relation(fields: [produtoId], references: [id])
-  materiais          OrcamentoMaterial[]
-  despesasAdicionais DespesaAdicional[]
-  opcoesExtras       OrcamentoOpcaoExtra[]
   formaPagamento     String
   condicoesPagamento String
   prazoEntrega       String
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
-  pedido             Pedido?
   almoxarifado       Almoxarifado?
+  despesasAdicionais DespesaAdicional[]
+  materiais          OrcamentoMaterial[]
+  opcoesExtras       OrcamentoOpcaoExtra[]
+  produto            Produto               @relation(fields: [produtoId], references: [id])
+  pedido             Pedido?
 
   @@map("orcamentos")
 }
 
 model OrcamentoOpcaoExtra {
-  id             Int @id @default(autoincrement())
+  id             Int               @id @default(autoincrement())
   orcamentoId    Int
   produtoOpcaoId Int
-
-  valorString String?
-  valorFloat1 Float?
-  valorFloat2 Float?
-
-  orcamento    Orcamento         @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
-  produtoOpcao ProdutoOpcaoExtra @relation(fields: [produtoOpcaoId], references: [id])
-
-  createdAt DateTime @default(now())
+  valorString    String?
+  valorFloat1    Float?
+  valorFloat2    Float?
+  createdAt      DateTime          @default(now())
+  orcamento      Orcamento         @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
+  produtoOpcao   ProdutoOpcaoExtra @relation(fields: [produtoOpcaoId], references: [id])
 
   @@unique([orcamentoId, produtoOpcaoId])
   @@map("orcamento_opcoes_extras")
@@ -131,213 +120,206 @@ model Pedido {
   numero             Int?                     @unique
   status             String
   produtoId          Int
-  produto            Produto                  @relation(fields: [produtoId], references: [id])
-  materiais          PedidoMaterial[]
-  despesasAdicionais PedidoDespesaAdicional[]
-  opcoesExtras       PedidoOpcaoExtra[]
   formaPagamento     String
   condicoesPagamento String
   prazoEntrega       String
   orcamentoId        Int?                     @unique
-  orcamento          Orcamento?               @relation(fields: [orcamentoId], references: [id])
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
+  materiais          PedidoMaterial[]
+  opcoesExtras       PedidoOpcaoExtra[]
+  orcamento          Orcamento?               @relation(fields: [orcamentoId], references: [id])
+  produto            Produto                  @relation(fields: [produtoId], references: [id])
+  despesasAdicionais PedidoDespesaAdicional[]
 
   @@map("pedidos")
 }
 
 model PedidoOpcaoExtra {
-  id             Int @id @default(autoincrement())
+  id             Int               @id @default(autoincrement())
   pedidoId       Int
   produtoOpcaoId Int
-
-  valorString String?
-  valorFloat1 Float?
-  valorFloat2 Float?
-
-  pedido       Pedido            @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  produtoOpcao ProdutoOpcaoExtra @relation(fields: [produtoOpcaoId], references: [id])
-
-  createdAt DateTime @default(now())
+  valorString    String?
+  valorFloat1    Float?
+  valorFloat2    Float?
+  createdAt      DateTime          @default(now())
+  pedido         Pedido            @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  produtoOpcao   ProdutoOpcaoExtra @relation(fields: [produtoOpcaoId], references: [id])
 
   @@unique([pedidoId, produtoOpcaoId])
   @@map("pedido_opcoes_extras")
 }
 
 model DespesaAdicional {
-  id          Int    @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   orcamentoId Int
   descricao   String
   valor       Float
-
-  orcamento Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
-  createdAt DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  orcamento   Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
 
   @@map("despesas_adicionais")
 }
 
 model PedidoDespesaAdicional {
-  id        Int    @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   pedidoId  Int
   descricao String
   valor     Float
-
-  pedido    Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+  pedido    Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 
   @@map("pedidos_despesas_adicionais")
 }
 
 model Material {
-  id                 Int                 @id @default(autoincrement())
-  nome               String
-  custo              Float
-  unidade            String
-  quantidade         Float
-  produtos           ProdutoMaterial[]
-  avisos             ProdutoAviso[]
-  orcamentoMaterials OrcamentoMaterial[]
-  pedidoMaterials    PedidoMaterial[]
+  id                    Int                    @id @default(autoincrement())
+  nome                  String
+  custo                 Float
+  unidade               String
+  quantidade            Float
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
   almoxarifadoMaterials AlmoxarifadoMaterial[]
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  orcamentoMaterials    OrcamentoMaterial[]
+  pedidoMaterials       PedidoMaterial[]
+  avisos                ProdutoAviso[]
+  produtos              ProdutoMaterial[]
 
   @@map("materiais")
 }
 
 model ProdutoMaterial {
-  id         Int @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   produtoId  Int
   materialId Int
-
-  produto    Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
   material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  produto    Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
 
   @@unique([produtoId, materialId])
   @@map("produto_materiais")
 }
 
 model OrcamentoMaterial {
-  id          Int   @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   orcamentoId Int
   materialId  Int
   quantidade  Float
-  custo       Float 
-
-  orcamento Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
-  material  Material  @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  custo       Float
+  material    Material  @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  orcamento   Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
 
   @@map("orcamento_materiais")
 }
 
 model PedidoMaterial {
-  id         Int   @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   pedidoId   Int
   materialId Int
   quantidade Float
-  custo      Float 
-  
-  pedido   Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
-  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  custo      Float
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  pedido     Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 
   @@map("pedido_materiais")
 }
 
 model Almoxarifado {
-  id                 Int                        @id @default(autoincrement())
-  orcamentoId        Int                        @unique
-  orcamento          Orcamento                  @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
-  status             String                     @default("Não Realizado") // "Realizado" ou "Não Realizado"
-  materiais          AlmoxarifadoMaterial[]
-  despesasAdicionais AlmoxarifadoDespesa[]
-  opcoesExtras       AlmoxarifadoOpcaoExtra[]
-  observacoes        String?
-  finalizadoEm       DateTime?
-  finalizadoPor      String?
-  createdAt          DateTime                   @default(now())
-  updatedAt          DateTime                   @updatedAt
+  id                   Int                      @id @default(autoincrement())
+  orcamentoId          Int                      @unique
+  status               String                   @default("Não Realizado")
+  observacoes          String?
+  finalizadoEm         DateTime?
+  finalizadoPor        String?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+  despesasAdicionais   AlmoxarifadoDespesa[]
+  materiais            AlmoxarifadoMaterial[]
+  opcoesExtras         AlmoxarifadoOpcaoExtra[]
+  orcamento            Orcamento                @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
   relatorioComparativo RelatorioComparativo?
 
   @@map("almoxarifados")
 }
 
 model AlmoxarifadoMaterial {
-  id              Int          @id @default(autoincrement())
-  almoxarifadoId  Int
-  materialId      Int
-  quantidade      Float
-  custoRealizado  Float        // Custo efetivamente gasto
-  
-  almoxarifado Almoxarifado @relation(fields: [almoxarifadoId], references: [id], onDelete: Cascade)
-  material     Material     @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  id             Int          @id @default(autoincrement())
+  almoxarifadoId Int
+  materialId     Int
+  quantidade     Float
+  custoRealizado Float
+  almoxarifado   Almoxarifado @relation(fields: [almoxarifadoId], references: [id], onDelete: Cascade)
+  material       Material     @relation(fields: [materialId], references: [id], onDelete: Cascade)
 
   @@map("almoxarifado_materiais")
 }
 
 model AlmoxarifadoDespesa {
-  id              Int          @id @default(autoincrement())
-  almoxarifadoId  Int
-  descricao       String
-  valorRealizado  Float        // Valor efetivamente gasto
-  
-  almoxarifado Almoxarifado @relation(fields: [almoxarifadoId], references: [id], onDelete: Cascade)
-  createdAt    DateTime     @default(now())
+  id             Int          @id @default(autoincrement())
+  almoxarifadoId Int
+  descricao      String
+  valorRealizado Float
+  createdAt      DateTime     @default(now())
+  almoxarifado   Almoxarifado @relation(fields: [almoxarifadoId], references: [id], onDelete: Cascade)
 
   @@map("almoxarifado_despesas")
 }
 
 model AlmoxarifadoOpcaoExtra {
-  id             Int @id @default(autoincrement())
+  id             Int               @id @default(autoincrement())
   almoxarifadoId Int
   produtoOpcaoId Int
-
-  valorString String?
-  valorFloat1 Float?
-  valorFloat2 Float?
-
-  almoxarifado Almoxarifado      @relation(fields: [almoxarifadoId], references: [id], onDelete: Cascade)
-  produtoOpcao ProdutoOpcaoExtra @relation(fields: [produtoOpcaoId], references: [id])
-
-  createdAt DateTime @default(now())
+  valorString    String?
+  valorFloat1    Float?
+  valorFloat2    Float?
+  createdAt      DateTime          @default(now())
+  almoxarifado   Almoxarifado      @relation(fields: [almoxarifadoId], references: [id], onDelete: Cascade)
+  produtoOpcao   ProdutoOpcaoExtra @relation(fields: [produtoOpcaoId], references: [id])
 
   @@unique([almoxarifadoId, produtoOpcaoId])
   @@map("almoxarifado_opcoes_extras")
 }
 
 model RelatorioComparativo {
-  id              Int      @id @default(autoincrement())
-  almoxarifadoId  Int      @unique
-  almoxarifado    Almoxarifado @relation(fields: [almoxarifadoId], references: [id], onDelete: Cascade)
-  
-  // Valores Orçados
-  totalOrcadoMateriais        Float
-  totalOrcadoDespesas         Float
-  totalOrcadoOpcoesExtras     Float
-  totalOrcado                 Float
-  
-  // Valores Realizados
-  totalRealizadoMateriais     Float
-  totalRealizadoDespesas      Float
-  totalRealizadoOpcoesExtras  Float
-  totalRealizado              Float
-  
-  // Diferenças
-  diferencaMateriais          Float
-  diferencaDespesas           Float
-  diferencaOpcoesExtras       Float
-  diferencaTotal              Float
-  
-  // Percentuais
-  percentualMateriais         Float
-  percentualDespesas          Float
-  percentualOpcoesExtras      Float
-  percentualTotal             Float
-  
-  // Análise por Material (JSON)
-  analiseDetalhada            Json
-  
-  createdAt                   DateTime @default(now())
-  updatedAt                   DateTime @updatedAt
+  id                         Int          @id @default(autoincrement())
+  almoxarifadoId             Int          @unique
+  totalOrcadoMateriais       Float
+  totalOrcadoDespesas        Float
+  totalOrcadoOpcoesExtras    Float
+  totalOrcado                Float
+  totalRealizadoMateriais    Float
+  totalRealizadoDespesas     Float
+  totalRealizadoOpcoesExtras Float
+  totalRealizado             Float
+  diferencaMateriais         Float
+  diferencaDespesas          Float
+  diferencaOpcoesExtras      Float
+  diferencaTotal             Float
+  percentualMateriais        Float
+  percentualDespesas         Float
+  percentualOpcoesExtras     Float
+  percentualTotal            Float
+  analiseDetalhada           Json
+  createdAt                  DateTime     @default(now())
+  updatedAt                  DateTime     @updatedAt
+  almoxarifado               Almoxarifado @relation(fields: [almoxarifadoId], references: [id], onDelete: Cascade)
 
   @@map("relatorios_comparativos")
+}
+
+model FaixaCustoMarkup {
+  id        Int      @id @default(autoincrement())
+  custoAte  Float?
+  markup    Float
+  ordem     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("faixas_custo_markup")
+}
+
+enum TipoOpcaoExtra {
+  STRINGFLOAT
+  FLOATFLOAT
+  PERCENTFLOAT
 }

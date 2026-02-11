@@ -995,7 +995,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Registro de Almoxarifado',
+                            'Registro do Custo',
                             style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w700,
                             ),
@@ -1274,7 +1274,6 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                           ...List.generate(widget.orcamento.opcoesExtras.length, (index) {
                             final opcao = widget.orcamento.opcoesExtras[index];
                             
-                            // Pular opções extras que foram marcadas como "Não"
                             final isNaoSelection = opcao.valorString == null && 
                                                    opcao.valorFloat1 == null && 
                                                    opcao.valorFloat2 == null;

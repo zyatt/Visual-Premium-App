@@ -475,6 +475,7 @@ class OrcamentoItem {
   final String prazoEntrega;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final Map<String, dynamic>? valorSugerido;
 
   const OrcamentoItem({
     required this.id,
@@ -491,6 +492,7 @@ class OrcamentoItem {
     required this.prazoEntrega,
     required this.createdAt,
     required this.updatedAt,
+    this.valorSugerido,
   });
 
   double get totalMateriais {
@@ -556,23 +558,26 @@ class OrcamentoItem {
     String? prazoEntrega,
     DateTime? createdAt,
     DateTime? updatedAt,
-  }) =>
-      OrcamentoItem(
-        id: id ?? this.id,
-        cliente: cliente ?? this.cliente,
-        numero: numero ?? this.numero,
-        status: status ?? this.status,
-        produtoId: produtoId ?? this.produtoId,
-        produtoNome: produtoNome ?? this.produtoNome,
-        materiais: materiais ?? this.materiais,
-        despesasAdicionais: despesasAdicionais ?? this.despesasAdicionais,
-        opcoesExtras: opcoesExtras ?? this.opcoesExtras,
-        formaPagamento: formaPagamento ?? this.formaPagamento,
-        condicoesPagamento: condicoesPagamento ?? this.condicoesPagamento,
-        prazoEntrega: prazoEntrega ?? this.prazoEntrega,
-        createdAt: createdAt ?? this.createdAt,
-        updatedAt: updatedAt ?? this.updatedAt,
-      );
+    Map<String, dynamic>? valorSugerido,
+  }) {
+    return OrcamentoItem(
+      id: id ?? this.id,
+      cliente: cliente ?? this.cliente,
+      numero: numero ?? this.numero,
+      status: status ?? this.status,
+      produtoId: produtoId ?? this.produtoId,
+      produtoNome: produtoNome ?? this.produtoNome,
+      materiais: materiais ?? this.materiais,
+      despesasAdicionais: despesasAdicionais ?? this.despesasAdicionais,
+      opcoesExtras: opcoesExtras ?? this.opcoesExtras,
+      formaPagamento: formaPagamento ?? this.formaPagamento,
+      condicoesPagamento: condicoesPagamento ?? this.condicoesPagamento,
+      prazoEntrega: prazoEntrega ?? this.prazoEntrega,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      valorSugerido: valorSugerido ?? this.valorSugerido,
+    );
+  }
 
   Map<String, Object?> toMap() => {
         'cliente': cliente,
@@ -603,6 +608,7 @@ class OrcamentoItem {
       final formaPagamento = map['formaPagamento'];
       final condicoesPagamento = map['condicoesPagamento'];
       final prazoEntrega = map['prazoEntrega'];
+      final valorSugeridoData = map['valorSugerido'];
 
       if (id == null || cliente is! String || numero == null || status is! String || 
           produtoId == null || produtoData == null || formaPagamento is! String ||
@@ -645,6 +651,11 @@ class OrcamentoItem {
         }
       }
 
+      Map<String, dynamic>? valorSugerido;
+      if (valorSugeridoData != null && valorSugeridoData is Map) {
+        valorSugerido = Map<String, dynamic>.from(valorSugeridoData);
+      }
+
       return OrcamentoItem(
         id: int.parse(id.toString()),
         cliente: cliente.trim(),
@@ -660,6 +671,7 @@ class OrcamentoItem {
         prazoEntrega: prazoEntrega.trim(),
         createdAt: createdAt != null ? DateTime.parse(createdAt.toString()) : DateTime.now(),
         updatedAt: updatedAt != null ? DateTime.parse(updatedAt.toString()) : DateTime.now(),
+        valorSugerido: valorSugerido, // ADICIONE ESTA LINHA
       );
     } catch (e) {
       return null;

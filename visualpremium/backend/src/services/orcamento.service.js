@@ -1,9 +1,10 @@
 const prisma = require('../config/prisma');
 const logService = require('./log.service');
+const faixaCustoMarkupService = require('./faixaCustoMarkup.service');
 
 class OrcamentoService {
   async listar() {
-    return prisma.orcamento.findMany({
+    const orcamentos = await prisma.orcamento.findMany({
       include: {
         produto: true,
         materiais: {
@@ -22,6 +23,44 @@ class OrcamentoService {
         createdAt: 'desc'
       }
     });
+
+    // Calcular valor sugerido para cada orçamento
+    const orcamentosComValorSugerido = await Promise.all(
+      orcamentos.map(async (orcamento) => {
+        let total = 0;
+        
+        for (const mat of orcamento.materiais) {
+          total += mat.custo * mat.quantidade;
+        }
+        
+        for (const desp of orcamento.despesasAdicionais) {
+          total += desp.valor;
+        }
+        
+        for (const opcao of orcamento.opcoesExtras) {
+          const produtoOpcao = await prisma.produtoOpcaoExtra.findUnique({
+            where: { id: opcao.produtoOpcaoId }
+          });
+          
+          if (produtoOpcao.tipo === 'STRINGFLOAT') {
+            total += opcao.valorFloat1 || 0;
+          } else if (produtoOpcao.tipo === 'FLOATFLOAT') {
+            total += (opcao.valorFloat1 || 0) * (opcao.valorFloat2 || 0);
+          } else if (produtoOpcao.tipo === 'PERCENTFLOAT') {
+            total += ((opcao.valorFloat1 || 0) / 100) * (opcao.valorFloat2 || 0);
+          }
+        }
+
+        const sugestao = await faixaCustoMarkupService.calcularValorSugerido(total);
+
+        return {
+          ...orcamento,
+          valorSugerido: sugestao
+        };
+      })
+    );
+
+    return orcamentosComValorSugerido;
   }
 
   async buscarPorId(id) {
@@ -47,7 +86,37 @@ class OrcamentoService {
       throw new Error('Orçamento não encontrado');
     }
 
-    return orcamento;
+    // Calcular total
+    let total = 0;
+    
+    for (const mat of orcamento.materiais) {
+      total += mat.custo * mat.quantidade;
+    }
+    
+    for (const desp of orcamento.despesasAdicionais) {
+      total += desp.valor;
+    }
+    
+    for (const opcao of orcamento.opcoesExtras) {
+      const produtoOpcao = await prisma.produtoOpcaoExtra.findUnique({
+        where: { id: opcao.produtoOpcaoId }
+      });
+      
+      if (produtoOpcao.tipo === 'STRINGFLOAT') {
+        total += opcao.valorFloat1 || 0;
+      } else if (produtoOpcao.tipo === 'FLOATFLOAT') {
+        total += (opcao.valorFloat1 || 0) * (opcao.valorFloat2 || 0);
+      } else if (produtoOpcao.tipo === 'PERCENTFLOAT') {
+        total += ((opcao.valorFloat1 || 0) / 100) * (opcao.valorFloat2 || 0);
+      }
+    }
+
+    const sugestao = await faixaCustoMarkupService.calcularValorSugerido(total);
+
+    return {
+      ...orcamento,
+      valorSugerido: sugestao
+    };
   }
 
   calcularTotalBase(materiais, despesasAdicionais, opcoesExtrasNaoPercentuais = []) {
@@ -206,7 +275,6 @@ class OrcamentoService {
             (opcaoValor.valorFloat2 === null || opcaoValor.valorFloat2 === undefined);
 
           if (isNaoSelection) {
-            // CORREÇÃO: Salvar opções marcadas como "Não" no banco
             opcoesPrimeiraPassagem.push({
               tipo: opcaoExtra.tipo,
               isNaoSelection: true,
@@ -245,7 +313,6 @@ class OrcamentoService {
             if (isNaN(valorFloat1) || valorFloat1 < 0 || valorFloat1 > 100) {
               throw new Error(`Percentual inválido para a opção "${opcaoExtra.nome}" (deve estar entre 0 e 100)`);
             }
-            // Percentuais ficam pendentes — precisam do totalBase completo
             opcoesPrimeiraPassagem.push({
               tipo: 'PERCENTFLOAT', isNaoSelection: false,
               percentual: valorFloat1,
@@ -254,16 +321,13 @@ class OrcamentoService {
           }
         }
 
-        // Calcula totalBase = materiais + despesas + opções extras não-percentuais
         const opcoesNaoPercentuaisParaBase = opcoesPrimeiraPassagem
           .filter(o => !o.isNaoSelection && (o.tipo === 'STRINGFLOAT' || o.tipo === 'FLOATFLOAT'))
           .map(o => ({ _tipo: o.tipo, valorFloat1: o.dados.valorFloat1, valorFloat2: o.dados.valorFloat2 }));
 
         const totalBase = this.calcularTotalBase(materiaisValidados, despesasValidadas, opcoesNaoPercentuaisParaBase);
 
-        // Segunda passagem: resolve os PERCENTFLOAT com o totalBase completo
         for (const opcao of opcoesPrimeiraPassagem) {
-          // CORREÇÃO: Incluir opções marcadas como "não" no banco de dados
           if (opcao.isNaoSelection) {
             opcoesExtrasValidadas.push(opcao.dados);
             continue;
@@ -276,7 +340,7 @@ class OrcamentoService {
               produtoOpcaoId: opcao.produtoOpcaoId,
               valorString: null,
               valorFloat1: opcao.percentual,
-              valorFloat2: totalBase  // base completa: materiais + despesas + opções não-percentuais
+              valorFloat2: totalBase
             });
           }
         }
@@ -430,7 +494,6 @@ class OrcamentoService {
         }
       }
 
-      // Primeira passagem: valida e coleta opções extras, separando percentuais das demais
       const opcoesExtrasValidadas = [];
       if (opcoesExtras && Array.isArray(opcoesExtras) && opcoesExtras.length > 0) {
         const opcoesPrimeiraPassagem = [];
@@ -448,7 +511,6 @@ class OrcamentoService {
             (opcaoValor.valorFloat2 === null || opcaoValor.valorFloat2 === undefined);
 
           if (isNaoSelection) {
-            // CORREÇÃO: Salvar opções marcadas como "Não" no banco
             opcoesPrimeiraPassagem.push({
               tipo: opcaoExtra.tipo,
               isNaoSelection: true,
@@ -487,7 +549,6 @@ class OrcamentoService {
             if (isNaN(valorFloat1) || valorFloat1 < 0 || valorFloat1 > 100) {
               throw new Error(`Percentual inválido para a opção "${opcaoExtra.nome}" (deve estar entre 0 e 100)`);
             }
-            // Percentuais ficam pendentes — precisam do totalBase completo
             opcoesPrimeiraPassagem.push({
               tipo: 'PERCENTFLOAT', isNaoSelection: false,
               percentual: valorFloat1,
@@ -496,16 +557,13 @@ class OrcamentoService {
           }
         }
 
-        // Calcula totalBase = materiais + despesas + opções extras não-percentuais
         const opcoesNaoPercentuaisParaBase = opcoesPrimeiraPassagem
           .filter(o => !o.isNaoSelection && (o.tipo === 'STRINGFLOAT' || o.tipo === 'FLOATFLOAT'))
           .map(o => ({ _tipo: o.tipo, valorFloat1: o.dados.valorFloat1, valorFloat2: o.dados.valorFloat2 }));
 
         const totalBase = this.calcularTotalBase(materiaisValidados, despesasValidadas, opcoesNaoPercentuaisParaBase);
 
-        // Segunda passagem: resolve os PERCENTFLOAT com o totalBase completo
         for (const opcao of opcoesPrimeiraPassagem) {
-          // CORREÇÃO: Incluir opções marcadas como "não" no banco de dados
           if (opcao.isNaoSelection) {
             opcoesExtrasValidadas.push(opcao.dados);
             continue;
@@ -518,7 +576,7 @@ class OrcamentoService {
               produtoOpcaoId: opcao.produtoOpcaoId,
               valorString: null,
               valorFloat1: opcao.percentual,
-              valorFloat2: totalBase  // base completa: materiais + despesas + opções não-percentuais
+              valorFloat2: totalBase
             });
           }
         }
