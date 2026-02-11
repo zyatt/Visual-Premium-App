@@ -5,16 +5,13 @@ const { PrismaPg } = require('@prisma/adapter-pg');
 const pg = require('pg');
 const readline = require('readline');
 
-// Pool do PostgreSQL
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
-// Adapter do Prisma
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-// Interface de leitura no terminal
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
@@ -24,7 +21,6 @@ async function deleteAllLogs() {
   try {
     console.log('🗑️  Script de Exclusão de Logs\n');
 
-    // Conta quantos logs existem
     const count = await prisma.log.count();
     console.log(`📊 Total de logs no banco: ${count}`);
 
@@ -33,7 +29,6 @@ async function deleteAllLogs() {
       return;
     }
 
-    // Pede confirmação
     rl.question(
       '\n⚠️  Tem certeza que deseja deletar TODOS os logs? (sim/não): ',
       async (answer) => {

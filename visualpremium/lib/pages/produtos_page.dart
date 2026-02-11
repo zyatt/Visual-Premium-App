@@ -157,7 +157,6 @@
       super.dispose();
     }
 
-    // ✅ ADICIONAR método
     void _scrollToTop() {
       _scrollController.animateTo(
         0,
@@ -215,7 +214,7 @@
         WidgetsBinding.instance.addPostFrameCallback((_) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(isUpdate ? 'Produto salvo' : 'Produto cadastrado'),
+              content: Text(isUpdate ? 'Produto "${item.name}" salvo' : 'Produto "${item.name}" cadastrado'),
               duration: const Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
             ),
@@ -227,13 +226,12 @@
         
         final errorMessage = e.toString();
         
-        // Verificar se é erro de opção extra em uso
         if (errorMessage.contains('Não é possível remover a opção') || 
           errorMessage.contains('está sendo usada em orçamentos ou pedidos')) {
         final match = RegExp(r'opção "([^"]+)"').firstMatch(errorMessage);
         final opcaoNome = match?.group(1) ?? 'esta opção';
         
-        _showOpcaoExtraInUseDialog(opcaoNome);  // ✅ 1 parâmetro
+        _showOpcaoExtraInUseDialog(opcaoNome);
       } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Erro ao salvar produto: $e')),
@@ -252,19 +250,27 @@
           _items = next;
           _loading = false;
         });
+        
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Produto "${item.name}" excluído'),
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        });
       } catch (e) {
         if (!mounted) return;
         setState(() => _loading = false);
         
         final errorMessage = e.toString();
         
-        // ✅ Verificar se é erro de produto em uso
         if (errorMessage.contains('Produto em uso') || 
             errorMessage.contains('sendo usado') ||
             errorMessage.contains('orçamento') ||
             errorMessage.contains('pedido')) {
           
-          // ✅ Determinar se está em orçamentos, pedidos ou ambos
           final emOrcamentos = errorMessage.contains('orçamento');
           final emPedidos = errorMessage.contains('pedido');
           
@@ -322,7 +328,6 @@
                       ],
                     ),
                     const SizedBox(height: 16),
-                    // ✅ NOVA mensagem dinâmica
                     Text(
                       'O produto "$productName" não pode ser excluído porque está sendo usado em um ou mais $tipo.',
                       style: theme.textTheme.bodyMedium?.copyWith(
@@ -349,7 +354,6 @@
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              // ✅ NOVA instrução dinâmica
                               'Para excluir este produto, primeiro remova-o dos $tipo que o utilizam.',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
@@ -1473,7 +1477,6 @@
                             ),
                           ),
                         ],
-                        // ✅ ADICIONAR AVISOS
                         if (item.avisos.isNotEmpty) ...[
                           Text(
                             ' • ',
@@ -1780,15 +1783,12 @@
     }
 
     Future<void> _removeOpcaoExtra(ProductOpcaoExtra opcao) async {
-      // Se a opção é existente (tem ID real do banco), verificar se está em uso
       final isExisting = opcao.id > 0 && opcao.id < 1000000;
       
       if (isExisting && widget.initial != null) {
-        // Verificar se esta opção existia originalmente
         final wasOriginal = _initialOpcoesExtras.any((o) => o.id == opcao.id);
         
         if (wasOriginal) {
-          // É uma opção que existia antes - mostrar aviso
           final theme = Theme.of(context);
           final confirmed = await showDialog<bool>(
             context: context,
@@ -1893,7 +1893,6 @@
         }
       }
       
-      // Remover a opção da lista local
       setState(() {
         _opcoesExtras.removeWhere((o) => o.id == opcao.id);
       });
@@ -2013,7 +2012,6 @@
                 child: Column(
   mainAxisSize: MainAxisSize.min,
   children: [
-    // ========== HEADER ==========
     Padding(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
       child: Row(
@@ -2042,12 +2040,10 @@
     ),
     const Divider(height: 1),
     
-    // ========== CONTEÚDO PRINCIPAL COM DUAS COLUNAS ==========
     Flexible(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 🔵 COLUNA ESQUERDA: Nome, Materiais, Opções
           Expanded(
             flex: 3,
             child: SingleChildScrollView(
@@ -2057,7 +2053,6 @@
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // NOME DO PRODUTO
                     TextFormField(
                       controller: _nameCtrl,
                       focusNode: _nameFocusNode,
@@ -2067,7 +2062,6 @@
                     ),
                     const SizedBox(height: 24),
                     
-                    // MATERIAIS
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -2089,7 +2083,6 @@
                     ),
                     const SizedBox(height: 12),
                     
-                    // CHIPS DE MATERIAIS
                     if (_selectedMaterialIds.isEmpty)
                       Container(
                         padding: const EdgeInsets.all(16),
@@ -2130,7 +2123,6 @@
                       ),
                     const SizedBox(height: 24),
                     
-                    // OPÇÕES EXTRAS
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -2152,7 +2144,6 @@
                     ),
                     const SizedBox(height: 12),
                     
-                    // LISTA DE OPÇÕES EXTRAS (mantém seu código atual)
                     if (_opcoesExtras.isEmpty)
                       Container(
                         padding: const EdgeInsets.all(16),
@@ -2284,7 +2275,6 @@
                     ),
                     const SizedBox(height: 20),
                     
-                    // ✅ WIDGET DE AVISOS
                     ProductAvisosSection(
                       avisos: _avisos,
                       opcoesExtras: _opcoesExtras,
@@ -2324,7 +2314,6 @@
       ),
     ),
     
-    // ========== FOOTER COM BOTÕES ==========
     const Divider(height: 1),
     Padding(
       padding: EdgeInsets.fromLTRB(24, 16, 24, 24 + bottomInset),
@@ -2375,14 +2364,14 @@
                             name: '',
                             materials: const [],
                             opcoesExtras: const [],
-                            avisos: const [], // ✅ JÁ INCLUÍDO
+                            avisos: const [],
                             createdAt: now,
                           ))
                       .copyWith(
                     name: _nameCtrl.text.trim(),
                     materials: validMaterials,
                     opcoesExtras: _opcoesExtras,
-                    avisos: _avisos, // ✅ JÁ INCLUÍDO
+                    avisos: _avisos,
                   );
                   context.pop(item);
                 },

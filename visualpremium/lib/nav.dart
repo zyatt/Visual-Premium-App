@@ -11,9 +11,11 @@ import 'pages/materiais_page.dart';
 import 'pages/admin/admin_page.dart';
 import 'pages/admin/usuarios_page.dart';
 import 'pages/admin/almoxarifado_page.dart';
+import 'pages/admin/relatorio_page.dart';
 import 'pages/loading/splash_page.dart';
 import 'pages/login/login_page.dart';
 import 'pages/admin/logs_page.dart';
+import '../widgets/update_checker_widget.dart';
 
 class AppRouter {
   static final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -47,10 +49,8 @@ class AppRouter {
 
         if (isGoingToLogin) return '/';
 
-        // ✅ Protege /admin/* - apenas admin
         if (isGoingToAdminPanel && !isAdmin) return '/';
         
-        // ✅ Protege almoxarifado - admin ou almoxarife
         if (isGoingToAlmoxarifado && !hasAlmoxarifadoAccess) return '/';
 
         return null;
@@ -73,7 +73,9 @@ class AppRouter {
         ShellRoute(
           navigatorKey: _shellNavigatorKey,
           builder: (context, state, child) {
-            return AppLayout(child: child);
+            return UpdateChecker(
+              child: AppLayout(child: child),
+            );
           },
           routes: [
             GoRoute(
@@ -137,6 +139,13 @@ class AppRouter {
               name: 'almoxarifado',
               pageBuilder: (context, state) => NoTransitionPage(
                 child: const AlmoxarifadoPage(),
+              ),
+            ),
+            GoRoute(
+              path: AppRoutes.relatorio,
+              name: 'relatorio',
+              pageBuilder: (context, state) => NoTransitionPage(
+                child: const RelatorioPage(),
               ),
             ),
           ],

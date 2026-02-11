@@ -52,7 +52,6 @@ class _Sidebar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Logo Area
           Padding(
             padding: const EdgeInsets.all(24.0),
             child: Row(
@@ -81,7 +80,6 @@ class _Sidebar extends StatelessWidget {
           
           const SizedBox(height: 24),
 
-          // Navigation Items
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -112,7 +110,6 @@ class _Sidebar extends StatelessWidget {
                   route: '/materiais',
                 ),
                 
-                // ✅ Seção Administração - visibilidade controlada
                 if (authProvider.hasAlmoxarifadoAccess || authProvider.isAdmin) ...[
                   const SizedBox(height: 16),
                   Padding(
@@ -128,7 +125,6 @@ class _Sidebar extends StatelessWidget {
                     ),
                   ),
                   
-                  // ✅ Almoxarifado - admin E almoxarife veem
                   if (authProvider.hasAlmoxarifadoAccess)
                     _NavItem(
                       icon: Icons.inventory_2,
@@ -136,7 +132,6 @@ class _Sidebar extends StatelessWidget {
                       route: '/almoxarifado',
                     ),
                   
-                  // ✅ Painel Admin - APENAS admin vê
                   if (authProvider.isAdmin)
                     _NavItem(
                       icon: Icons.admin_panel_settings,
@@ -148,12 +143,10 @@ class _Sidebar extends StatelessWidget {
             ),
           ),
 
-          // User Profile / Bottom Actions
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                // Botão de configurações
                 InkWell(
                   onTap: () => SettingsDialog.show(context),
                   borderRadius: BorderRadius.circular(12),
@@ -208,15 +201,13 @@ class _Sidebar extends StatelessWidget {
                 
                 const SizedBox(height: 8),
                 
-                // Botão de logout
                 InkWell(
                   onTap: () async {
-                    // ✅ Captura o router antes de operações assíncronas
                     final router = GoRouter.of(context);
                     
                     final confirm = await showDialog<bool>(
                       context: context,
-                      barrierDismissible: false,
+                      barrierDismissible: true,
                       builder: (dialogContext) => AlertDialog(
                         title: const Text('Sair'),
                         content: const Text('Deseja realmente sair do sistema?'),
@@ -237,10 +228,8 @@ class _Sidebar extends StatelessWidget {
                     );
                     
                     if (confirm == true) {
-                      // ✅ Faz logout
                       await authProvider.logout();
                       
-                      // ✅ Navega usando o router capturado
                       router.go('/login');
                     }
                   },

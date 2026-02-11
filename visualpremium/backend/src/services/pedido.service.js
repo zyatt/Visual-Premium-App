@@ -80,6 +80,26 @@ class PedidoService {
     return pedido;
   }
 
+  calcularTotalBase(materiais, despesasAdicionais) {
+    let total = 0;
+    
+    if (materiais && materiais.length > 0) {
+      for (const m of materiais) {
+        const custo = parseFloat(m.custo) || 0;
+        const quantidade = parseFloat(m.quantidade) || 0;
+        total += custo * quantidade;
+      }
+    }
+    
+    if (despesasAdicionais && despesasAdicionais.length > 0) {
+      for (const d of despesasAdicionais) {
+        total += parseFloat(d.valor) || 0;
+      }
+    }
+    
+    return total;
+  }
+
   async criar(data, user) {
     const { 
       cliente, 
@@ -94,12 +114,10 @@ class PedidoService {
       orcamentoId
     } = data;
 
-    // Validações básicas
     if (!cliente || !produtoId) {
       throw new Error('Cliente e produto são obrigatórios');
     }
 
-    // Validar número se fornecido
     if (numero !== undefined && numero !== null) {
       if (typeof numero !== 'number' || numero <= 0) {
         throw new Error('Número do pedido inválido');
@@ -126,7 +144,6 @@ class PedidoService {
       throw new Error('Prazo de entrega é obrigatório');
     }
 
-    // Verificar se o produto existe
     const produto = await prisma.produto.findUnique({
       where: { id: produtoId },
       include: {
@@ -143,7 +160,6 @@ class PedidoService {
       throw new Error('Produto não encontrado');
     }
 
-    // Validar despesas adicionais
     const despesasValidadas = [];
     if (despesasAdicionais && Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
       for (const despesa of despesasAdicionais) {
@@ -160,7 +176,6 @@ class PedidoService {
       }
     }
 
-    // Validar materiais
     const materiaisValidados = [];
     if (materiais && materiais.length > 0) {
       for (const m of materiais) {
@@ -187,12 +202,14 @@ class PedidoService {
 
         materiaisValidados.push({
           materialId: m.materialId,
-          quantidade: quantidadeNum
+          quantidade: quantidadeNum,
+          custo: material.material.custo,
         });
       }
     }
 
-    // ✅ CORRIGIDO: Validar opções extras com tipos corretos (sem underscore)
+    const totalBase = this.calcularTotalBase(materiaisValidados, despesasValidadas);
+
     const opcoesExtrasValidadas = [];
     if (opcoesExtras && Array.isArray(opcoesExtras) && opcoesExtras.length > 0) {
       for (const opcaoValor of opcoesExtras) {
@@ -202,13 +219,11 @@ class PedidoService {
           throw new Error(`Opção extra ${opcaoValor.produtoOpcaoId} não pertence ao produto`);
         }
 
-        // ✅ NOVO: Verificar se é um registro "Não"
         const isNaoSelection = 
           (opcaoValor.valorString === null || opcaoValor.valorString === undefined) &&
           (opcaoValor.valorFloat1 === null || opcaoValor.valorFloat1 === undefined) &&
           (opcaoValor.valorFloat2 === null || opcaoValor.valorFloat2 === undefined);
 
-        // ✅ MUDANÇA: Se for "Não", salvar com valores nulos
         if (isNaoSelection) {
           opcoesExtrasValidadas.push({
             produtoOpcaoId: opcaoValor.produtoOpcaoId,
@@ -219,7 +234,6 @@ class PedidoService {
           continue;
         }
 
-        // Validar valores baseado no tipo (mesmo código anterior)
         if (opcaoExtra.tipo === 'STRINGFLOAT') {
           if (!opcaoValor.valorString || opcaoValor.valorString.trim() === '') {
             throw new Error(`Valor texto é obrigatório para a opção "${opcaoExtra.nome}"`);
@@ -253,60 +267,57 @@ class PedidoService {
           });
         } else if (opcaoExtra.tipo === 'PERCENTFLOAT') {
           const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
-          const valorFloat2 = parseFloat(opcaoValor.valorFloat2);
           
           if (isNaN(valorFloat1) || valorFloat1 < 0 || valorFloat1 > 100) {
             throw new Error(`Percentual inválido para a opção "${opcaoExtra.nome}" (deve estar entre 0 e 100)`);
-          }
-          if (isNaN(valorFloat2) || valorFloat2 < 0) {
-            throw new Error(`Valor base inválido para a opção "${opcaoExtra.nome}"`);
           }
           
           opcoesExtrasValidadas.push({
             produtoOpcaoId: opcaoValor.produtoOpcaoId,
             valorString: null,
             valorFloat1: valorFloat1,
-            valorFloat2: valorFloat2
+            valorFloat2: totalBase
           });
         }
       }
     }
-    // Preparar dados para criação
+
     const createData = {
       cliente: cliente.trim(),
-      numero: numero || null,
       status: 'Em Andamento',
-      produtoId,
+      produtoId: produtoId,
       formaPagamento: formaPagamento.trim(),
       condicoesPagamento: condicoesPagamento.trim(),
-      prazoEntrega: prazoEntrega.trim(),
-     
-      orcamentoId: orcamentoId || null
+      prazoEntrega: prazoEntrega.trim()
     };
 
-    // Adicionar materiais apenas se houver
-    if (materiaisValidados.length > 0) {
+    if (numero !== undefined && numero !== null) {
+      createData.numero = numero;
+    }
+
+    if (orcamentoId !== undefined && orcamentoId !== null) {
+      createData.orcamentoId = orcamentoId;
+    }
+
+    if (materiaisValidados && materiaisValidados.length > 0) {
       createData.materiais = {
         create: materiaisValidados
       };
     }
 
-    // Adicionar despesas apenas se houver
     if (despesasValidadas.length > 0) {
       createData.despesasAdicionais = {
         create: despesasValidadas
       };
     }
 
-    // Adicionar opções extras apenas se houver
     if (opcoesExtrasValidadas.length > 0) {
       createData.opcoesExtras = {
         create: opcoesExtrasValidadas
       };
     }
 
-    // Criar pedido
-    const pedido = await prisma.pedido.create({
+    const pedidoCriado = await prisma.pedido.create({
       data: createData,
       include: {
         produto: {
@@ -339,52 +350,21 @@ class PedidoService {
       }
     });
 
-    // REGISTRAR LOG DE CRIAÇÃO
     await logService.registrar({
       usuarioId: user?.id || 1,
       usuarioNome: user?.nome || 'Sistema',
       acao: 'CRIAR',
       entidade: 'PEDIDO',
-      entidadeId: pedido.id,
-      descricao: `Criou o pedido "${pedido.numero ? `#${pedido.numero}"` : `(ID: ${pedido.id})`}`,
-      detalhes: pedido,
+      entidadeId: pedidoCriado.id,
+      descricao: `Criou o pedido "${pedidoCriado.numero ? `#${pedidoCriado.numero}"` : `(ID: ${pedidoCriado.id})`}" para o cliente "${pedidoCriado.cliente}"`,
+      detalhes: pedidoCriado,
     });
 
-    return pedido;
+    return pedidoCriado;
   }
 
   async atualizar(id, data, user) {
-    // Buscar pedido antigo
-    const pedidoAntigo = await prisma.pedido.findUnique({
-      where: { id },
-      include: {
-        produto: {
-          include: {
-            materiais: {
-              include: {
-                material: true
-              }
-            },
-            opcoesExtras: true
-          }
-        },
-        materiais: {
-          include: {
-            material: true
-          }
-        },
-        despesasAdicionais: true,
-        opcoesExtras: {
-          include: {
-            produtoOpcao: true
-          }
-        }
-      }
-    });
-
-    if (!pedidoAntigo) {
-      throw new Error('Pedido não encontrado');
-    }
+    const pedidoAntigo = await this.buscarPorId(id);
 
     const { 
       cliente, 
@@ -399,7 +379,6 @@ class PedidoService {
       prazoEntrega
     } = data;
 
-    // Validar número se fornecido e diferente do atual
     if (numero !== undefined && numero !== null && numero !== pedidoAntigo.numero) {
       if (typeof numero !== 'number' || numero <= 0) {
         throw new Error('Número do pedido inválido');
@@ -408,7 +387,7 @@ class PedidoService {
       const pedidoDuplicado = await prisma.pedido.findFirst({
         where: { 
           numero: numero,
-          NOT: { id: id }
+          id: { not: id }
         }
       });
       
@@ -429,13 +408,8 @@ class PedidoService {
       throw new Error('Prazo de entrega é obrigatório');
     }
 
-    // Buscar produto se mudou
-    let produto = pedidoAntigo.produto;
-    let materiaisValidados = undefined;
-    let despesasValidadas = undefined;
-    let opcoesExtrasValidadas = undefined;
-
-    if (produtoId && produtoId !== pedidoAntigo.produtoId) {
+    let produto;
+    if (produtoId !== undefined && produtoId !== pedidoAntigo.produtoId) {
       produto = await prisma.produto.findUnique({
         where: { id: produtoId },
         include: {
@@ -451,9 +425,21 @@ class PedidoService {
       if (!produto) {
         throw new Error('Produto não encontrado');
       }
+    } else {
+      produto = await prisma.produto.findUnique({
+        where: { id: pedidoAntigo.produtoId },
+        include: {
+          materiais: {
+            include: {
+              material: true
+            }
+          },
+          opcoesExtras: true
+        }
+      });
     }
 
-    // Validar despesas adicionais se enviadas
+    let despesasValidadas;
     if (despesasAdicionais !== undefined) {
       despesasValidadas = [];
       if (Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
@@ -472,10 +458,10 @@ class PedidoService {
       }
     }
 
-    // Validar materiais se enviados
+    let materiaisValidados;
     if (materiais !== undefined) {
       materiaisValidados = [];
-      if (materiais && materiais.length > 0) {
+      if (materiais.length > 0) {
         for (const m of materiais) {
           const material = produto.materiais.find(pm => pm.materialId === m.materialId);
           if (!material) {
@@ -500,13 +486,16 @@ class PedidoService {
 
           materiaisValidados.push({
             materialId: m.materialId,
-            quantidade: quantidadeNum
+            quantidade: quantidadeNum,
+            custo: material.material.custo,
           });
         }
       }
     }
 
-    // ✅ CORRIGIDO: Validar opções extras se enviadas com tipos corretos
+    const totalBase = this.calcularTotalBase(materiaisValidados, despesasValidadas);
+
+    let opcoesExtrasValidadas;
     if (opcoesExtras !== undefined) {
       opcoesExtrasValidadas = [];
       if (Array.isArray(opcoesExtras) && opcoesExtras.length > 0) {
@@ -517,7 +506,21 @@ class PedidoService {
             throw new Error(`Opção extra ${opcaoValor.produtoOpcaoId} não pertence ao produto`);
           }
 
-          // Validar valores baseado no tipo
+          const isNaoSelection = 
+            (opcaoValor.valorString === null || opcaoValor.valorString === undefined) &&
+            (opcaoValor.valorFloat1 === null || opcaoValor.valorFloat1 === undefined) &&
+            (opcaoValor.valorFloat2 === null || opcaoValor.valorFloat2 === undefined);
+
+          if (isNaoSelection) {
+            opcoesExtrasValidadas.push({
+              produtoOpcaoId: opcaoValor.produtoOpcaoId,
+              valorString: null,
+              valorFloat1: null,
+              valorFloat2: null
+            });
+            continue;
+          }
+
           if (opcaoExtra.tipo === 'STRINGFLOAT') {
             if (!opcaoValor.valorString || opcaoValor.valorString.trim() === '') {
               throw new Error(`Valor texto é obrigatório para a opção "${opcaoExtra.nome}"`);
@@ -550,85 +553,70 @@ class PedidoService {
               valorFloat2: valorFloat2
             });
           } else if (opcaoExtra.tipo === 'PERCENTFLOAT') {
-            // ✅ ADICIONADO: Validação para PERCENTFLOAT
             const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
-            const valorFloat2 = parseFloat(opcaoValor.valorFloat2);
             
             if (isNaN(valorFloat1) || valorFloat1 < 0 || valorFloat1 > 100) {
               throw new Error(`Percentual inválido para a opção "${opcaoExtra.nome}" (deve estar entre 0 e 100)`);
-            }
-            if (isNaN(valorFloat2) || valorFloat2 < 0) {
-              throw new Error(`Valor base inválido para a opção "${opcaoExtra.nome}"`);
             }
             
             opcoesExtrasValidadas.push({
               produtoOpcaoId: opcaoValor.produtoOpcaoId,
               valorString: null,
               valorFloat1: valorFloat1,
-              valorFloat2: valorFloat2
+              valorFloat2: totalBase
             });
           }
         }
       }
     }
 
-    // Deletar materiais antigos se houver novos
-    if (materiaisValidados) {
+    if (materiaisValidados !== undefined) {
       await prisma.pedidoMaterial.deleteMany({
         where: { pedidoId: id }
       });
     }
 
-    // Deletar despesas antigas se houver novas
     if (despesasValidadas !== undefined) {
       await prisma.pedidoDespesaAdicional.deleteMany({
         where: { pedidoId: id }
       });
     }
 
-    // Deletar opções extras antigas se houver novas
     if (opcoesExtrasValidadas !== undefined) {
       await prisma.pedidoOpcaoExtra.deleteMany({
         where: { pedidoId: id }
       });
     }
 
-    // ✅ PREPARAR DADOS - APENAS CAMPOS QUE EXISTEM NO SCHEMA
     const updateData = {};
     
-    // Adicionar apenas campos que foram enviados e são válidos
     if (cliente !== undefined) updateData.cliente = cliente.trim();
     if (status !== undefined) updateData.status = status;
     if (produtoId !== undefined) updateData.produtoId = produtoId;
     if (numero !== undefined) updateData.numero = numero;
    
-    // Outros campos
     if (formaPagamento !== undefined) updateData.formaPagamento = formaPagamento.trim();
     if (condicoesPagamento !== undefined) updateData.condicoesPagamento = condicoesPagamento.trim();
     if (prazoEntrega !== undefined) updateData.prazoEntrega = prazoEntrega.trim();
 
-    // Adicionar materiais apenas se houver
-    if (materiaisValidados && materiaisValidados.length > 0) {
+    if (materiaisValidados !== undefined && materiaisValidados.length > 0) {
       updateData.materiais = {
         create: materiaisValidados
       };
     }
 
-    // Adicionar despesas apenas se houver
     if (despesasValidadas !== undefined && despesasValidadas.length > 0) {
       updateData.despesasAdicionais = {
         create: despesasValidadas
       };
     }
 
-    // Adicionar opções extras apenas se houver
     if (opcoesExtrasValidadas !== undefined && opcoesExtrasValidadas.length > 0) {
       updateData.opcoesExtras = {
         create: opcoesExtrasValidadas
       };
     }
 
-    // ✅ ATUALIZAR PEDIDO
     const pedidoAtualizado = await prisma.pedido.update({
       where: { id },
       data: updateData,
@@ -663,7 +651,6 @@ class PedidoService {
       }
     });
 
-    // REGISTRAR LOG DE EDIÇÃO
     await logService.registrar({
       usuarioId: user?.id || 1,
       usuarioNome: user?.nome || 'Sistema',
@@ -728,7 +715,6 @@ class PedidoService {
       }
     });
 
-    // REGISTRAR LOG DE MUDANÇA DE STATUS
     await logService.registrar({
       usuarioId: user?.id || 1,
       usuarioNome: user?.nome || 'Sistema',
@@ -746,7 +732,6 @@ class PedidoService {
   }
 
   async deletar(id, user) {
-    // Buscar dados antes de deletar
     const pedido = await prisma.pedido.findUnique({
       where: { id },
       include: {
@@ -777,7 +762,6 @@ class PedidoService {
       where: { id }
     });
 
-    // REGISTRAR LOG DE EXCLUSÃO
     await logService.registrar({
       usuarioId: user?.id || 1,
       usuarioNome: user?.nome || 'Sistema',

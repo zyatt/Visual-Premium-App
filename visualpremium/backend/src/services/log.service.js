@@ -2,15 +2,14 @@ const prisma = require('../config/prisma');
 
 class LogService {
   /**
-   * Registra uma ação no sistema
    * @param {Object} params
-   * @param {number} params.usuarioId - ID do usuário que executou a ação
-   * @param {string} params.usuarioNome - Nome do usuário
-   * @param {string} params.acao - Tipo de ação (CRIAR, EDITAR, DELETAR)
-   * @param {string} params.entidade - Tipo de entidade (MATERIAL, PRODUTO, etc)
-   * @param {number} params.entidadeId - ID da entidade afetada
-   * @param {string} params.descricao - Descrição da ação
-   * @param {Object} params.detalhes - Detalhes adicionais (opcional)
+   * @param {number} params.usuarioId
+   * @param {string} params.usuarioNome
+   * @param {string} params.acao
+   * @param {string} params.entidade
+   * @param {number} params.entidadeId
+   * @param {string} params.descrica
+   * @param {Object} params.detalhes
    */
   async registrar({ usuarioId, usuarioNome, acao, entidade, entidadeId, descricao, detalhes }) {
     try {
@@ -26,13 +25,9 @@ class LogService {
         },
       });
     } catch (error) {
-      // Não lança erro para não interromper a operação principal
     }
   }
 
-  /**
-   * Lista logs com filtros e paginação
-   */
   async listar({ page = 1, limit = 50, entidade, usuarioId, acao }) {
     try {
         

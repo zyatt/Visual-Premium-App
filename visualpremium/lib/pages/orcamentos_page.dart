@@ -180,7 +180,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isUpdate ? 'Orçamento salvo' : 'Orçamento cadastrado'),
+            content: Text(isUpdate ? 'Orçamento "${item.numero}" salvo' : 'Orçamento "${item.numero}" cadastrado'),
             duration: const Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
           ),
@@ -292,7 +292,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('PDF gerado e aberto com sucesso!'),
+              content: Text('PDF gerado com sucesso!'),
               duration: Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
             ),
@@ -389,7 +389,8 @@ class _BudgetsPageState extends State<BudgetsPage> {
           existingOrcamentos: _items,
         );
       },
-    );if (result != null) {
+    );
+    if (result != null) {
       await _upsert(result);
     }
   }
@@ -2229,7 +2230,6 @@ class TimeInputFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    // Permitir apenas números e letras h/m
     final text = newValue.text.toLowerCase();
     final filtered = text.replaceAll(RegExp(r'[^0-9hm,.]'), '');
     
@@ -2239,35 +2239,29 @@ class TimeInputFormatter extends TextInputFormatter {
     );
   }
   
-  /// Converte entrada de tempo para horas decimais
-  /// Exemplos: "2h" -> 2.0, "30m" -> 0.5, "1.5h" -> 1.5, "90m" -> 1.5
   static double? parseToHours(String input) {
     if (input.trim().isEmpty) return null;
     
     final text = input.toLowerCase().trim();
     
-    // Detectar horas (ex: "2h", "1.5h", "2,5h")
     final horasMatch = RegExp(r'^(\d+[,.]?\d*)\s*h?$').firstMatch(text);
     if (horasMatch != null) {
       final valor = horasMatch.group(1)?.replaceAll(',', '.');
       return double.tryParse(valor ?? '');
     }
     
-    // Detectar minutos (ex: "30m", "90m")
     final minutosMatch = RegExp(r'^(\d+)\s*m$').firstMatch(text);
     if (minutosMatch != null) {
       final minutos = int.tryParse(minutosMatch.group(1) ?? '');
       if (minutos != null) {
-        return minutos / 60.0; // Converter para horas
+        return minutos / 60.0;
       }
     }
     
-    // Se for apenas número, assumir que são horas
     final numero = double.tryParse(text.replaceAll(',', '.'));
     return numero;
   }
   
-  /// Formata horas para exibição amigável
   static String formatHours(double hours) {
     if (hours == hours.toInt().toDouble()) {
       return '${hours.toInt()}h';
@@ -2324,16 +2318,20 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   late final int? _initialSelectedProdutoId;
   late final List<String> _initialDespesasDesc;
   late final List<String> _initialDespesasValor;
-  late final Map<int, double> _initialQuantities;
+  final Map<int, double> _initialQuantities = {};
+  final Map<int, String> _initialQuantityStrings = {};
 
   final Map<int, bool?> _opcoesExtrasEnabled = {};
+  final Map<int, bool?> _initialOpcoesExtrasEnabled = {};
+  final Map<int, String> _initialOpcaoExtraStringValues = {};
+  final Map<int, String> _initialOpcaoExtraFloat1Values = {};
+  final Map<int, String> _initialOpcaoExtraFloat2Values = {};
   final Map<int, TextEditingController> _opcaoExtraStringControllers = {};
   final Map<int, TextEditingController> _opcaoExtraFloat1Controllers = {};
   final Map<int, TextEditingController> _opcaoExtraFloat2Controllers = {};
   final Map<int, FocusNode> _opcaoExtraStringFocusNodes = {};
   final Map<int, FocusNode> _opcaoExtraFloat1FocusNodes = {};
   final Map<int, FocusNode> _opcaoExtraFloat2FocusNodes = {};
-
 
   final List<String> _formaPagamentoOptions = [
     'A COMBINAR',
@@ -2457,46 +2455,62 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     
     if (widget.initial != null && widget.initial!.opcoesExtras.isNotEmpty) {
       for (final opcaoValor in widget.initial!.opcoesExtras) {
-        _opcoesExtrasEnabled[opcaoValor.produtoOpcaoId] = true;
+        final hasValues = opcaoValor.valorString != null || 
+                        opcaoValor.valorFloat1 != null || 
+                        opcaoValor.valorFloat2 != null;
         
-        final stringCtrl = TextEditingController(text: opcaoValor.valorString ?? '');
+        _opcoesExtrasEnabled[opcaoValor.produtoOpcaoId] = hasValues;
+        _initialOpcoesExtrasEnabled[opcaoValor.produtoOpcaoId] = hasValues;
         
-        // ✅ MODIFIQUE ESTAS LINHAS
-        final float1Ctrl = TextEditingController(
-          text: opcaoValor.valorFloat1 != null 
-              ? _formatQuantity(opcaoValor.valorFloat1!) 
-              : ''
-        );
-        final float2Ctrl = TextEditingController(
-          text: opcaoValor.valorFloat2 != null 
-              ? _formatQuantity(opcaoValor.valorFloat2!) 
-              : ''
-        );
-        
-        final stringFocus = FocusNode();
-        final float1Focus = FocusNode();
-        final float2Focus = FocusNode();
-        
-        stringCtrl.addListener(_updateTotal);
-        float1Ctrl.addListener(_updateTotal);
-        float2Ctrl.addListener(_updateTotal);
-        stringFocus.addListener(_onFieldFocusChange);
-        float1Focus.addListener(_onFieldFocusChange);
-        float2Focus.addListener(_onFieldFocusChange);
-        
-        _opcaoExtraStringControllers[opcaoValor.produtoOpcaoId] = stringCtrl;
-        _opcaoExtraFloat1Controllers[opcaoValor.produtoOpcaoId] = float1Ctrl;
-        _opcaoExtraFloat2Controllers[opcaoValor.produtoOpcaoId] = float2Ctrl;
-        _opcaoExtraStringFocusNodes[opcaoValor.produtoOpcaoId] = stringFocus;
-        _opcaoExtraFloat1FocusNodes[opcaoValor.produtoOpcaoId] = float1Focus;
-        _opcaoExtraFloat2FocusNodes[opcaoValor.produtoOpcaoId] = float2Focus;
+        if (hasValues) {
+          final stringValue = opcaoValor.valorString ?? '';
+          final float1Value = opcaoValor.valorFloat1 != null ? _formatQuantity(opcaoValor.valorFloat1!) : '';
+          final float2Value = opcaoValor.valorFloat2 != null ? _formatQuantity(opcaoValor.valorFloat2!) : '';
+          
+          _initialOpcaoExtraStringValues[opcaoValor.produtoOpcaoId] = stringValue;
+          _initialOpcaoExtraFloat1Values[opcaoValor.produtoOpcaoId] = float1Value;
+          _initialOpcaoExtraFloat2Values[opcaoValor.produtoOpcaoId] = float2Value;
+          
+          final stringCtrl = TextEditingController(text: opcaoValor.valorString ?? '');
+          
+          final float1Ctrl = TextEditingController(
+            text: opcaoValor.valorFloat1 != null 
+                ? _formatQuantity(opcaoValor.valorFloat1!) 
+                : ''
+          );
+          final float2Ctrl = TextEditingController(
+            text: opcaoValor.valorFloat2 != null 
+                ? _formatQuantity(opcaoValor.valorFloat2!) 
+                : ''
+          );
+          
+          final stringFocus = FocusNode();
+          final float1Focus = FocusNode();
+          final float2Focus = FocusNode();
+          
+          stringCtrl.addListener(_updateTotal);
+          float1Ctrl.addListener(_updateTotal);
+          float2Ctrl.addListener(_updateTotal);
+          stringFocus.addListener(_onFieldFocusChange);
+          float1Focus.addListener(_onFieldFocusChange);
+          float2Focus.addListener(_onFieldFocusChange);
+          
+          _opcaoExtraStringControllers[opcaoValor.produtoOpcaoId] = stringCtrl;
+          _opcaoExtraFloat1Controllers[opcaoValor.produtoOpcaoId] = float1Ctrl;
+          _opcaoExtraFloat2Controllers[opcaoValor.produtoOpcaoId] = float2Ctrl;
+          _opcaoExtraStringFocusNodes[opcaoValor.produtoOpcaoId] = stringFocus;
+          _opcaoExtraFloat1FocusNodes[opcaoValor.produtoOpcaoId] = float1Focus;
+          _opcaoExtraFloat2FocusNodes[opcaoValor.produtoOpcaoId] = float2Focus;
+        }
       }
     }
 
-    _initialQuantities = {};
+    _initialQuantities.clear();
+    _initialQuantityStrings.clear();
     if (widget.initial != null) {
       for (final mat in widget.initial!.materiais) {
         _initialQuantities[mat.materialId] = mat.quantidade;
+        _initialQuantityStrings[mat.materialId] = mat.quantidade > 0 ? _formatQuantity(mat.quantidade) : '';
       }
     }
     
@@ -2620,8 +2634,34 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     }
     
     for (final entry in _quantityControllers.entries) {
-      final initialQty = _initialQuantities[entry.key]?.toString() ?? '';
+      final initialQty = _initialQuantityStrings[entry.key] ?? '';
       if (entry.value.text != initialQty) return true;
+    }
+    
+    
+    for (final key in {..._opcoesExtrasEnabled.keys, ..._initialOpcoesExtrasEnabled.keys}) {
+      final initialEnabled = _initialOpcoesExtrasEnabled[key];
+      final currentEnabled = _opcoesExtrasEnabled[key];
+      if (currentEnabled != initialEnabled) return true;
+    }
+    
+    for (final entry in _opcaoExtraStringControllers.entries) {
+      if (_opcoesExtrasEnabled[entry.key] == true) {
+        final initial = _initialOpcaoExtraStringValues[entry.key] ?? '';
+        if (entry.value.text != initial) return true;
+      }
+    }
+    for (final entry in _opcaoExtraFloat1Controllers.entries) {
+      if (_opcoesExtrasEnabled[entry.key] == true) {
+        final initial = _initialOpcaoExtraFloat1Values[entry.key] ?? '';
+        if (entry.value.text != initial) return true;
+      }
+    }
+    for (final entry in _opcaoExtraFloat2Controllers.entries) {
+      if (_opcoesExtrasEnabled[entry.key] == true) {
+        final initial = _initialOpcaoExtraFloat2Values[entry.key] ?? '';
+        if (entry.value.text != initial) return true;
+      }
     }
     
     return false;
@@ -2654,7 +2694,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   void _initializeQuantityControllers() {
   if (_selectedProduto == null) return;
   
-  // Limpar controllers de opções extras antigas
   for (final controller in _opcaoExtraStringControllers.values) {
     controller.dispose();
   }
@@ -2682,7 +2721,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   _opcaoExtraFloat2FocusNodes.clear();
   _opcoesExtrasEnabled.clear();
   
-  // Inicializar materiais
   for (final mat in _selectedProduto!.materiais) {
     final existingQty = widget.initial?.materiais
         .firstWhere((m) => m.materialId == mat.materialId,
@@ -2695,7 +2733,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                 quantidade: 0))
         .quantidade ?? 0;
     
-    // ✅ MODIFIQUE ESTA LINHA
     final controller = TextEditingController(
       text: existingQty > 0 ? _formatQuantity(existingQty) : ''
     );
@@ -2708,7 +2745,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     _quantityFocusNodes[mat.materialId] = focusNode;
   }
   
-  // ✅ CORRIGIDO: Inicializar opções extras do produto selecionado
   for (final opcao in _selectedProduto!.opcoesExtras) {
     final existingOpcao = widget.initial?.opcoesExtras.firstWhere(
       (o) => o.produtoOpcaoId == opcao.id,
@@ -2723,19 +2759,16 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       ),
     );
     
-    // ✅ MUDANÇA: Verificar se existe um registro (mesmo com valores nulos)
     if (existingOpcao != null && existingOpcao.id != 0) {
-      // ✅ MUDANÇA: Verificar se tem valores ou se é um registro "Não"
       final hasValues = existingOpcao.valorString != null || 
                        existingOpcao.valorFloat1 != null || 
                        existingOpcao.valorFloat2 != null;
       
+      _opcoesExtrasEnabled[opcao.id] = hasValues;
+      
       if (hasValues) {
-        _opcoesExtrasEnabled[opcao.id] = true;
-        
         final stringCtrl = TextEditingController(text: existingOpcao.valorString ?? '');
         
-        // ✅ MODIFIQUE ESTAS LINHAS
         final float1Ctrl = TextEditingController(
           text: existingOpcao.valorFloat1 != null 
               ? _formatQuantity(existingOpcao.valorFloat1!) 
@@ -2764,12 +2797,8 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         _opcaoExtraStringFocusNodes[opcao.id] = stringFocus;
         _opcaoExtraFloat1FocusNodes[opcao.id] = float1Focus;
         _opcaoExtraFloat2FocusNodes[opcao.id] = float2Focus;
-      } else {
-        // ✅ NOVO: Opção foi marcada como "Não" (registro existe mas sem valores)
-        _opcoesExtrasEnabled[opcao.id] = false;
       }
     }
-    // Se não existe registro, deixa como null (não respondido)
   }
 }
 
@@ -2812,7 +2841,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       focusNode.dispose();
     }
     
-    // Dispose opções extras
     for (final controller in _opcaoExtraStringControllers.values) {
       controller.dispose();
     }
@@ -2835,66 +2863,69 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     super.dispose();
   }
 
-  double _calculateTotal() {
+  /// Calcula a base: materiais + despesas adicionais + opções extras não-percentuais.
+  double _calcularBasePercentual() {
     if (_selectedProduto == null) return 0.0;
-    double total = 0.0;
-    
-    // Somar materiais
+
+    double base = 0.0;
+
     for (final mat in _selectedProduto!.materiais) {
       final controller = _quantityControllers[mat.materialId];
       if (controller != null) {
         final qty = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0.0;
-        total += mat.materialCusto * qty;
+        base += mat.materialCusto * qty;
       }
     }
-    
-    // Somar despesas adicionais
+
     for (final valorCtrl in _despesaValorControllers) {
       final valor = double.tryParse(valorCtrl.text.replaceAll(',', '.')) ?? 0.0;
-      total += valor;
+      base += valor;
     }
-    
+
     for (final opcao in _selectedProduto!.opcoesExtras) {
       final isEnabled = _opcoesExtrasEnabled[opcao.id] ?? false;
       if (!isEnabled) continue;
-      
+
       if (opcao.tipo == TipoOpcaoExtra.stringFloat) {
-        // Descrição + Valor: o valor está em float1
         final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id];
         if (float1Ctrl != null) {
-          final valor = double.tryParse(float1Ctrl.text.replaceAll(',', '.')) ?? 0.0;
-          total += valor;
+          base += double.tryParse(float1Ctrl.text.replaceAll(',', '.')) ?? 0.0;
         }
-      } 
-      else if (opcao.tipo == TipoOpcaoExtra.floatFloat) {
-        // Tempo (horas) + Valor/Hora: calcular horas * valor_hora
-        final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id]; // horas
-        final float2Ctrl = _opcaoExtraFloat2Controllers[opcao.id]; // valor por hora
-        
+      } else if (opcao.tipo == TipoOpcaoExtra.floatFloat) {
+        final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id];
+        final float2Ctrl = _opcaoExtraFloat2Controllers[opcao.id];
         if (float1Ctrl != null && float2Ctrl != null) {
-          final horas = double.tryParse(float1Ctrl.text.replaceAll(',', '.')) ?? 0.0;  // ✅ JÁ É HORAS
+          final horas = double.tryParse(float1Ctrl.text.replaceAll(',', '.')) ?? 0.0;
           final valorHora = double.tryParse(float2Ctrl.text.replaceAll(',', '.')) ?? 0.0;
-          
-          // ✅ CÁLCULO DIRETO: horas × valor_hora (sem conversão)
-          total += horas * valorHora;
+          base += horas * valorHora;
         }
       }
-      else if (opcao.tipo == TipoOpcaoExtra.percentFloat) {
-        // % + Valor: calcular (percentual / 100) * valor
-        final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id]; // percentual
-        final float2Ctrl = _opcaoExtraFloat2Controllers[opcao.id]; // valor
-        
-        if (float1Ctrl != null && float2Ctrl != null) {
-          final percentual = double.tryParse(float1Ctrl.text.replaceAll(',', '.')) ?? 0.0;
-          final valor = double.tryParse(float2Ctrl.text.replaceAll(',', '.')) ?? 0.0;
-          
-          // Calcular percentual do valor
-          total += (percentual / 100.0) * valor;
-        }
+      // PERCENTFLOAT propositalmente excluído — não entra na própria base
+    }
+
+    return base;
+  }
+
+  double _calculateTotal() {
+    if (_selectedProduto == null) return 0.0;
+
+    // Base completa = materiais + despesas + opções não-percentuais
+    final basePercentual = _calcularBasePercentual();
+
+    // Soma das opções percentuais aplicadas sobre a base completa
+    double totalPercentuais = 0.0;
+    for (final opcao in _selectedProduto!.opcoesExtras) {
+      final isEnabled = _opcoesExtrasEnabled[opcao.id] ?? false;
+      if (!isEnabled || opcao.tipo != TipoOpcaoExtra.percentFloat) continue;
+
+      final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id];
+      if (float1Ctrl != null) {
+        final percentual = double.tryParse(float1Ctrl.text.replaceAll(',', '.')) ?? 0.0;
+        totalPercentuais += (percentual / 100.0) * basePercentual;
       }
     }
-    
-    return total;
+
+    return basePercentual + totalPercentuais;
   }
 
   void _adicionarDespesa() {
@@ -3056,15 +3087,10 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       ));
     }
 
-    // ✅ CORRIGIDO: Salvar TODAS as opções extras (incluindo "Não")
     final opcoesExtras = <OrcamentoOpcaoExtraItem>[];
     for (final opcao in _selectedProduto!.opcoesExtras) {
       final isEnabled = _opcoesExtrasEnabled[opcao.id];
       
-      // ✅ MUDANÇA: Só pular se não foi respondido (null)
-      if (isEnabled == null) continue;
-      
-      // Buscar ID existente se estiver editando
       final existingId = widget.initial?.opcoesExtras
           .firstWhere(
             (o) => o.produtoOpcaoId == opcao.id,
@@ -3080,7 +3106,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
           )
           .id ?? 0;
       
-      // ✅ MUDANÇA: Se for "Não" (false), salvar com valores nulos
+      // CORREÇÃO: Salvar opções marcadas como "Não" com valores null
       if (isEnabled == false) {
         opcoesExtras.add(OrcamentoOpcaoExtraItem(
           id: existingId,
@@ -3094,7 +3120,9 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         continue;
       }
       
-      // Se for "Sim" (true), coletar os valores
+      // Se não foi selecionado (null), pular
+      if (isEnabled == null) continue;
+      
       final stringCtrl = _opcaoExtraStringControllers[opcao.id];
       final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id];
       final float2Ctrl = _opcaoExtraFloat2Controllers[opcao.id];
@@ -3109,7 +3137,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         if (float1Text.isNotEmpty) {
           valorFloat1 = double.tryParse(float1Text.replaceAll(',', '.'));
         }
-      } else {
+      } else if (opcao.tipo == TipoOpcaoExtra.floatFloat) {
         final float1Text = float1Ctrl?.text.trim() ?? '';
         final float2Text = float2Ctrl?.text.trim() ?? '';
         
@@ -3118,6 +3146,12 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         }
         if (float2Text.isNotEmpty) {
           valorFloat2 = double.tryParse(float2Text.replaceAll(',', '.'));
+        }
+      } else if (opcao.tipo == TipoOpcaoExtra.percentFloat) {
+        final float1Text = float1Ctrl?.text.trim() ?? '';
+        
+        if (float1Text.isNotEmpty) {
+          valorFloat1 = double.tryParse(float1Text.replaceAll(',', '.'));
         }
       }
       
@@ -3180,7 +3214,8 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
 
   Widget _buildOpcoesExtrasSection() {
     final theme = Theme.of(context);
-    
+    final currency = NumberFormat.simpleCurrency(locale: 'pt_BR');
+
     if (_selectedProduto == null || _selectedProduto!.opcoesExtras.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -3270,11 +3305,10 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                   ],
                                 ),
                               ),
-                              // ✅ NOVO: Ícone de aviso com tooltip
                               if (temAviso) ...[
                                 const SizedBox(width: 6),
                                 Transform.translate(
-                                  offset: const Offset(-10, 0),  // Move 4 pixels para esquerda
+                                  offset: const Offset(-10, 0),
                                   child: Tooltip(
                                     message: avisosDaOpcao.map((a) => a.mensagem).join('\n'),
                                     decoration: BoxDecoration(
@@ -3369,7 +3403,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                   labelText: 'Descrição',
                                   helperStyle: TextStyle(fontSize: 10),
                                   isDense: true,
-                                  suffixText: 'h',
                                   contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                                 ),
                                 validator: (v) => (v == null || v.trim().isEmpty) 
@@ -3390,6 +3423,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                 decoration: const InputDecoration(
                                   labelText: 'Valor',
                                   isDense: true,
+                                  prefixText: 'R\$ ',
                                   contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                                 ),
                                 validator: (v) {
@@ -3469,64 +3503,113 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                           ],
                         ),
                       ] else if (opcao.tipo == TipoOpcaoExtra.percentFloat) ...[
-                        Row(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: _opcaoExtraFloat1Controllers[opcao.id],
-                                focusNode: _opcaoExtraFloat1FocusNodes[opcao.id],
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                ],
-                                style: const TextStyle(fontSize: 12),
-                                decoration: const InputDecoration(
-                                  labelText: 'Percentual',
-                                  helperStyle: TextStyle(fontSize: 10),
-                                  isDense: true,
-                                  suffixText: '%',
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                ),
-                                validator: (v) {
-                                  if (v == null || v.trim().isEmpty) {
-                                    return 'Informe o %';
-                                  }
-                                  final value = double.tryParse(v.replaceAll(',', '.'));
-                                  if (value == null || value < 0 || value > 100) {
-                                    return 'Entre 0-100';
-                                  }
-                                  return null;
-                                },
+                            TextFormField(
+                              controller: _opcaoExtraFloat1Controllers[opcao.id],
+                              focusNode: _opcaoExtraFloat1FocusNodes[opcao.id],
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                              ],
+                              style: const TextStyle(fontSize: 12),
+                              decoration: const InputDecoration(
+                                labelText: 'Percentual',
+                                helperStyle: TextStyle(fontSize: 10),
+                                isDense: true,
+                                suffixText: '%',
+                                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                               ),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return 'Informe o %';
+                                }
+                                final value = double.tryParse(v.replaceAll(',', '.'));
+                                if (value == null || value < 0 || value > 100) {
+                                  return 'Entre 0-100';
+                                }
+                                return null;
+                              },
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextFormField(
-                                controller: _opcaoExtraFloat2Controllers[opcao.id],
-                                focusNode: _opcaoExtraFloat2FocusNodes[opcao.id],
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                ],
-                                style: const TextStyle(fontSize: 12),
-                                decoration: const InputDecoration(
-                                  labelText: 'Valor',
-                                  helperStyle: TextStyle(fontSize: 10),
-                                  isDense: true,
-                                  prefixText: 'R\$ ',
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                ),
-                                validator: (v) {
-                                  if (v == null || v.trim().isEmpty) {
-                                    return 'Informe o valor';
-                                  }
-                                  final value = double.tryParse(v.replaceAll(',', '.'));
-                                  if (value == null || value < 0) {
-                                    return 'Inválido';
-                                  }
-                                  return null;
-                                },
-                              ),
+                            
+                            const SizedBox(height: 10),
+                            
+                            Builder(
+                              builder: (context) {
+                                // Base = materiais + despesas + opções não-percentuais
+                                final totalBase = _calcularBasePercentual();
+
+                                final percentualCtrl = _opcaoExtraFloat1Controllers[opcao.id];
+                                final percentual = percentualCtrl != null
+                                    ? (double.tryParse(percentualCtrl.text.replaceAll(',', '.')) ?? 0.0)
+                                    : 0.0;
+
+                                final valorCalculado = (percentual / 100.0) * totalBase;
+                                
+                                return Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.info_outline,
+                                            size: 14,
+                                            color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Base de cálculo (calculado automaticamente):',
+                                            style: theme.textTheme.bodySmall?.copyWith(
+                                              fontSize: 10,
+                                              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        currency.format(totalBase),
+                                        style: theme.textTheme.bodySmall?.copyWith(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: theme.colorScheme.primary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            'Valor da opção:',
+                                            style: theme.textTheme.bodySmall?.copyWith(
+                                              fontSize: 10,
+                                              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                            ),
+                                          ),
+                                          Text(
+                                            currency.format(valorCalculado),
+                                            style: theme.textTheme.bodyMedium?.copyWith(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              color: theme.colorScheme.primary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -3551,7 +3634,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         if (value == null) {
           return 'Selecione Sim ou Não';
         }
-        // Validação adicional: se escolheu "Sim", deve ter pelo menos uma despesa
         if (value == true && _despesaDescControllers.isEmpty) {
           return 'Adicione pelo menos uma despesa';
         }
@@ -4122,7 +4204,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                 Expanded(
                                                   flex: 2,
                                                   child: Padding(
-                                                    padding: const EdgeInsets.only(left: 0), // → direita
+                                                    padding: const EdgeInsets.only(left: 0),
                                                     child: Text(
                                                       'Materiais',
                                                       style: theme.textTheme.titleSmall?.copyWith(
@@ -4136,7 +4218,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                 SizedBox(
                                                   width: 90,
                                                   child: Padding(
-                                                    padding: const EdgeInsets.only(right: 15), // → direita
+                                                    padding: const EdgeInsets.only(right: 15),
                                                     child: Text(
                                                       'Quantidade',
                                                       textAlign: TextAlign.center,
@@ -4151,7 +4233,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                 SizedBox(
                                                   width: 75,
                                                   child: Padding(
-                                                    padding: const EdgeInsets.only(right: 15), // ← esquerda
+                                                    padding: const EdgeInsets.only(right: 15),
                                                     child: Text(
                                                       'Total',
                                                       textAlign: TextAlign.right,
@@ -4188,7 +4270,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                       flex: 2,
                                                       child: Builder(
                                                         builder: (context) {
-                                                          // ✅ Buscar avisos específicos deste material
                                                           final avisosDoMaterial = _selectedProduto!.avisos
                                                               .where((aviso) => aviso.materialId == mat.materialId)
                                                               .toList();

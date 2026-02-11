@@ -1,11 +1,17 @@
+[para prod]
+
+$env:NODE_ENV="prod"; npm run prod
+
+flutter run -t lib/main.dart
+
+----------------------
 [para dev]
 
-npm run dev
-flutter run
-----------------------
-[para produção]
+$env:NODE_ENV="dev"; npm run dev
 
-$env:NODE_ENV="production"
-npm start
+flutter run -t lib/main_dev.dart
 
-flutter run -t lib/main_prod.dart
+\\\\\\\\\\\ CRIAR PRIMEIRO ADMIN \\\\\\\\\\\\\\\
+
+$env:NODE_ENV="dev"; npx prisma db seed  --- ambiente dev
+$env:NODE_ENV="prod"; npx prisma db seed --- ambiente prod

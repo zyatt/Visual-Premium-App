@@ -1,7 +1,8 @@
-name: visualpremium
+﻿name: visualpremium
 description: "Software Visual Premium"
 publish_to: "none"
-version: 1.0.0+1
+version: 1.0.0
+
 
 environment:
   sdk: ^3.6.0
@@ -33,7 +34,7 @@ flutter:
   uses-material-design: true
   assets:
       - .env
-      - .env.production
+      - .env.dev
 
       - assets/images/logo.png
       - assets/images/logo branca.png
@@ -45,3 +46,4 @@ flutter_launcher_icons:
     generate: true
     icon_size: 256
   image_path: assets/images/logo.png
+

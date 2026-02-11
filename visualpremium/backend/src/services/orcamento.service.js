@@ -5,7 +5,7 @@ class OrcamentoService {
   async listar() {
     return prisma.orcamento.findMany({
       include: {
-        produto: true, // ✅ Incluir produto para pegar o nome
+        produto: true,
         materiais: {
           include: {
             material: true
@@ -14,7 +14,7 @@ class OrcamentoService {
         despesasAdicionais: true,
         opcoesExtras: {
           include: {
-            produtoOpcao: true // ✅ CRÍTICO: Incluir produtoOpcao para pegar nome e tipo
+            produtoOpcao: true
           }
         }
       },
@@ -28,7 +28,7 @@ class OrcamentoService {
     const orcamento = await prisma.orcamento.findUnique({
       where: { id },
       include: {
-        produto: true, // ✅ Incluir produto
+        produto: true,
         materiais: {
           include: {
             material: true
@@ -37,7 +37,7 @@ class OrcamentoService {
         despesasAdicionais: true,
         opcoesExtras: {
           include: {
-            produtoOpcao: true // ✅ CRÍTICO: Incluir produtoOpcao
+            produtoOpcao: true
           }
         }
       }
@@ -48,6 +48,37 @@ class OrcamentoService {
     }
 
     return orcamento;
+  }
+
+  calcularTotalBase(materiais, despesasAdicionais, opcoesExtrasNaoPercentuais = []) {
+    let total = 0;
+
+    if (materiais && materiais.length > 0) {
+      for (const m of materiais) {
+        const custo = parseFloat(m.custo) || 0;
+        const quantidade = parseFloat(m.quantidade) || 0;
+        total += custo * quantidade;
+      }
+    }
+
+    if (despesasAdicionais && despesasAdicionais.length > 0) {
+      for (const d of despesasAdicionais) {
+        total += parseFloat(d.valor) || 0;
+      }
+    }
+
+    // Inclui opções extras não-percentuais (STRINGFLOAT e FLOATFLOAT) na base do cálculo percentual
+    for (const opcao of opcoesExtrasNaoPercentuais) {
+      if (opcao._tipo === 'STRINGFLOAT') {
+        total += parseFloat(opcao.valorFloat1) || 0;
+      } else if (opcao._tipo === 'FLOATFLOAT') {
+        const f1 = parseFloat(opcao.valorFloat1) || 0;
+        const f2 = parseFloat(opcao.valorFloat2) || 0;
+        total += f1 * f2;
+      }
+    }
+
+    return total;
   }
 
   async criar(data, user) {
@@ -64,12 +95,10 @@ class OrcamentoService {
         prazoEntrega
       } = data;
 
-      // Validações básicas
       if (!cliente || !numero || !produtoId) {
         throw new Error('Cliente, número e produto são obrigatórios');
       }
 
-      // Validar que numero é um inteiro válido
       const numeroInt = parseInt(numero);
       if (isNaN(numeroInt) || numeroInt <= 0) {
         throw new Error('Número do orçamento deve ser um valor inteiro positivo');
@@ -87,7 +116,6 @@ class OrcamentoService {
         throw new Error('Prazo de entrega é obrigatório');
       }
 
-      // Verificar se já existe um orçamento com esse número
       const orcamentoExistente = await prisma.orcamento.findFirst({
         where: { numero: numeroInt }
       });
@@ -96,7 +124,6 @@ class OrcamentoService {
         throw new Error(`Já existe um orçamento com o número ${numeroInt}`);
       }
 
-      // Verificar se o produto existe e buscar seus dados
       const produto = await prisma.produto.findUnique({
         where: { id: produtoId },
         include: {
@@ -113,7 +140,6 @@ class OrcamentoService {
         throw new Error('Produto não encontrado');
       }
 
-      // Validar despesas adicionais
       const despesasValidadas = [];
       if (despesasAdicionais && Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
         for (const despesa of despesasAdicionais) {
@@ -130,7 +156,6 @@ class OrcamentoService {
         }
       }
 
-      // Validar materiais - verificar se pertencem ao produto
       const materiaisValidados = [];
       if (materiais && materiais.length > 0) {
         for (const m of materiais) {
@@ -157,40 +182,39 @@ class OrcamentoService {
 
           materiaisValidados.push({
             materialId: m.materialId,
-            quantidade: quantidadeNum
+            quantidade: quantidadeNum,
+            custo: material.material.custo,
           });
         }
       }
 
-      // Validar opções extras - verificar se pertencem ao produto
+      // Primeira passagem: valida e coleta opções extras, separando percentuais das demais
       const opcoesExtrasValidadas = [];
       if (opcoesExtras && Array.isArray(opcoesExtras) && opcoesExtras.length > 0) {
+        const opcoesPrimeiraPassagem = [];
+
         for (const opcaoValor of opcoesExtras) {
           const opcaoExtra = produto.opcoesExtras.find(o => o.id === opcaoValor.produtoOpcaoId);
-          
+
           if (!opcaoExtra) {
             throw new Error(`Opção extra ${opcaoValor.produtoOpcaoId} não pertence ao produto`);
           }
 
-          // ✅ NOVO: Verificar se é um registro "Não" (todos os valores são null)
-          const isNaoSelection = 
+          const isNaoSelection =
             (opcaoValor.valorString === null || opcaoValor.valorString === undefined) &&
             (opcaoValor.valorFloat1 === null || opcaoValor.valorFloat1 === undefined) &&
             (opcaoValor.valorFloat2 === null || opcaoValor.valorFloat2 === undefined);
 
-          // ✅ MUDANÇA: Se for "Não", salvar com valores nulos sem validar
           if (isNaoSelection) {
-            opcoesExtrasValidadas.push({
-              produtoOpcaoId: opcaoValor.produtoOpcaoId,
-              valorString: null,
-              valorFloat1: null,
-              valorFloat2: null
+            // CORREÇÃO: Salvar opções marcadas como "Não" no banco
+            opcoesPrimeiraPassagem.push({
+              tipo: opcaoExtra.tipo,
+              isNaoSelection: true,
+              dados: { produtoOpcaoId: opcaoValor.produtoOpcaoId, valorString: null, valorFloat1: null, valorFloat2: null }
             });
-            continue; // Pular validação de valores
+            continue;
           }
 
-          // ✅ MUDANÇA: Só validar valores se não for "Não"
-          // Validar valores baseado no tipo
           if (opcaoExtra.tipo === 'STRINGFLOAT') {
             if (!opcaoValor.valorString || opcaoValor.valorString.trim() === '') {
               throw new Error(`Valor texto é obrigatório para a opção "${opcaoExtra.nome}"`);
@@ -199,52 +223,67 @@ class OrcamentoService {
             if (isNaN(valorFloat1) || valorFloat1 < 0) {
               throw new Error(`Valor numérico inválido para a opção "${opcaoExtra.nome}"`);
             }
-            opcoesExtrasValidadas.push({
-              produtoOpcaoId: opcaoValor.produtoOpcaoId,
-              valorString: opcaoValor.valorString.trim(),
-              valorFloat1: valorFloat1,
-              valorFloat2: null
+            opcoesPrimeiraPassagem.push({
+              tipo: 'STRINGFLOAT', isNaoSelection: false,
+              dados: { produtoOpcaoId: opcaoValor.produtoOpcaoId, valorString: opcaoValor.valorString.trim(), valorFloat1: valorFloat1, valorFloat2: null }
             });
           } else if (opcaoExtra.tipo === 'FLOATFLOAT') {
             const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
             const valorFloat2 = parseFloat(opcaoValor.valorFloat2);
-            
             if (isNaN(valorFloat1) || valorFloat1 < 0) {
               throw new Error(`Primeiro valor numérico inválido para a opção "${opcaoExtra.nome}"`);
             }
             if (isNaN(valorFloat2) || valorFloat2 < 0) {
               throw new Error(`Segundo valor numérico inválido para a opção "${opcaoExtra.nome}"`);
             }
-            
-            opcoesExtrasValidadas.push({
-              produtoOpcaoId: opcaoValor.produtoOpcaoId,
-              valorString: null,
-              valorFloat1: valorFloat1,
-              valorFloat2: valorFloat2
+            opcoesPrimeiraPassagem.push({
+              tipo: 'FLOATFLOAT', isNaoSelection: false,
+              dados: { produtoOpcaoId: opcaoValor.produtoOpcaoId, valorString: null, valorFloat1: valorFloat1, valorFloat2: valorFloat2 }
             });
           } else if (opcaoExtra.tipo === 'PERCENTFLOAT') {
             const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
-            const valorFloat2 = parseFloat(opcaoValor.valorFloat2);
-            
             if (isNaN(valorFloat1) || valorFloat1 < 0 || valorFloat1 > 100) {
               throw new Error(`Percentual inválido para a opção "${opcaoExtra.nome}" (deve estar entre 0 e 100)`);
             }
-            if (isNaN(valorFloat2) || valorFloat2 < 0) {
-              throw new Error(`Valor base inválido para a opção "${opcaoExtra.nome}"`);
-            }
-            
+            // Percentuais ficam pendentes — precisam do totalBase completo
+            opcoesPrimeiraPassagem.push({
+              tipo: 'PERCENTFLOAT', isNaoSelection: false,
+              percentual: valorFloat1,
+              produtoOpcaoId: opcaoValor.produtoOpcaoId
+            });
+          }
+        }
+
+        // Calcula totalBase = materiais + despesas + opções extras não-percentuais
+        const opcoesNaoPercentuaisParaBase = opcoesPrimeiraPassagem
+          .filter(o => !o.isNaoSelection && (o.tipo === 'STRINGFLOAT' || o.tipo === 'FLOATFLOAT'))
+          .map(o => ({ _tipo: o.tipo, valorFloat1: o.dados.valorFloat1, valorFloat2: o.dados.valorFloat2 }));
+
+        const totalBase = this.calcularTotalBase(materiaisValidados, despesasValidadas, opcoesNaoPercentuaisParaBase);
+
+        // Segunda passagem: resolve os PERCENTFLOAT com o totalBase completo
+        for (const opcao of opcoesPrimeiraPassagem) {
+          // CORREÇÃO: Incluir opções marcadas como "não" no banco de dados
+          if (opcao.isNaoSelection) {
+            opcoesExtrasValidadas.push(opcao.dados);
+            continue;
+          }
+
+          if (opcao.tipo !== 'PERCENTFLOAT') {
+            opcoesExtrasValidadas.push(opcao.dados);
+          } else {
             opcoesExtrasValidadas.push({
-              produtoOpcaoId: opcaoValor.produtoOpcaoId,
+              produtoOpcaoId: opcao.produtoOpcaoId,
               valorString: null,
-              valorFloat1: valorFloat1,
-              valorFloat2: valorFloat2
+              valorFloat1: opcao.percentual,
+              valorFloat2: totalBase  // base completa: materiais + despesas + opções não-percentuais
             });
           }
         }
       }
 
       const createData = {
-        cliente: cliente.trim(),
+        cliente,
         numero: numeroInt,
         status: 'Pendente',
         produtoId,
@@ -253,32 +292,28 @@ class OrcamentoService {
         prazoEntrega: prazoEntrega.trim(),
       };
 
-      // Adicionar materiais apenas se houver
       if (materiaisValidados.length > 0) {
         createData.materiais = {
           create: materiaisValidados
         };
       }
 
-      // Adicionar despesas apenas se houver
       if (despesasValidadas.length > 0) {
         createData.despesasAdicionais = {
           create: despesasValidadas
         };
       }
 
-      // Adicionar opções extras apenas se houver
       if (opcoesExtrasValidadas.length > 0) {
         createData.opcoesExtras = {
           create: opcoesExtrasValidadas
         };
       }
 
-      // Criar orçamento
       const orcamento = await prisma.orcamento.create({
         data: createData,
         include: {
-          produto: true, // ✅ Incluir produto
+          produto: true,
           materiais: {
             include: {
               material: true
@@ -287,20 +322,19 @@ class OrcamentoService {
           despesasAdicionais: true,
           opcoesExtras: {
             include: {
-              produtoOpcao: true // ✅ CRÍTICO: Incluir produtoOpcao
+              produtoOpcao: true
             }
           }
         }
       });
 
-      // Registrar log de criação
       await logService.registrar({
         usuarioId: user?.id || 1,
         usuarioNome: user?.nome || 'Sistema',
         acao: 'CRIAR',
         entidade: 'ORCAMENTO',
         entidadeId: orcamento.id,
-        descricao: `Criou o orçamento #${orcamento.numero}`,
+        descricao: `Criou o orçamento "#${orcamento.numero}"`,
         detalhes: orcamento,
       });
 
@@ -313,80 +347,41 @@ class OrcamentoService {
 
   async atualizar(id, data, user) {
     try {
-      const orcamentoAntigo = await prisma.orcamento.findUnique({
+      const { materiais, despesasAdicionais, opcoesExtras } = data;
+
+      const orcamentoAtual = await prisma.orcamento.findUnique({
         where: { id },
         include: {
-          produto: true,
-          materiais: { include: { material: true } },
+          produto: {
+            include: {
+              materiais: {
+                include: {
+                  material: true
+                }
+              },
+              opcoesExtras: true
+            }
+          },
+          materiais: {
+            include: {
+              material: true
+            }
+          },
           despesasAdicionais: true,
-          opcoesExtras: { include: { produtoOpcao: true } }
+          opcoesExtras: {
+            include: {
+              produtoOpcao: true
+            }
+          }
         }
       });
 
-      if (!orcamentoAntigo) {
+      if (!orcamentoAtual) {
         throw new Error('Orçamento não encontrado');
       }
 
-      const { 
-        cliente, 
-        numero, 
-        produtoId, 
-        materiais,
-        despesasAdicionais,
-        opcoesExtras,
-        formaPagamento,
-        condicoesPagamento,
-        prazoEntrega
-      } = data;
+      const produto = orcamentoAtual.produto;
 
-      // Validações básicas
-      if (!cliente || !numero || !produtoId) {
-        throw new Error('Cliente, número e produto são obrigatórios');
-      }
-
-      const numeroInt = parseInt(numero);
-      if (isNaN(numeroInt) || numeroInt <= 0) {
-        throw new Error('Número do orçamento deve ser um valor inteiro positivo');
-      }
-
-      if (!formaPagamento || formaPagamento.trim() === '') {
-        throw new Error('Forma de pagamento é obrigatória');
-      }
-
-      if (!condicoesPagamento || condicoesPagamento.trim() === '') {
-        throw new Error('Condições de pagamento são obrigatórias');
-      }
-
-      if (!prazoEntrega || prazoEntrega.trim() === '') {
-        throw new Error('Prazo de entrega é obrigatório');
-      }
-
-      // Verificar se já existe outro orçamento com esse número
-      const orcamentoExistente = await prisma.orcamento.findFirst({
-        where: { 
-          numero: numeroInt,
-          NOT: { id: id }
-        }
-      });
-
-      if (orcamentoExistente) {
-        throw new Error(`Já existe outro orçamento com o número ${numeroInt}`);
-      }
-
-      // Verificar se o produto existe
-      const produto = await prisma.produto.findUnique({
-        where: { id: produtoId },
-        include: {
-          materiais: { include: { material: true } },
-          opcoesExtras: true
-        }
-      });
-
-      if (!produto) {
-        throw new Error('Produto não encontrado');
-      }
-
-      // Validar despesas adicionais
       const despesasValidadas = [];
       if (despesasAdicionais && Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
         for (const despesa of despesasAdicionais) {
@@ -403,7 +398,6 @@ class OrcamentoService {
         }
       }
 
-      // Validar materiais
       const materiaisValidados = [];
       if (materiais && materiais.length > 0) {
         for (const m of materiais) {
@@ -430,39 +424,39 @@ class OrcamentoService {
 
           materiaisValidados.push({
             materialId: m.materialId,
-            quantidade: quantidadeNum
+            quantidade: quantidadeNum,
+            custo: material.material.custo,
           });
         }
       }
 
-      // Validar opções extras
+      // Primeira passagem: valida e coleta opções extras, separando percentuais das demais
       const opcoesExtrasValidadas = [];
       if (opcoesExtras && Array.isArray(opcoesExtras) && opcoesExtras.length > 0) {
+        const opcoesPrimeiraPassagem = [];
+
         for (const opcaoValor of opcoesExtras) {
           const opcaoExtra = produto.opcoesExtras.find(o => o.id === opcaoValor.produtoOpcaoId);
-          
+
           if (!opcaoExtra) {
             throw new Error(`Opção extra ${opcaoValor.produtoOpcaoId} não pertence ao produto`);
           }
 
-          // ✅ NOVO: Verificar se é um registro "Não"
-          const isNaoSelection = 
+          const isNaoSelection =
             (opcaoValor.valorString === null || opcaoValor.valorString === undefined) &&
             (opcaoValor.valorFloat1 === null || opcaoValor.valorFloat1 === undefined) &&
             (opcaoValor.valorFloat2 === null || opcaoValor.valorFloat2 === undefined);
 
-          // ✅ MUDANÇA: Se for "Não", salvar com valores nulos
           if (isNaoSelection) {
-            opcoesExtrasValidadas.push({
-              produtoOpcaoId: opcaoValor.produtoOpcaoId,
-              valorString: null,
-              valorFloat1: null,
-              valorFloat2: null
+            // CORREÇÃO: Salvar opções marcadas como "Não" no banco
+            opcoesPrimeiraPassagem.push({
+              tipo: opcaoExtra.tipo,
+              isNaoSelection: true,
+              dados: { produtoOpcaoId: opcaoValor.produtoOpcaoId, valorString: null, valorFloat1: null, valorFloat2: null }
             });
             continue;
           }
 
-          // Validar valores baseado no tipo (mesmo código de antes)
           if (opcaoExtra.tipo === 'STRINGFLOAT') {
             if (!opcaoValor.valorString || opcaoValor.valorString.trim() === '') {
               throw new Error(`Valor texto é obrigatório para a opção "${opcaoExtra.nome}"`);
@@ -471,90 +465,108 @@ class OrcamentoService {
             if (isNaN(valorFloat1) || valorFloat1 < 0) {
               throw new Error(`Valor numérico inválido para a opção "${opcaoExtra.nome}"`);
             }
-            opcoesExtrasValidadas.push({
-              produtoOpcaoId: opcaoValor.produtoOpcaoId,
-              valorString: opcaoValor.valorString.trim(),
-              valorFloat1: valorFloat1,
-              valorFloat2: null
+            opcoesPrimeiraPassagem.push({
+              tipo: 'STRINGFLOAT', isNaoSelection: false,
+              dados: { produtoOpcaoId: opcaoValor.produtoOpcaoId, valorString: opcaoValor.valorString.trim(), valorFloat1: valorFloat1, valorFloat2: null }
             });
           } else if (opcaoExtra.tipo === 'FLOATFLOAT') {
             const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
             const valorFloat2 = parseFloat(opcaoValor.valorFloat2);
-            
             if (isNaN(valorFloat1) || valorFloat1 < 0) {
               throw new Error(`Primeiro valor numérico inválido para a opção "${opcaoExtra.nome}"`);
             }
             if (isNaN(valorFloat2) || valorFloat2 < 0) {
               throw new Error(`Segundo valor numérico inválido para a opção "${opcaoExtra.nome}"`);
             }
-            
-            opcoesExtrasValidadas.push({
-              produtoOpcaoId: opcaoValor.produtoOpcaoId,
-              valorString: null,
-              valorFloat1: valorFloat1,
-              valorFloat2: valorFloat2
+            opcoesPrimeiraPassagem.push({
+              tipo: 'FLOATFLOAT', isNaoSelection: false,
+              dados: { produtoOpcaoId: opcaoValor.produtoOpcaoId, valorString: null, valorFloat1: valorFloat1, valorFloat2: valorFloat2 }
             });
           } else if (opcaoExtra.tipo === 'PERCENTFLOAT') {
             const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
-            const valorFloat2 = parseFloat(opcaoValor.valorFloat2);
-            
             if (isNaN(valorFloat1) || valorFloat1 < 0 || valorFloat1 > 100) {
               throw new Error(`Percentual inválido para a opção "${opcaoExtra.nome}" (deve estar entre 0 e 100)`);
             }
-            if (isNaN(valorFloat2) || valorFloat2 < 0) {
-              throw new Error(`Valor base inválido para a opção "${opcaoExtra.nome}"`);
-            }
-            
+            // Percentuais ficam pendentes — precisam do totalBase completo
+            opcoesPrimeiraPassagem.push({
+              tipo: 'PERCENTFLOAT', isNaoSelection: false,
+              percentual: valorFloat1,
+              produtoOpcaoId: opcaoValor.produtoOpcaoId
+            });
+          }
+        }
+
+        // Calcula totalBase = materiais + despesas + opções extras não-percentuais
+        const opcoesNaoPercentuaisParaBase = opcoesPrimeiraPassagem
+          .filter(o => !o.isNaoSelection && (o.tipo === 'STRINGFLOAT' || o.tipo === 'FLOATFLOAT'))
+          .map(o => ({ _tipo: o.tipo, valorFloat1: o.dados.valorFloat1, valorFloat2: o.dados.valorFloat2 }));
+
+        const totalBase = this.calcularTotalBase(materiaisValidados, despesasValidadas, opcoesNaoPercentuaisParaBase);
+
+        // Segunda passagem: resolve os PERCENTFLOAT com o totalBase completo
+        for (const opcao of opcoesPrimeiraPassagem) {
+          // CORREÇÃO: Incluir opções marcadas como "não" no banco de dados
+          if (opcao.isNaoSelection) {
+            opcoesExtrasValidadas.push(opcao.dados);
+            continue;
+          }
+
+          if (opcao.tipo !== 'PERCENTFLOAT') {
+            opcoesExtrasValidadas.push(opcao.dados);
+          } else {
             opcoesExtrasValidadas.push({
-              produtoOpcaoId: opcaoValor.produtoOpcaoId,
+              produtoOpcaoId: opcao.produtoOpcaoId,
               valorString: null,
-              valorFloat1: valorFloat1,
-              valorFloat2: valorFloat2
+              valorFloat1: opcao.percentual,
+              valorFloat2: totalBase  // base completa: materiais + despesas + opções não-percentuais
             });
           }
         }
       }
 
-      // Deletar relacionamentos antigos
-      await prisma.orcamentoMaterial.deleteMany({ where: { orcamentoId: id } });
-      await prisma.despesaAdicional.deleteMany({ where: { orcamentoId: id } });
-      await prisma.orcamentoOpcaoExtra.deleteMany({ where: { orcamentoId: id } });
+      const updateData = {};
 
-      const updateData = {
-        cliente: cliente.trim(),
-        numero: numeroInt,
-        produtoId,
-        formaPagamento: formaPagamento.trim(),
-        condicoesPagamento: condicoesPagamento.trim(),
-        prazoEntrega: prazoEntrega.trim(),
-      };
-
-      // Adicionar materiais apenas se houver
-      if (materiaisValidados.length > 0) {
-        updateData.materiais = {
-          create: materiaisValidados
-        };
+      if (materiaisValidados.length > 0 || materiais === null) {
+        await prisma.orcamentoMaterial.deleteMany({
+          where: { orcamentoId: id }
+        });
+        
+        if (materiaisValidados.length > 0) {
+          updateData.materiais = {
+            create: materiaisValidados
+          };
+        }
       }
 
-      // Adicionar despesas apenas se houver
-      if (despesasValidadas.length > 0) {
-        updateData.despesasAdicionais = {
-          create: despesasValidadas
-        };
+      if (despesasValidadas.length > 0 || despesasAdicionais === null) {
+        await prisma.despesaAdicional.deleteMany({
+          where: { orcamentoId: id }
+        });
+        
+        if (despesasValidadas.length > 0) {
+          updateData.despesasAdicionais = {
+            create: despesasValidadas
+          };
+        }
       }
 
-      // Adicionar opções extras apenas se houver
-      if (opcoesExtrasValidadas.length > 0) {
-        updateData.opcoesExtras = {
-          create: opcoesExtrasValidadas
-        };
+      if (opcoesExtrasValidadas.length > 0 || opcoesExtras === null) {
+        await prisma.orcamentoOpcaoExtra.deleteMany({
+          where: { orcamentoId: id }
+        });
+        
+        if (opcoesExtrasValidadas.length > 0) {
+          updateData.opcoesExtras = {
+            create: opcoesExtrasValidadas
+          };
+        }
       }
 
-      const orcamento = await prisma.orcamento.update({
+      const orcamentoAtualizado = await prisma.orcamento.update({
         where: { id },
         data: updateData,
         include: {
-          produto: true, // ✅ Incluir produto
+          produto: true,
           materiais: {
             include: {
               material: true
@@ -563,34 +575,37 @@ class OrcamentoService {
           despesasAdicionais: true,
           opcoesExtras: {
             include: {
-              produtoOpcao: true // ✅ CRÍTICO: Incluir produtoOpcao
+              produtoOpcao: true
             }
           }
         }
       });
 
-      // REGISTRAR LOG DE EDIÇÃO
       await logService.registrar({
         usuarioId: user?.id || 1,
         usuarioNome: user?.nome || 'Sistema',
         acao: 'EDITAR',
         entidade: 'ORCAMENTO',
         entidadeId: id,
-        descricao: `Editou o orçamento "#${orcamento.numero}"`,
+        descricao: `Editou o orçamento "#${orcamentoAtualizado.numero}"`,
         detalhes: {
-          antes: orcamentoAntigo,
-          depois: orcamento,
+          antes: orcamentoAtual,
+          depois: orcamentoAtualizado
         },
       });
 
-      return orcamento;
+      return orcamentoAtualizado;
     } catch (error) {
-      console.error('Erro ao atualizar orçamento:', error);
+      console.error('Erro ao editar orçamento:', error);
       throw error;
     }
   }
 
-  async atualizarStatus(id, status, dadosAdicionais = {}, user) {
+  async editar(id, data, user) {
+    return this.atualizar(id, data, user);
+  }
+
+  async atualizarStatus(id, status, user) {
     try {
       const orcamento = await prisma.orcamento.findUnique({
         where: { id },
@@ -619,7 +634,6 @@ class OrcamentoService {
         throw new Error('Status inválido');
       }
 
-      // Se o status está sendo alterado para "Aprovado" e ainda não existe um pedido
       if (status === 'Aprovado' && !orcamento.pedido) {
         const pedidoData = {
           cliente: orcamento.cliente,
@@ -632,17 +646,16 @@ class OrcamentoService {
           orcamentoId: orcamento.id,
         };
 
-        // Adicionar materiais do orçamento ao pedido
         if(orcamento.materiais && orcamento.materiais.length > 0) {
           pedidoData.materiais = {
             create: orcamento.materiais.map(m => ({
               materialId: m.materialId,
-              quantidade: m.quantidade
+              quantidade: m.quantidade,
+              custo: m.custo,
             }))
           };
         }
 
-        // Adicionar despesas adicionais do orçamento ao pedido
         if (orcamento.despesasAdicionais && orcamento.despesasAdicionais.length > 0) {
           pedidoData.despesasAdicionais = {
             create: orcamento.despesasAdicionais.map(d => ({
@@ -652,7 +665,6 @@ class OrcamentoService {
           };
         }
 
-        // Adicionar opções extras do orçamento ao pedido
         if (orcamento.opcoesExtras && orcamento.opcoesExtras.length > 0) {
           pedidoData.opcoesExtras = {
             create: orcamento.opcoesExtras.map(o => ({
@@ -664,9 +676,7 @@ class OrcamentoService {
           };
         }
 
-        // Criar o pedido em uma transação junto com a atualização do status
         return await prisma.$transaction(async (tx) => {
-          // Criar o pedido
           const pedidoCriado = await tx.pedido.create({
             data: pedidoData,
             include: {
@@ -684,7 +694,6 @@ class OrcamentoService {
             }
           });
           
-          // Atualizar o status do orçamento
           const orcamentoAtualizado = await tx.orcamento.update({
             where: { id },
             data: { status },
@@ -704,7 +713,6 @@ class OrcamentoService {
             }
           });
 
-          // REGISTRAR LOG DE APROVAÇÃO E CRIAÇÃO DE PEDIDO
           await logService.registrar({
             usuarioId: user?.id || 1,
             usuarioNome: user?.nome || 'Sistema',
@@ -724,7 +732,6 @@ class OrcamentoService {
         });
       }
 
-      // Caso contrário, apenas atualizar o status
       const statusAnterior = orcamento.status;
       const orcamentoAtualizado = await prisma.orcamento.update({
         where: { id },
@@ -745,7 +752,6 @@ class OrcamentoService {
         }
       });
 
-      // REGISTRAR LOG DE MUDANÇA DE STATUS
       await logService.registrar({
         usuarioId: user?.id || 1,
         usuarioNome: user?.nome || 'Sistema',
@@ -768,7 +774,6 @@ class OrcamentoService {
 
   async deletar(id, user) {
     try {
-      // Buscar dados antes de deletar
       const orcamento = await prisma.orcamento.findUnique({
         where: { id },
         include: {
@@ -799,7 +804,6 @@ class OrcamentoService {
         where: { id }
       });
 
-      // REGISTRAR LOG DE EXCLUSÃO
       await logService.registrar({
         usuarioId: user?.id || 1,
         usuarioNome: user?.nome || 'Sistema',

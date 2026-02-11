@@ -1,4 +1,18 @@
-require('dotenv').config();
+const path = require('path');
+const dotenv = require('dotenv');
+
+// 🔁 Escolhe o env certo
+const envFile =
+  process.env.NODE_ENV === 'dev'
+    ? '.env.dev'
+    : process.env.NODE_ENV === 'prod'
+    ? '.env.prod'
+    : '.env';
+
+// 📦 Carrega o env ANTES de tudo
+dotenv.config({
+  path: path.resolve(process.cwd(), envFile),
+});
 
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
@@ -14,6 +28,7 @@ const prisma = new PrismaClient({ adapter });
 
 async function main() {
   console.log('🌱 Iniciando seed...');
+  console.log('📍 NODE_ENV:', process.env.NODE_ENV);
   console.log('🧠 DATABASE_URL:', process.env.DATABASE_URL);
 
   const adminPassword = await bcrypt.hash('mvds01', 10);

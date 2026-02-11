@@ -9,7 +9,6 @@ class MaterialService {
   async criar(data, user) {
     const { nome, custo, unidade, quantidade } = data;
     
-    // ✅ ALTERADO: Verificar se os campos existem (não são undefined/null), permitindo valor 0
     if (nome === undefined || nome === null || 
         custo === undefined || custo === null || 
         unidade === undefined || unidade === null || 
@@ -17,7 +16,6 @@ class MaterialService {
       throw new Error('Todos os campos são obrigatórios');
     }
 
-    // ✅ ALTERADO: Verificar se nome não está vazio após trim
     if (nome.trim() === '') {
       throw new Error('Nome não pode estar vazio');
     }
@@ -37,12 +35,10 @@ class MaterialService {
     }
 
     const quantidadeNum = parseFloat(quantidade);
-    // ✅ ALTERADO: Remover validação quantidadeNum < 0, permitindo 0
     if (isNaN(quantidadeNum) || quantidadeNum < 0) {
       throw new Error('Quantidade inválida');
     }
 
-    // ✅ ALTERADO: Validar custo (permitindo 0)
     const custoNum = parseFloat(custo);
     if (isNaN(custoNum) || custoNum < 0) {
       throw new Error('Custo inválido');
@@ -103,13 +99,11 @@ class MaterialService {
     let quantidadeNum;
     if (quantidade !== undefined) {
       quantidadeNum = parseFloat(quantidade);
-      // ✅ ALTERADO: Permitir quantidade = 0
       if (isNaN(quantidadeNum) || quantidadeNum < 0) {
         throw new Error('Quantidade inválida');
       }
     }
 
-    // ✅ ALTERADO: Validar custo se fornecido (permitindo 0)
     let custoNum;
     if (custo !== undefined) {
       custoNum = parseFloat(custo);

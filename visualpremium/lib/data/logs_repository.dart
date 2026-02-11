@@ -5,14 +5,13 @@ import '../config/config.dart';
 import '../models/log_item.dart';
 
 class LogsRepository {
-  /// ✅ Método atualizado para buscar o token e incluir no header
   Future<Map<String, String>> _getHeaders() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
     
     return {
       'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token', // ✅ Envia o token
+      if (token != null) 'Authorization': 'Bearer $token',
     };
   }
 
@@ -37,7 +36,7 @@ class LogsRepository {
         queryParameters: queryParams,
       );
 
-      final headers = await _getHeaders(); // ✅ Inclui o token
+      final headers = await _getHeaders();
       final response = await http.get(uri, headers: headers);
 
       if (response.statusCode == 200) {

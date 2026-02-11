@@ -25,7 +25,7 @@ class DataProvider extends ChangeNotifier {
   List<MaterialItem> get materials => _materials;
   List<ProductItem> get products => _products;
   List<OrcamentoItem> get orcamentos => _orcamentos;
-  List<PedidoItem> get pedidos => _pedidos; // ADICIONAR
+  List<PedidoItem> get pedidos => _pedidos;
   
   bool get isLoaded => _isLoaded;
   bool get isLoading => _isLoading;
@@ -39,18 +39,17 @@ class DataProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Carrega todos os dados em paralelo
       final results = await Future.wait([
         _materialsApi.fetchMaterials(),
         _productsApi.fetchProducts(),
         _orcamentosApi.fetchOrcamentos(),
-        _pedidosApi.fetchPedidos(), // ADICIONAR
+        _pedidosApi.fetchPedidos(),
       ]);
 
       _materials = results[0] as List<MaterialItem>;
       _products = results[1] as List<ProductItem>;
       _orcamentos = results[2] as List<OrcamentoItem>;
-      _pedidos = results[3] as List<PedidoItem>; // ADICIONAR
+      _pedidos = results[3] as List<PedidoItem>;
 
       _isLoaded = true;
       _error = null;
@@ -77,7 +76,7 @@ class DataProvider extends ChangeNotifier {
     _materials = [];
     _products = [];
     _orcamentos = [];
-    _pedidos = []; // ADICIONAR
+    _pedidos = [];
     _isLoaded = false;
     _error = null;
     notifyListeners();

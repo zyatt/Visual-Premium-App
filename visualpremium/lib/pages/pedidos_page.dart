@@ -96,7 +96,6 @@ class _PedidosPageState extends State<PedidosPage> {
     _load();
     _loadProdutos();
     
-    // ✅ ADICIONAR listener
     _scrollController.addListener(() {
       if (_scrollController.offset >= 300 && !_showScrollToTopButton) {
         setState(() {
@@ -112,11 +111,10 @@ class _PedidosPageState extends State<PedidosPage> {
 
   @override
   void dispose() {
-    _scrollController.dispose();  // ✅ ADICIONAR
+    _scrollController.dispose();
     super.dispose();
   }
 
-  // ✅ ADICIONAR método
   void _scrollToTop() {
     _scrollController.animateTo(
       0,
@@ -171,15 +169,15 @@ class _PedidosPageState extends State<PedidosPage> {
         _items = next;
         _loading = false;
       });
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Pedido salvo com sucesso'),
-            duration: Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      });
+     WidgetsBinding.instance.addPostFrameCallback((_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Pedido #${item.numero} salvo com sucesso'),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    });
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
@@ -701,7 +699,7 @@ class _PedidosPageState extends State<PedidosPage> {
                                     orElse: () => ProdutoItem(
                                       id: produtoId,
                                       nome: 'Produto #$produtoId',
-                                      materiais: const [],
+                                      materiais: [],
                                     ),
                                   );
                                   return _FilterChip(
@@ -2286,10 +2284,6 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
 
   String? _validateNumeroPedido(String? value) {
     if (value == null || value.trim().isEmpty) {
-      // Permitir vazio se o pedido já existia sem número
-      if (widget.initial.numero == null) {
-        return null; 
-      }
       return 'Informe o número';
     }
     
@@ -2310,6 +2304,7 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
     
     return null;
   }
+
 
   Future<bool> _onWillPop() async {
     if (!_hasChanges) return true;
@@ -2457,7 +2452,6 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // ✅ Informação sobre orçamento de origem
                               if (widget.initial.orcamentoNumero != null)
                                 Container(
                                   padding: const EdgeInsets.all(12),
@@ -2532,7 +2526,6 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                               
                               const SizedBox(height: 16),
                               
-                              // ✅ Produto (disabled)
                               Opacity(
                                 opacity: 0.5,
                                 child: IgnorePointer(
@@ -2625,7 +2618,6 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                                   color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                                                   borderRadius: BorderRadius.circular(6),
                                                 ),
-                                                // ✅ MODIFIQUE ESTA LINHA
                                                 child: Text(
                                                   '${_formatQuantity(mat.quantidade)} ${_formatUnit(mat.materialUnidade, mat.quantidade)}',
                                                   style: theme.textTheme.bodySmall?.copyWith(
@@ -2652,7 +2644,6 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                         );
                                       }),
                                       
-                                      // ✅ Despesas Adicionais
                                       if (widget.initial.despesasAdicionais.isNotEmpty) ...[
                                         const SizedBox(height: 16),
                                         Text(
@@ -2695,7 +2686,6 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                         }),
                                       ],
                                       
-                                      // ✅ Opções Extras
                                       if (widget.initial.opcoesExtras.isNotEmpty) ...[
                                         const SizedBox(height: 16),
                                         Text(
@@ -2903,7 +2893,6 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                       
                                       const SizedBox(height: 16),
                                       
-                                      // ✅ Forma e Condições de Pagamento
                                       Row(
                                         children: [
                                           Expanded(

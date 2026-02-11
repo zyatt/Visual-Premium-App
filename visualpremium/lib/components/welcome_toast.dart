@@ -22,9 +22,8 @@ class WelcomeToast {
       ),
     );
 
-    overlay.insert(overlayEntry!); // ✅ Usar ! porque sabemos que não é null aqui
+    overlay.insert(overlayEntry!);
 
-    // Auto dismiss após 4 segundos
     Future.delayed(const Duration(seconds: 4), dismiss);
   }
 }
@@ -78,7 +77,6 @@ class _WelcomeToastWidgetState extends State<_WelcomeToastWidget>
 
     _controller.forward();
 
-    // Inicia saída automaticamente
     Future.delayed(const Duration(milliseconds: 3500), _dismiss);
   }
 

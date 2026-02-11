@@ -20,7 +20,7 @@ class UsuariosApiRepository {
 
   Future<List<UsuarioItem>> fetchUsuarios() async {
     try {
-      final headers= await _getHeaders(); // ✅ Inclui token
+      final headers= await _getHeaders();
       
       final response = await http.get(
         Uri.parse('${Config.baseUrl}/usuarios'),
@@ -44,7 +44,7 @@ class UsuariosApiRepository {
 
   Future<UsuarioItem> createUsuario(Map<String, dynamic> data) async {
     try {
-      final headers = await _getHeaders(); // ✅ Inclui token
+      final headers = await _getHeaders();
       
       final response = await http.post(
         Uri.parse('${Config.baseUrl}/usuarios'),
@@ -69,7 +69,7 @@ class UsuariosApiRepository {
 
   Future<UsuarioItem> updateUsuario(int id, Map<String, dynamic> data) async {
     try {
-      final headers = await _getHeaders(); // ✅ Inclui token
+      final headers = await _getHeaders();
       
       final response = await http.put(
         Uri.parse('${Config.baseUrl}/usuarios/$id'),
@@ -94,7 +94,7 @@ class UsuariosApiRepository {
 
   Future<void> deleteUsuario(int id) async {
     try {
-      final headers = await _getHeaders(); // ✅ Inclui token
+      final headers = await _getHeaders();
       final url = Uri.parse('$baseUrl/usuarios/$id');
       final response = await http.delete(url, headers: headers);
 

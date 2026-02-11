@@ -17,6 +17,9 @@ class ProductOpcaoExtra {
     required this.tipo,
   });
 
+  // Verifica se é um ID temporário (gerado no frontend antes de salvar)
+  bool get isTemporary => id >= 1000000;
+
   Map<String, Object?> toMap() {
     String tipoStr;
     switch (tipo) {
@@ -31,6 +34,7 @@ class ProductOpcaoExtra {
         break;
     }
     
+    // Apenas envia o ID se for um ID real do banco (< 1000000)
     final isExisting = id > 0 && id < 1000000;
     
     return {
@@ -119,10 +123,10 @@ class ProductMaterial {
 class ProductAviso {
   final int id;
   final String mensagem;
-  final int? materialId;           // ✅ OPCIONAL: Pode ser null
-  final String? materialNome;      // ✅ OPCIONAL: Pode ser null
-  final int? opcaoExtraId;         // ✅ NOVO: Pode ser null
-  final String? opcaoExtraNome;    // ✅ NOVO: Pode ser null
+  final int? materialId;
+  final String? materialNome;
+  final int? opcaoExtraId;
+  final String? opcaoExtraNome;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -131,26 +135,37 @@ class ProductAviso {
     required this.mensagem,
     this.materialId,
     this.materialNome,
-    this.opcaoExtraId,              // ✅ NOVO
-    this.opcaoExtraNome,            // ✅ NOVO
+    this.opcaoExtraId,
+    this.opcaoExtraNome,
     required this.createdAt,
     required this.updatedAt,
   });
 
-  // ✅ Helpers para verificar status do aviso
   bool get temMaterialAtribuido => materialId != null;
   bool get temOpcaoExtraAtribuida => opcaoExtraId != null;
   bool get aguardandoAtribuicao => materialId == null && opcaoExtraId == null;
   bool get temAtribuicao => materialId != null || opcaoExtraId != null;
+  bool get isTemporary => id >= 1000000;
+  bool get opcaoExtraIsTemporary => opcaoExtraId != null && opcaoExtraId! >= 1000000;
 
-  Map<String, Object?> toMap() {
+  Map<String, Object?> toMap({Map<int, int>? tempOpcaoExtraIdMap}) {
     final isExisting = id > 0 && id < 1000000;
+    
+    // Se há um mapeamento de IDs temporários para IDs reais, usa ele
+    int? finalOpcaoExtraId = opcaoExtraId;
+    if (opcaoExtraId != null && opcaoExtraId! >= 1000000 && tempOpcaoExtraIdMap != null) {
+      // Procura o ID real correspondente ao ID temporário
+      finalOpcaoExtraId = tempOpcaoExtraIdMap[opcaoExtraId];
+    } else if (opcaoExtraId != null && opcaoExtraId! >= 1000000) {
+      // Se é temporário mas não tem mapeamento, não envia
+      finalOpcaoExtraId = null;
+    }
     
     return {
       if (isExisting) 'id': id,
       'mensagem': mensagem.trim(),
-      'materialId': materialId,        // ✅ Pode ser null
-      'opcaoExtraId': opcaoExtraId,    // ✅ Pode ser null
+      'materialId': materialId,
+      'opcaoExtraId': finalOpcaoExtraId,
     };
   }
 
@@ -160,8 +175,8 @@ class ProductAviso {
       final mensagem = map['mensagem'];
       final materialId = map['materialId'];
       final material = map['material'];
-      final opcaoExtraId = map['opcaoExtraId'];      // ✅ NOVO
-      final opcaoExtra = map['opcaoExtra'];          // ✅ NOVO
+      final opcaoExtraId = map['opcaoExtraId'];
+      final opcaoExtra = map['opcaoExtra'];
       
       final createdAtRaw = map['created_at'] ?? 
                           map['createdAt'] ?? 
@@ -173,7 +188,6 @@ class ProductAviso {
                           map['atualizado_em'] ??
                           map['atualizadoEm'];
 
-      // ✅ Validação: apenas id e mensagem são obrigatórios
       if (id == null || mensagem is! String) {
         return null;
       }
@@ -181,7 +195,6 @@ class ProductAviso {
       final cleanedMensagem = mensagem.trim();
       if (cleanedMensagem.isEmpty) return null;
 
-      // ✅ Processar materialId (opcional)
       int? parsedMaterialId;
       if (materialId != null) {
         parsedMaterialId = (materialId is int) 
@@ -189,13 +202,11 @@ class ProductAviso {
           : int.tryParse(materialId.toString());
       }
       
-      // ✅ Processar materialNome (opcional)
       String? materialNome;
       if (material is Map && material['nome'] != null) {
         materialNome = material['nome'].toString();
       }
 
-      // ✅ NOVO: Processar opcaoExtraId (opcional)
       int? parsedOpcaoExtraId;
       if (opcaoExtraId != null) {
         parsedOpcaoExtraId = (opcaoExtraId is int) 
@@ -203,7 +214,6 @@ class ProductAviso {
           : int.tryParse(opcaoExtraId.toString());
       }
       
-      // ✅ NOVO: Processar opcaoExtraNome (opcional)
       String? opcaoExtraNome;
       if (opcaoExtra is Map && opcaoExtra['nome'] != null) {
         opcaoExtraNome = opcaoExtra['nome'].toString();
@@ -237,8 +247,8 @@ class ProductAviso {
         mensagem: cleanedMensagem,
         materialId: parsedMaterialId,
         materialNome: materialNome,
-        opcaoExtraId: parsedOpcaoExtraId,      // ✅ NOVO
-        opcaoExtraNome: opcaoExtraNome,        // ✅ NOVO
+        opcaoExtraId: parsedOpcaoExtraId,
+        opcaoExtraNome: opcaoExtraNome,
         createdAt: createdAt ?? DateTime.now(),
         updatedAt: updatedAt ?? DateTime.now(),
       );
@@ -247,7 +257,6 @@ class ProductAviso {
     }
   }
   
-  // ✅ Método copyWith atualizado
   ProductAviso copyWith({
     int? id,
     String? mensagem,
@@ -309,13 +318,22 @@ class ProductItem {
 
   Map<String, Object?> toMap() {
     final opcoesExtrasMap = opcoesExtras.map((o) => o.toMap()).toList();
-    final avisosMap = avisos.map((a) => a.toMap()).toList();
+    
+    // Filtra avisos que têm opções extras temporárias
+    // Esses avisos não devem ser enviados na criação inicial
+    final avisosParaEnviar = avisos.where((aviso) {
+      // Se o aviso está vinculado a uma opção extra temporária, não envia
+      if (aviso.opcaoExtraId != null && aviso.opcaoExtraId! >= 1000000) {
+        return false;
+      }
+      return true;
+    }).map((a) => a.toMap()).toList();
     
     return {
       'nome': name,
       'materiais': materials.map((m) => m.toMap()).toList(),
       'opcoesExtras': opcoesExtrasMap,
-      'avisos': avisosMap,
+      'avisos': avisosParaEnviar,
     };
   }
 

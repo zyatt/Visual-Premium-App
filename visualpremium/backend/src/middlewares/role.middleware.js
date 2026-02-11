@@ -15,16 +15,10 @@ function roleMiddleware(allowedRoles) {
   };
 }
 
-/**
- * Apenas admins
- */
 function adminOnly(req, res, next) {
   return roleMiddleware(['admin'])(req, res, next);
 }
 
-/**
- * Admin e almoxarife
- */
 function almoxarifadoAccess(req, res, next) {
   return roleMiddleware(['admin', 'almoxarife'])(req, res, next);
 }

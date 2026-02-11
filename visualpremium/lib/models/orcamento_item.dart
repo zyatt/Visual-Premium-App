@@ -203,14 +203,16 @@ class OrcamentoMaterialItem {
 
       final materialMap = material as Map<String, dynamic>;
       final nome = materialMap['nome'] as String?;
-      final custo = materialMap['custo'];
       final unidade = materialMap['unidade'] as String?;
 
-      if (nome == null || custo == null || unidade == null) {
+      if (nome == null || unidade == null) {
         return null;
       }
 
-      final custoDouble = (custo is int) ? custo.toDouble() : (custo is double ? custo : 0.0);
+      final custoRaw = map['custo'] ?? materialMap['custo'];
+      if (custoRaw == null) return null;
+
+      final custoDouble = (custoRaw is int) ? custoRaw.toDouble() : (custoRaw is double ? custoRaw : 0.0);
       final quantidadeDouble = (quantidade is int) ? quantidade.toDouble() : (quantidade is double ? quantidade : 0.0);
 
       return OrcamentoMaterialItem(
@@ -227,7 +229,6 @@ class OrcamentoMaterialItem {
   }
 }
 
-// ✅ NOVO: Classe para avisos do produto
 class ProdutoAvisoItem {
   final int id;
   final String mensagem;
@@ -394,14 +395,14 @@ class ProdutoItem {
   final String nome;
   final List<ProdutoMaterialItem> materiais;
   final List<ProdutoOpcaoExtraItem> opcoesExtras;
-  final List<ProdutoAvisoItem> avisos;  // ✅ ADICIONADO
+  final List<ProdutoAvisoItem> avisos;
 
   const ProdutoItem({
     required this.id,
     required this.nome,
     required this.materiais,
     this.opcoesExtras = const [],
-    this.avisos = const [],  // ✅ ADICIONADO
+    this.avisos = const [],
   });
 
   static ProdutoItem? tryFromMap(Map<String, Object?> map) {
@@ -410,7 +411,7 @@ class ProdutoItem {
       final nome = map['nome'];
       final materiaisData = map['materiais'];
       final opcoesExtrasData = map['opcoesExtras'];
-      final avisosData = map['avisos'];  // ✅ ADICIONADO
+      final avisosData = map['avisos'];
 
       if (id == null || nome is! String) {
         return null;
@@ -436,7 +437,6 @@ class ProdutoItem {
         }
       }
 
-      // ✅ ADICIONADO: Parse de avisos
       final avisos = <ProdutoAvisoItem>[];
       if (avisosData is List) {
         for (final a in avisosData) {
@@ -452,7 +452,7 @@ class ProdutoItem {
         nome: nome.trim(),
         materiais: materiais,
         opcoesExtras: opcoesExtras,
-        avisos: avisos,  // ✅ ADICIONADO
+        avisos: avisos,
       );
     } catch (e) {
       return null;
@@ -501,23 +501,39 @@ class OrcamentoItem {
     return despesasAdicionais.fold(0.0, (sum, item) => sum + item.valor);
   }
 
-  double get totalOpcoesExtras {
+  /// Soma das opções extras não-percentuais (STRINGFLOAT + FLOATFLOAT).
+  double get totalOpcoesExtrasNaoPercentuais {
     double total = 0.0;
-    
     for (final opcao in opcoesExtras) {
       if (opcao.tipo == TipoOpcaoExtra.stringFloat) {
         total += opcao.valorFloat1 ?? 0.0;
       } else if (opcao.tipo == TipoOpcaoExtra.floatFloat) {
-        final horas = opcao.valorFloat1 ?? 0.0;
-        final valorHora = opcao.valorFloat2 ?? 0.0;
-        total += horas * valorHora;
-      } else if (opcao.tipo == TipoOpcaoExtra.percentFloat) {
-        final percentual = opcao.valorFloat1 ?? 0.0;
-        final valor = opcao.valorFloat2 ?? 0.0;
-        total += (percentual / 100.0) * valor;
+        final f1 = opcao.valorFloat1 ?? 0.0;
+        final f2 = opcao.valorFloat2 ?? 0.0;
+        total += f1 * f2;
       }
     }
-    
+    return total;
+  }
+
+  /// Base de cálculo para opções percentuais:
+  /// materiais + despesas adicionais + opções extras não-percentuais.
+  double get baseCalculoPercentual {
+    return totalMateriais + totalDespesasAdicionais + totalOpcoesExtrasNaoPercentuais;
+  }
+
+  /// Soma de TODAS as opções extras, aplicando o percentual sobre a base completa.
+  double get totalOpcoesExtras {
+    double total = totalOpcoesExtrasNaoPercentuais;
+    final base = baseCalculoPercentual;
+
+    for (final opcao in opcoesExtras) {
+      if (opcao.tipo == TipoOpcaoExtra.percentFloat) {
+        final percentual = opcao.valorFloat1 ?? 0.0;
+        total += (percentual / 100.0) * base;
+      }
+    }
+
     return total;
   }
 

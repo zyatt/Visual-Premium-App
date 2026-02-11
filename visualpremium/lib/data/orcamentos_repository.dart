@@ -9,7 +9,6 @@ import 'package:visualpremium/config/config.dart';
 class OrcamentosApiRepository {
   String get baseUrl => Config.baseUrl;
 
-  // ✅ Método para obter headers com token
   Future<Map<String, String>> _getHeaders() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
@@ -19,6 +18,8 @@ class OrcamentosApiRepository {
       if (token != null) 'Authorization': 'Bearer $token',
     };
   }
+
+  // ===== MÉTODOS EXISTENTES =====
 
   Future<List<OrcamentoItem>> fetchOrcamentos() async {
     try {
@@ -76,7 +77,6 @@ class OrcamentosApiRepository {
         throw Exception('Não autorizado - faça login novamente');
       }
 
-      // ✅ CORRIGIDO: Aceitar tanto 200 quanto 201
       if (response.statusCode == 200 || response.statusCode == 201) {
         final created = OrcamentoItem.tryFromMap(jsonDecode(response.body));
         if (created == null) {
@@ -84,7 +84,6 @@ class OrcamentosApiRepository {
         }
         return created;
       } else {
-        // Tentar extrair mensagem de erro do JSON
         try {
           final errorJson = jsonDecode(response.body);
           if (errorJson is Map && errorJson.containsKey('error')) {
@@ -93,7 +92,6 @@ class OrcamentosApiRepository {
             throw Exception(errorJson['message']);
           }
         } catch (_) {
-          // Se não conseguir parsear, usar mensagem genérica
         }
         throw Exception('Erro ao criar orçamento: ${response.statusCode} - ${response.body}');
       }
@@ -123,7 +121,6 @@ class OrcamentosApiRepository {
       }
       return updated;
     } else {
-      // Extrair mensagem de erro
       try {
         final errorJson = jsonDecode(response.body);
         if (errorJson is Map && errorJson.containsKey('error')) {
@@ -166,7 +163,6 @@ class OrcamentosApiRepository {
         
         return updated;
       } else {
-        // Extrair mensagem de erro
         try {
           final errorJson = jsonDecode(response.body);
           if (errorJson is Map && errorJson.containsKey('error')) {
@@ -346,6 +342,146 @@ class OrcamentosApiRepository {
         return response.bodyBytes;
       } else {
         throw Exception('Erro ao baixar PDF: ${response.statusCode}');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // ===== NOVOS MÉTODOS PARA ALMOXARIFADO =====
+
+  Future<Map<String, dynamic>?> fetchAlmoxarifadoPorOrcamento(int orcamentoId) async {
+    try {
+      final url = Uri.parse('$baseUrl/almoxarifado/orcamento/$orcamentoId');
+      final headers = await _getHeaders();
+      final response = await http.get(url, headers: headers);
+
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
+      }
+
+      if (response.statusCode == 404) {
+        return null;
+      }
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else {
+        throw Exception('Erro ao buscar almoxarifado: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (e.toString().contains('404')) {
+        return null;
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> salvarAlmoxarifado(
+    int orcamentoId,
+    List<Map<String, dynamic>> materiais,
+    List<Map<String, dynamic>> despesas,
+    List<Map<String, dynamic>> opcoesExtras,
+  ) async {
+    try {
+      final url = Uri.parse('$baseUrl/almoxarifado/orcamento/$orcamentoId');
+      final headers = await _getHeaders();
+      
+      final response = await http.post(
+        url,
+        headers: headers,
+        body: jsonEncode({
+          'materiais': materiais,
+          'despesasAdicionais': despesas,
+          'opcoesExtras': opcoesExtras,
+        }),
+      );
+
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
+      }
+
+      if (response.statusCode != 200) {
+        try {
+          final errorJson = jsonDecode(response.body);
+          if (errorJson is Map && errorJson.containsKey('error')) {
+            throw Exception(errorJson['error']);
+          } else if (errorJson is Map && errorJson.containsKey('message')) {
+            throw Exception(errorJson['message']);
+          }
+        } catch (_) {}
+        throw Exception('Erro ao salvar almoxarifado: ${response.statusCode}');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> finalizarAlmoxarifado(int orcamentoId) async {
+    try {
+      final url = Uri.parse('$baseUrl/almoxarifado/orcamento/$orcamentoId/finalizar');
+      final headers = await _getHeaders();
+      
+      final response = await http.post(url, headers: headers);
+
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
+      }
+
+      if (response.statusCode != 200) {
+        try {
+          final errorJson = jsonDecode(response.body);
+          if (errorJson is Map && errorJson.containsKey('error')) {
+            throw Exception(errorJson['error']);
+          } else if (errorJson is Map && errorJson.containsKey('message')) {
+            throw Exception(errorJson['message']);
+          }
+        } catch (_) {}
+        throw Exception('Erro ao finalizar almoxarifado: ${response.statusCode}');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchRelatoriosComparativos() async {
+    try {
+      final url = Uri.parse('$baseUrl/almoxarifado/relatorios/listar');
+      final headers = await _getHeaders();
+      final response = await http.get(url, headers: headers);
+
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
+      }
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return decoded.cast<Map<String, dynamic>>();
+        }
+        return [];
+      } else {
+        throw Exception('Erro ao buscar relatórios: ${response.statusCode}');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> fetchRelatorioComparativo(int id) async {
+    try {
+      final url = Uri.parse('$baseUrl/almoxarifado/relatorios/$id');
+      final headers = await _getHeaders();
+      final response = await http.get(url, headers: headers);
+
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
+      }
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else {
+        throw Exception('Erro ao buscar relatório: ${response.statusCode}');
       }
     } catch (e) {
       rethrow;

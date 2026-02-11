@@ -32,31 +32,26 @@
     void initState() {
       super.initState();
 
-      // Logo animation controller
       _logoController = AnimationController(
         duration: const Duration(milliseconds: 1500),
         vsync: this,
       );
 
-      // Fade animation controller
       _fadeController = AnimationController(
         duration: const Duration(milliseconds: 800),
         vsync: this,
       );
 
-      // Progress animation controller
       _progressController = AnimationController(
         duration: const Duration(milliseconds: 2500),
         vsync: this,
       );
 
-      // Particles animation controller
       _particlesController = AnimationController(
         duration: const Duration(seconds: 3),
         vsync: this,
       )..repeat();
 
-      // Logo scale animation
       _logoScale = Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(
           parent: _logoController,
@@ -64,7 +59,6 @@
         ),
       );
 
-      // Logo rotation animation
       _logoRotation = Tween<double>(begin: 0.0, end: 2 * math.pi).animate(
         CurvedAnimation(
           parent: _logoController,
@@ -72,7 +66,6 @@
         ),
       );
 
-      // Fade animation
       _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(
           parent: _fadeController,
@@ -80,7 +73,6 @@
         ),
       );
 
-      // Progress animation
       _progressAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
         CurvedAnimation(
           parent: _progressController,
@@ -88,30 +80,24 @@
         ),
       );
 
-      // Start animations and data loading
       _startAnimationsAndLoadData();
     }
 
     void _startAnimationsAndLoadData() async {
-      // Start logo animation
       await Future.delayed(const Duration(milliseconds: 300));
       if (!mounted) return;
       _logoController.forward();
 
-      // Start fade animation
       await Future.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
       _fadeController.forward();
 
-      // Start progress animation
       await Future.delayed(const Duration(milliseconds: 800));
       if (!mounted) return;
       _progressController.forward();
 
-      // Load data in parallel with animations
       _loadData();
 
-      // Mark animations as complete after minimum time
       await Future.delayed(const Duration(milliseconds: 2500));
       if (!mounted) return;
       setState(() {
@@ -131,10 +117,9 @@
         });
         _checkAndNavigate();
       } catch (e) {
-        // Em caso de erro, ainda navega após timeout
         if (!mounted) return;
         setState(() {
-          _dataLoaded = true; // Marca como carregado mesmo com erro
+          _dataLoaded = true;
         });
         _checkAndNavigate();
       }
@@ -194,7 +179,6 @@
           ),
           child: Stack(
             children: [
-              // Animated particles background
               AnimatedBuilder(
                 animation: _particlesController,
                 builder: (context, child) {
@@ -208,12 +192,10 @@
                 },
               ),
 
-              // Main content
               Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Animated logo
                     AnimatedBuilder(
                       animation: _logoController,
                       builder: (context, child) {
@@ -234,7 +216,6 @@
 
                     const SizedBox(height: 40),
 
-                    // App name with fade animation
                     FadeTransition(
                       opacity: _fadeAnimation,
                       child: ShaderMask(
@@ -258,7 +239,6 @@
         
                     const SizedBox(height: 60),
 
-                    // Animated progress bar
                     AnimatedBuilder(
                       animation: _progressAnimation,
                       builder: (context, child) {
@@ -314,7 +294,6 @@
                 ),
               ),
 
-              // Floating orbs
               Positioned(
                 top: size.height * 0.15,
                 left: size.width * 0.1,
@@ -391,7 +370,6 @@
         ..color = color
         ..style = PaintingStyle.fill;
 
-      // Draw multiple particles
       for (int i = 0; i < 20; i++) {
         final offset = Offset(
           (size.width / 20) * i + math.sin(animation * 2 * math.pi + i) * 30,

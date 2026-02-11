@@ -7,7 +7,6 @@ import 'package:visualpremium/config/config.dart';
 class MaterialsApiRepository {
   String get baseUrl => Config.baseUrl;
 
-  // ✅ Método para obter headers com token
   Future<Map<String, String>> _getHeaders() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('auth_token');
@@ -21,7 +20,7 @@ class MaterialsApiRepository {
   Future<List<MaterialItem>> fetchMaterials() async {
     try {
       final url = Uri.parse('$baseUrl/materiais');
-      final headers = await _getHeaders(); // ✅ Inclui token
+      final headers = await _getHeaders();
       final response = await http.get(url, headers: headers);
       
       if (response.statusCode == 401) {
@@ -45,7 +44,7 @@ class MaterialsApiRepository {
   Future<MaterialItem> createMaterial(MaterialItem item) async {
     try {
       final url = Uri.parse('$baseUrl/materiais');
-      final headers = await _getHeaders(); // ✅ Inclui token
+      final headers = await _getHeaders();
       final body = item.toMap();
             
       final response = await http.post(
@@ -74,7 +73,7 @@ class MaterialsApiRepository {
 
   Future<MaterialItem> updateMaterial(MaterialItem item) async {
     final url = Uri.parse('$baseUrl/materiais/${item.id}');
-    final headers = await _getHeaders(); // ✅ Inclui token
+    final headers = await _getHeaders();
     
     final response = await http.put(
       url,
@@ -99,7 +98,7 @@ class MaterialsApiRepository {
 
   Future<void> deleteMaterial(String id) async {
     final url = Uri.parse('$baseUrl/materiais/$id');
-    final headers = await _getHeaders(); // ✅ Inclui token
+    final headers = await _getHeaders();
     
     final response = await http.delete(url, headers: headers);
     

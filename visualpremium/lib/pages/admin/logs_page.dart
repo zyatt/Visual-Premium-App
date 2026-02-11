@@ -79,75 +79,77 @@ class _LogsPageState extends State<LogsPage> {
       backgroundColor: Colors.transparent,
       body: Column(
         children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(32.0),
-            child: Row(
-              children: [
-                IconButton(
-                  onPressed: () => context.go('/admin'),
-                  icon: const Icon(Icons.arrow_back),
-                  tooltip: 'Voltar para Admin',
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.history_outlined,
-                  size: 32,
-                  color: theme.colorScheme.primary,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Logs do Sistema',
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
+          ExcludeFocus(
+            child: Container(
+              padding: const EdgeInsets.all(32.0),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: () => context.go('/admin'),
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: 'Voltar para Admin',
                   ),
-                ),
-                const Spacer(),
-                // Filtros
-                _buildFiltroDropdown(
-                  label: 'Entidade',
-                  value: _filtroEntidade,
-                  items: const ['MATERIAL', 'PRODUTO', 'ORCAMENTO', 'PEDIDO', 'USUARIO'],
-                  onChanged: (value) {
-                    setState(() => _filtroEntidade = value);
-                    _aplicarFiltros();
-                  },
-                ),
-                const SizedBox(width: 12),
-                _buildFiltroDropdown(
-                  label: 'Ação',
-                  value: _filtroAcao,
-                  items: const ['CRIAR', 'EDITAR', 'DELETAR'],
-                  onChanged: (value) {
-                    setState(() => _filtroAcao = value);
-                    _aplicarFiltros();
-                  },
-                ),
-                const SizedBox(width: 12),
-                if (_filtroEntidade != null || _filtroAcao != null)
-                  TextButton.icon(
-                    onPressed: _limparFiltros,
-                    icon: const Icon(Icons.clear),
-                    label: const Text('Limpar'),
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.history_outlined,
+                    size: 32,
+                    color: theme.colorScheme.primary,
                   ),
-              ],
+                  const SizedBox(width: 12),
+                  Text(
+                    'Logs do Sistema',
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  _buildFiltroDropdown(
+                    label: 'Entidade',
+                    value: _filtroEntidade,
+                    items: const ['MATERIAL', 'PRODUTO', 'ORCAMENTO', 'PEDIDO', 'USUARIO'],
+                    onChanged: (value) {
+                      setState(() => _filtroEntidade = value);
+                      _aplicarFiltros();
+                    },
+                  ),
+                  const SizedBox(width: 12),
+                  _buildFiltroDropdown(
+                    label: 'Ação',
+                    value: _filtroAcao,
+                    items: const ['CRIAR', 'EDITAR', 'DELETAR'],
+                    onChanged: (value) {
+                      setState(() => _filtroAcao = value);
+                      _aplicarFiltros();
+                    },
+                  ),
+                  const SizedBox(width: 12),
+                  if (_filtroEntidade != null || _filtroAcao != null)
+                    TextButton.icon(
+                      onPressed: _limparFiltros,
+                      icon: const Icon(Icons.clear),
+                      label: const Text('Limpar'),
+                    ),
+                ],
+              ),
             ),
           ),
 
-          // Content
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null
-                    ? Center(child: Text('Erro: $_error'))
-                    : _logs.isEmpty
-                        ? const Center(child: Text('Nenhum log encontrado'))
-                        : _buildLogsList(theme),
+            child: ExcludeFocus(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? Center(child: Text('Erro: $_error'))
+                      : _logs.isEmpty
+                          ? const Center(child: Text('Nenhum log encontrado'))
+                          : _buildLogsList(theme),
+            ),
           ),
 
-          // Paginação
           if (!_isLoading && _logs.isNotEmpty)
-            _buildPaginacao(theme),
+            ExcludeFocus(
+              child: _buildPaginacao(theme),
+            ),
         ],
       ),
     );
@@ -273,7 +275,6 @@ class _LogCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Ícone da ação
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -288,14 +289,12 @@ class _LogCard extends StatelessWidget {
           ),
           const SizedBox(width: 16),
           
-          // Informações
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    // Usuário
                     Icon(
                       Icons.person_outline,
                       size: 16,
@@ -311,7 +310,6 @@ class _LogCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 16),
                     
-                    // Ação
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -331,7 +329,6 @@ class _LogCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     
-                    // Entidade
                     Text(
                       log.entidadeFormatada,
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -342,7 +339,6 @@ class _LogCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 
-                // Descrição
                 Text(
                   log.descricao,
                   style: theme.textTheme.bodyMedium,
@@ -351,7 +347,6 @@ class _LogCard extends StatelessWidget {
             ),
           ),
           
-          // Data
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [

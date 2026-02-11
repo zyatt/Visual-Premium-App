@@ -8,6 +8,7 @@ const pdfRoutes = require('./pdf.routes');
 const usuarioRoutes = require('./usuario.routes');
 const authRoutes = require('./auth.routes');
 const logRoutes = require('./log.routes');
+const almoxarifadoRoutes = require('./almoxarifado.routes');
 
 const routes = Router();
 
@@ -19,5 +20,6 @@ routes.use('/pdf', pdfRoutes);
 routes.use('/usuarios', usuarioRoutes);
 routes.use('/auth', authRoutes);
 routes.use('/logs', logRoutes);
+routes.use('/almoxarifado', almoxarifadoRoutes);
 
 module.exports = routes;

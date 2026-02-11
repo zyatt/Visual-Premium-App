@@ -5,17 +5,19 @@
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
+    "dev": "cross-env NODE_ENV=dev nodemon src/server.js",
+    "prod": "cross-env NODE_ENV=prod node src/server.js",
 
-    "prisma:generate": "npx prisma generate",
+    "prisma:generate": "prisma generate",
 
-    "prisma:migrate:dev": "npx prisma migrate dev",
-    "prisma:migrate:prod": "npx prisma migrate deploy",
+    "migrate:dev": "cross-env NODE_ENV=dev DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_dev prisma migrate dev",
+    "migrate:prod": "cross-env NODE_ENV=prod DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_prod prisma migrate deploy",
 
-    "prisma:seed": "npx prisma db seed",
+    "seed:dev": "cross-env NODE_ENV=dev DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_dev prisma db seed",
+    "seed:prod": "cross-env NODE_ENV=prod DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_prod prisma db seed",
 
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "studio:dev": "cross-env DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_dev prisma studio",
+    "studio:prod": "cross-env DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_prod prisma studio"
   },
   "keywords": [],
   "author": "",
@@ -33,8 +35,10 @@
   },
   "devDependencies": {
     "@types/node": "^25.2.0",
+    "cross-env": "^10.1.0",
     "nodemon": "^3.1.0",
-    "prisma": "^7.3.0"
+    "prisma": "^7.3.0",
+    "dotenv-cli": "^7.4.2"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

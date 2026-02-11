@@ -5,14 +5,14 @@ import 'package:visualpremium/theme.dart';
 class ProductAvisosSection extends StatelessWidget {
   final List<ProductAviso> avisos;
   final List<ProductMaterial> materiais;
-  final List<ProductOpcaoExtra> opcoesExtras;  // ✅ NOVO
+  final List<ProductOpcaoExtra> opcoesExtras;
   final Function(List<ProductAviso>) onAvisosChanged;
 
   const ProductAvisosSection({
     super.key,
     required this.avisos,
     required this.materiais,
-    required this.opcoesExtras,  // ✅ NOVO
+    required this.opcoesExtras,
     required this.onAvisosChanged,
   });
 
@@ -23,7 +23,7 @@ class ProductAvisosSection extends StatelessWidget {
         return _AvisoEditorDialog(
           initial: initial,
           materiais: materiais,
-          opcoesExtras: opcoesExtras,  // ✅ NOVO
+          opcoesExtras: opcoesExtras,
         );
       },
     );
@@ -76,7 +76,6 @@ class ProductAvisosSection extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ✅ Mostrar material OU opção extra
                     if (aviso.temMaterialAtribuido)
                       Row(
                         children: [
@@ -147,17 +146,14 @@ class ProductAvisosSection extends StatelessWidget {
     );
   }
 
-  // ✅ Agrupar avisos por tipo (sem atribuição, material, opção extra)
   Map<String, List<ProductAviso>> _groupAvisos() {
     final Map<String, List<ProductAviso>> groups = {};
     
-    // Avisos sem atribuição
     final avisosSemAtribuicao = avisos.where((a) => a.aguardandoAtribuicao).toList();
     if (avisosSemAtribuicao.isNotEmpty) {
       groups['_sem_atribuicao'] = avisosSemAtribuicao;
     }
     
-    // Avisos por material
     for (final material in materiais) {
       final avisosMaterial = avisos.where((a) => a.materialId == material.materialId).toList();
       if (avisosMaterial.isNotEmpty) {
@@ -165,7 +161,6 @@ class ProductAvisosSection extends StatelessWidget {
       }
     }
     
-    // ✅ NOVO: Avisos por opção extra
     for (final opcao in opcoesExtras) {
       final avisosOpcao = avisos.where((a) => a.opcaoExtraId == opcao.id).toList();
       if (avisosOpcao.isNotEmpty) {
@@ -193,7 +188,7 @@ class ProductAvisosSection extends StatelessWidget {
                 children: [
                   const SizedBox(height: 4),
                   Text(
-                    'Avisos específicos por material ou opção extra',  // ✅ Texto atualizado
+                    'Avisos específicos por material ou opção extra',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
@@ -203,7 +198,7 @@ class ProductAvisosSection extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             ElevatedButton.icon(
-              onPressed: (materiais.isEmpty && opcoesExtras.isEmpty)  // ✅ Verificar ambos
+              onPressed: (materiais.isEmpty && opcoesExtras.isEmpty)
                 ? null 
                 : () => _showAvisoEditor(context),
               icon: const Icon(Icons.add, size: 18),
@@ -255,7 +250,7 @@ class ProductAvisosSection extends StatelessWidget {
               grupoIcon = Icons.inventory_2_outlined;
               grupoColor = theme.colorScheme.error;
               grupoContainerColor = theme.colorScheme.errorContainer.withValues(alpha: 0.3);
-            } else {  // ✅ NOVO: opção extra
+            } else {
               final opcaoId = int.parse(key.replaceFirst('opcao_', ''));
               final opcao = opcoesExtras.firstWhere((o) => o.id == opcaoId);
               grupoTitulo = opcao.nome;
@@ -272,28 +267,28 @@ class ProductAvisosSection extends StatelessWidget {
                     Icon(
                       grupoIcon,
                       size: 18,
-                      color: grupoColor,  // ✅ Usa cor específica
+                      color: grupoColor,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       grupoTitulo,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: grupoColor,  // ✅ Usa cor específica
+                        color: grupoColor,
                       ),
                     ),
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: grupoContainerColor,  // ✅ Usa cor específica
+                        color: grupoContainerColor,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         '${avisosGrupo.length}',
                         style: theme.textTheme.bodySmall?.copyWith(
                           fontWeight: FontWeight.w600,
-                          color: grupoColor,  // ✅ Usa cor específica
+                          color: grupoColor,
                         ),
                       ),
                     ),
@@ -301,7 +296,6 @@ class ProductAvisosSection extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 ...avisosGrupo.map((aviso) {
-                  // ✅ Determinar cores baseado no status de atribuição
                   final isNaoAtribuido = aviso.aguardandoAtribuicao;
                   final backgroundColor = isNaoAtribuido
                       ? theme.colorScheme.primaryContainer.withValues(alpha: 0.15)
@@ -363,16 +357,15 @@ class ProductAvisosSection extends StatelessWidget {
   }
 }
 
-// ✅ Dialog editor de avisos atualizado
 class _AvisoEditorDialog extends StatefulWidget {
   final ProductAviso? initial;
   final List<ProductMaterial> materiais;
-  final List<ProductOpcaoExtra> opcoesExtras;  // ✅ NOVO
+  final List<ProductOpcaoExtra> opcoesExtras;
 
   const _AvisoEditorDialog({
     this.initial,
     required this.materiais,
-    required this.opcoesExtras,  // ✅ NOVO
+    required this.opcoesExtras,
   });
 
   @override
@@ -384,7 +377,6 @@ class _AvisoEditorDialogState extends State<_AvisoEditorDialog> {
   late final TextEditingController _mensagemCtrl;
   late final FocusNode _mensagemFocusNode;
   
-  // ✅ Tipo de atribuição: 'nenhum', 'material', ou 'opcaoExtra'
   late String _tipoAtribuicao;
   int? _selectedMaterialId;
   int? _selectedOpcaoExtraId;
@@ -395,7 +387,6 @@ class _AvisoEditorDialogState extends State<_AvisoEditorDialog> {
     _mensagemCtrl = TextEditingController(text: widget.initial?.mensagem ?? '');
     _mensagemFocusNode = FocusNode();
     
-    // ✅ Determinar tipo de atribuição inicial
     if (widget.initial?.materialId != null) {
       _tipoAtribuicao = 'material';
       _selectedMaterialId = widget.initial!.materialId;
@@ -432,7 +423,6 @@ class _AvisoEditorDialogState extends State<_AvisoEditorDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     
-    // ✅ Obter material ou opção extra selecionada
     ProductMaterial? selectedMaterial;
     if (_tipoAtribuicao == 'material' && _selectedMaterialId != null) {
       try {
@@ -496,7 +486,6 @@ class _AvisoEditorDialogState extends State<_AvisoEditorDialog> {
                 ),
                 const SizedBox(height: 20),
                 
-                // ✅ Tipo de atribuição
                 Text(
                   'Atribuir a',
                   style: theme.textTheme.bodySmall?.copyWith(
@@ -506,7 +495,6 @@ class _AvisoEditorDialogState extends State<_AvisoEditorDialog> {
                 ),
                 const SizedBox(height: 8),
                 
-                // ✅ Radio buttons para escolher tipo
                 Column(
                   children: [
                     RadioGroup<String>(
@@ -515,7 +503,6 @@ class _AvisoEditorDialogState extends State<_AvisoEditorDialog> {
                         setState(() {
                           _tipoAtribuicao = value!;
 
-                          // efeitos colaterais ficam AQUI
                           if (value == 'material') {
                             _selectedMaterialId = widget.materiais.isNotEmpty
                                 ? widget.materiais.first.materialId
@@ -563,7 +550,6 @@ class _AvisoEditorDialogState extends State<_AvisoEditorDialog> {
                 
                 const SizedBox(height: 16),
                 
-                // ✅ Dropdown condicional baseado no tipo
                 if (_tipoAtribuicao == 'material' && widget.materiais.isNotEmpty)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

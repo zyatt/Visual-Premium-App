@@ -31,7 +31,6 @@ class LogItem {
       entidadeId: json['entidadeId'] as int,
       descricao: json['descricao'] as String,
       detalhes: json['detalhes'] as Map<String, dynamic>?,
-      // ✅ Converte para horário local
       createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
     );
   }
@@ -44,6 +43,8 @@ class LogItem {
         return 'Editou';
       case 'DELETAR':
         return 'Deletou';
+      case 'FINALIZAR':
+        return 'Finalizou';
       default:
         return acao;
     }
@@ -61,6 +62,8 @@ class LogItem {
         return 'Pedido';
       case 'USUARIO':
         return 'Usuário';
+      case 'ALMOXARIFADO':
+        return 'Almoxarifado';
       default:
         return entidade;
     }

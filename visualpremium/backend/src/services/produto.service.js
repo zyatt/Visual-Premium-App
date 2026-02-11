@@ -9,8 +9,8 @@ class ProdutoService {
         opcoesExtras: true,
         avisos: {
           include: {
-            material: true,      // ✅ Incluir material associado
-            opcaoExtra: true     // ✅ NOVO: Incluir opção extra associada
+            material: true,
+            opcaoExtra: true,
           },
           orderBy: { createdAt: 'desc' }
         }
@@ -33,7 +33,6 @@ class ProdutoService {
       throw new Error('Já existe um produto com este nome');
     }
 
-    // Validar materiais duplicados
     if (materiais && materiais.length > 0) {
       const materialIds = materiais.map(m => +m.materialId);
       const uniqueIds = new Set(materialIds);
@@ -43,7 +42,6 @@ class ProdutoService {
       }
     }
 
-    // Validar opções extras duplicadas
     if (opcoesExtras && opcoesExtras.length > 0) {
       const nomes = opcoesExtras.map(o => o.nome.trim().toLowerCase());
       const uniqueNomes = new Set(nomes);
@@ -52,7 +50,6 @@ class ProdutoService {
         throw new Error('Não é permitido adicionar opções extras com o mesmo nome');
       }
 
-      // Validar tipos válidos
       const tiposValidos = ['STRINGFLOAT', 'FLOATFLOAT', 'PERCENTFLOAT'];
       for (const opcao of opcoesExtras) {
         if (!tiposValidos.includes(opcao.tipo)) {
@@ -61,18 +58,15 @@ class ProdutoService {
       }
     }
 
-    // ✅ Validar avisos
     if (avisos && avisos.length > 0) {
       const materiaisIds = (materiais || []).map(m => +m.materialId);
-      const opcoesExtrasIds = (opcoesExtras || []).map((o, idx) => idx); // IDs temporários
+      const opcoesExtrasIds = (opcoesExtras || []).map((o, idx) => idx);
       
       for (const aviso of avisos) {
-        // Validar mensagem
         if (!aviso.mensagem || aviso.mensagem.trim() === '') {
           throw new Error('Avisos não podem ter mensagem vazia');
         }
         
-        // ✅ NOVO: Validar que tem no máximo uma atribuição
         const temMaterial = aviso.materialId !== null && aviso.materialId !== undefined;
         const temOpcaoExtra = aviso.opcaoExtraId !== null && aviso.opcaoExtraId !== undefined;
         
@@ -80,17 +74,12 @@ class ProdutoService {
           throw new Error('Um aviso não pode estar associado simultaneamente a um material e a uma opção extra');
         }
         
-        // ✅ Se materialId foi fornecido, validar se existe nos materiais do produto
         if (temMaterial) {
           const materialIdNum = +aviso.materialId;
           if (!materiaisIds.includes(materialIdNum)) {
             throw new Error('Não é possível associar um aviso a um material que não pertence ao produto');
           }
         }
-        
-        // ✅ NOVO: Se opcaoExtraId foi fornecido, validar se existe nas opções do produto
-        // Nota: Na criação, opcaoExtraId será null pois as opções ainda não foram criadas
-        // A atribuição será feita após a criação usando o nome da opção
       }
     }
 
@@ -112,7 +101,7 @@ class ProdutoService {
           create: (avisos || []).map(a => ({
             mensagem: a.mensagem.trim(),
             materialId: a.materialId ? +a.materialId : null,
-            opcaoExtraId: a.opcaoExtraId ? +a.opcaoExtraId : null,  // ✅ NOVO
+            opcaoExtraId: a.opcaoExtraId ? +a.opcaoExtraId : null,
           })),
         },
       },
@@ -122,7 +111,7 @@ class ProdutoService {
         avisos: {
           include: {
             material: true,
-            opcaoExtra: true  // ✅ NOVO
+            opcaoExtra: true
           },
           orderBy: { createdAt: 'desc' }
         }
@@ -151,7 +140,7 @@ class ProdutoService {
         avisos: {
           include: {
             material: true,
-            opcaoExtra: true  // ✅ NOVO
+            opcaoExtra: true
           }
         },
       },
@@ -178,7 +167,6 @@ class ProdutoService {
       throw new Error('Já existe um produto com este nome');
     }
 
-    // Validar materiais duplicados
     if (materiais && materiais.length > 0) {
       const materialIds = materiais.map(m => +m.materialId);
       const uniqueIds = new Set(materialIds);
@@ -188,7 +176,6 @@ class ProdutoService {
       }
     }
 
-    // Validar opções extras duplicadas
     if (opcoesExtras && opcoesExtras.length > 0) {
       const nomes = opcoesExtras.map(o => o.nome.trim().toLowerCase());
       const uniqueNomes = new Set(nomes);
@@ -197,7 +184,6 @@ class ProdutoService {
         throw new Error('Não é permitido adicionar opções extras com o mesmo nome');
       }
 
-      // Validar tipos válidos
       const tiposValidos = ['STRINGFLOAT', 'FLOATFLOAT', 'PERCENTFLOAT'];
       for (const opcao of opcoesExtras) {
         if (!tiposValidos.includes(opcao.tipo)) {
@@ -206,7 +192,6 @@ class ProdutoService {
       }
     }
 
-    // ✅ Validar avisos
     if (avisos && avisos.length > 0) {
       const materiaisIds = (materiais || []).map(m => +m.materialId);
       const opcoesExtrasIds = (opcoesExtras || [])
@@ -214,12 +199,10 @@ class ProdutoService {
         .map(o => +o.id);
       
       for (const aviso of avisos) {
-        // Validar mensagem
         if (!aviso.mensagem || aviso.mensagem.trim() === '') {
           throw new Error('Avisos não podem ter mensagem vazia');
         }
         
-        // ✅ NOVO: Validar que tem no máximo uma atribuição
         const temMaterial = aviso.materialId !== null && aviso.materialId !== undefined;
         const temOpcaoExtra = aviso.opcaoExtraId !== null && aviso.opcaoExtraId !== undefined;
         
@@ -227,7 +210,6 @@ class ProdutoService {
           throw new Error('Um aviso não pode estar associado simultaneamente a um material e a uma opção extra');
         }
         
-        // ✅ Se materialId foi fornecido, validar se existe nos materiais do produto
         if (temMaterial) {
           const materialIdNum = +aviso.materialId;
           if (!materiaisIds.includes(materialIdNum)) {
@@ -235,7 +217,6 @@ class ProdutoService {
           }
         }
         
-        // ✅ NOVO: Se opcaoExtraId foi fornecido, validar se existe nas opções do produto
         if (temOpcaoExtra) {
           const opcaoExtraIdNum = +aviso.opcaoExtraId;
           if (!opcoesExtrasIds.includes(opcaoExtraIdNum)) {
@@ -245,7 +226,6 @@ class ProdutoService {
       }
     }
 
-    // ✅ VALIDAÇÃO ADICIONAL: Se um material está sendo removido, verificar se ele tem avisos atribuídos
     const materiaisAntigos = produtoAntigo.materiais.map(m => m.materialId);
     const materiaisNovos = (materiais || []).map(m => +m.materialId);
     const materiaisRemovidos = materiaisAntigos.filter(id => !materiaisNovos.includes(id));
@@ -267,7 +247,6 @@ class ProdutoService {
       }
     }
 
-    // ✅ NOVO: Se uma opção extra está sendo removida, verificar se ela tem avisos atribuídos
     const opcoesAntigasIds = produtoAntigo.opcoesExtras.map(o => o.id);
     const opcoesNovasIds = (opcoesExtras || [])
       .filter(o => o.id && o.id > 0 && o.id < 1000000)
@@ -291,9 +270,7 @@ class ProdutoService {
       }
     }
 
-    // ✅ Atualização inteligente de opções extras e avisos
     const produto = await prisma.$transaction(async (tx) => {
-      // 1. Processar opções extras
       const opcoesRecebidas = (opcoesExtras || []).map(o => ({
         id: o.id,
         nome: o.nome.trim(),
@@ -304,7 +281,6 @@ class ProdutoService {
       const opcoesAtualizar = [];
       const opcoesDeletar = [];
 
-      // Verificar uso em orçamentos e pedidos
       const opcoesEmUsoEmOrcamentos = await tx.orcamentoOpcaoExtra.findMany({
         where: {
           produtoOpcaoId: { in: opcoesAntigasIds }
@@ -362,33 +338,31 @@ class ProdutoService {
         }
       }
       
-      // 2. ✅ Processar avisos (materialId OU opcaoExtraId podem ser null)
       const avisosRecebidos = (avisos || []).map(a => ({
         id: a.id,
         mensagem: a.mensagem.trim(),
         materialId: a.materialId ? +a.materialId : null,
-        opcaoExtraId: a.opcaoExtraId ? +a.opcaoExtraId : null  // ✅ NOVO
+        opcaoExtraId: a.opcaoExtraId ? +a.opcaoExtraId : null
       }));
 
       const avisosCriar = [];
       const avisosAtualizar = [];
       const avisosDeletar = [];
 
-      // Identificar avisos para deletar e atualizar
       for (const avisoAntigo of produtoAntigo.avisos) {
         const avisoNovo = avisosRecebidos.find(a => a.id === avisoAntigo.id);
         
         if (avisoNovo) {
           const mensagemChanged = avisoAntigo.mensagem !== avisoNovo.mensagem;
           const materialChanged = avisoAntigo.materialId !== avisoNovo.materialId;
-          const opcaoExtraChanged = avisoAntigo.opcaoExtraId !== avisoNovo.opcaoExtraId;  // ✅ NOVO
+          const opcaoExtraChanged = avisoAntigo.opcaoExtraId !== avisoNovo.opcaoExtraId;
           
           if (mensagemChanged || materialChanged || opcaoExtraChanged) {
             avisosAtualizar.push({
               id: avisoAntigo.id,
               mensagem: avisoNovo.mensagem,
               materialId: avisoNovo.materialId,
-              opcaoExtraId: avisoNovo.opcaoExtraId  // ✅ NOVO
+              opcaoExtraId: avisoNovo.opcaoExtraId
             });
           }
         } else {
@@ -396,7 +370,6 @@ class ProdutoService {
         }
       }
 
-      // Identificar avisos novos
       for (const avisoNovo of avisosRecebidos) {
         const isNovoAviso = !avisoNovo.id || avisoNovo.id >= 1000000;
         
@@ -404,14 +377,11 @@ class ProdutoService {
           avisosCriar.push({
             mensagem: avisoNovo.mensagem,
             materialId: avisoNovo.materialId,
-            opcaoExtraId: avisoNovo.opcaoExtraId  // ✅ NOVO
+            opcaoExtraId: avisoNovo.opcaoExtraId
           });
         }
       }
       
-      // 3. Executar operações
-      
-      // Deletar opções antigas não usadas
       if (opcoesDeletar.length > 0) {
         await tx.produtoOpcaoExtra.deleteMany({
           where: {
@@ -420,7 +390,6 @@ class ProdutoService {
         });
       }
       
-      // Atualizar opções existentes
       for (const opcao of opcoesAtualizar) {
         await tx.produtoOpcaoExtra.update({
           where: { id: opcao.id },
@@ -431,7 +400,6 @@ class ProdutoService {
         });
       }
 
-      // Deletar avisos antigos
       if (avisosDeletar.length > 0) {
         await tx.produtoAviso.deleteMany({
           where: {
@@ -440,22 +408,19 @@ class ProdutoService {
         });
       }
 
-      // ✅ Atualizar avisos existentes
       for (const aviso of avisosAtualizar) {
         await tx.produtoAviso.update({
           where: { id: aviso.id },
           data: { 
             mensagem: aviso.mensagem,
             materialId: aviso.materialId,
-            opcaoExtraId: aviso.opcaoExtraId  // ✅ NOVO
+            opcaoExtraId: aviso.opcaoExtraId
           }
         });
       }
       
-      // Deletar materiais antigos
       await tx.produtoMaterial.deleteMany({ where: { produtoId: id } });
 
-      // 4. Atualizar o produto
       return await tx.produto.update({
         where: { id },
         data: {
@@ -475,7 +440,7 @@ class ProdutoService {
             create: avisosCriar.map(a => ({
               mensagem: a.mensagem,
               materialId: a.materialId,
-              opcaoExtraId: a.opcaoExtraId  // ✅ NOVO
+              opcaoExtraId: a.opcaoExtraId
             })),
           },
         },
@@ -485,7 +450,7 @@ class ProdutoService {
           avisos: {
             include: {
               material: true,
-              opcaoExtra: true  // ✅ NOVO
+              opcaoExtra: true
             },
             orderBy: { createdAt: 'desc' }
           }
@@ -518,7 +483,7 @@ class ProdutoService {
         avisos: {
           include: {
             material: true,
-            opcaoExtra: true  // ✅ NOVO
+            opcaoExtra: true
           }
         },
       },

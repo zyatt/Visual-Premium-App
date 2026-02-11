@@ -1,23 +1,16 @@
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/prisma');
 
-// Coloque uma chave secreta forte em produção (use variável de ambiente)
 const JWT_SECRET = process.env.JWT_SECRET || 'sua-chave-secreta-aqui';
 
-/**
- * Middleware para autenticação via JWT
- * Extrai o usuário do token e adiciona em req.user
- */
 async function authMiddleware(req, res, next) {
   try {
-    // Tenta extrair o token do header Authorization
     const authHeader = req.headers.authorization;
     
     if (!authHeader) {
       return res.status(401).json({ error: 'Token não fornecido' });
     }
 
-    // Formato esperado: "Bearer TOKEN"
     const parts = authHeader.split(' ');
     
     if (parts.length !== 2 || parts[0] !== 'Bearer') {
@@ -26,10 +19,8 @@ async function authMiddleware(req, res, next) {
 
     const token = parts[1];
 
-    // Verifica o token
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    // Busca o usuário no banco
     const usuario = await prisma.usuario.findUnique({
       where: { id: decoded.id },
       select: {
@@ -49,7 +40,6 @@ async function authMiddleware(req, res, next) {
       return res.status(401).json({ error: 'Usuário inativo' });
     }
 
-    // Adiciona o usuário na requisição
     req.user = usuario;
 
     next();
@@ -65,10 +55,6 @@ async function authMiddleware(req, res, next) {
   }
 }
 
-/**
- * Middleware opcional - não bloqueia se não houver token
- * Apenas adiciona req.user se o token for válido
- */
 async function optionalAuthMiddleware(req, res, next) {
   try {
     const authHeader = req.headers.authorization;
@@ -103,7 +89,6 @@ async function optionalAuthMiddleware(req, res, next) {
 
     next();
   } catch (error) {
-    // Ignora erros e continua sem autenticação
     next();
   }
 }

@@ -83,13 +83,13 @@ class MaterialsPage extends StatefulWidget {
 
 class _MaterialsPageState extends State<MaterialsPage> {
   final _api = MaterialsApiRepository();
-  final _scrollController = ScrollController(); // Adicionar controller
+  final _scrollController = ScrollController();
   bool _loading = true;
   List<MaterialItem> _items = const [];
   String _searchQuery = '';
   SortOption _sortOption = SortOption.newestFirst;
   MaterialFilters _filters = const MaterialFilters();
-  bool _showScrollToTopButton = false; // Adicionar flag para mostrar botão
+  bool _showScrollToTopButton = false;
 
   Future<void> _showMaterialEditor(MaterialItem? initial) async {
     final result = await showDialog<MaterialItem>(
@@ -148,7 +148,6 @@ class _MaterialsPageState extends State<MaterialsPage> {
     super.initState();
     _load();
     
-    // Adicionar listener para detectar scroll
     _scrollController.addListener(() {
       if (_scrollController.offset >= 300 && !_showScrollToTopButton) {
         setState(() {
@@ -164,7 +163,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
 
   @override
   void dispose() {
-    _scrollController.dispose(); // Não esquecer de fazer dispose
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -225,7 +224,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isUpdate ? 'Material salvo' : 'Material cadastrado'),
+            content: Text(isUpdate ? 'Material "${item.name}" salvo' : 'Material "${item.name}" cadastrado'),
             duration: const Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
           ),
@@ -249,6 +248,16 @@ class _MaterialsPageState extends State<MaterialsPage> {
       setState(() {
         _items = next;
         _loading = false;
+      });
+      
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Material "${item.name}" excluído'),
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       });
     } catch (e) {
       if (!mounted) return;
@@ -356,12 +365,10 @@ class _MaterialsPageState extends State<MaterialsPage> {
   List<MaterialItem> get _filteredAndSortedItems {
     var filtered = _items;
     
-    // Filtro por unidade
     if (_filters.units.isNotEmpty) {
       filtered = filtered.where((item) => _filters.units.contains(item.unit)).toList();
     }
     
-    // Filtro por preço
     if (_filters.minPrice != null || _filters.maxPrice != null) {
       filtered = filtered.where((item) {
         final price = item.costCents / 100.0;
@@ -371,7 +378,6 @@ class _MaterialsPageState extends State<MaterialsPage> {
       }).toList();
     }
     
-    // Filtro por quantidade
     if (_filters.minQuantity != null || _filters.maxQuantity != null) {
       filtered = filtered.where((item) {
         final qty = double.tryParse(item.quantity) ?? 0;
@@ -515,7 +521,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
           RefreshIndicator(
             onRefresh: _load,
             child: SingleChildScrollView(
-              controller: _scrollController, // Adicionar controller ao scroll
+              controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(32.0),
               child: Row(
@@ -1317,12 +1323,10 @@ String _formatQuantityDisplay(String quantity) {
   final num = double.tryParse(quantity);
   if (num == null) return quantity;
   
-  // Se for inteiro, mostra sem casas decimais
   if (num == num.truncate()) {
     return num.truncate().toString();
   }
   
-  // Se tiver decimais, mostra com até 2 casas decimais, removendo zeros à direita
   return num.toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
 }
 
@@ -1563,8 +1567,6 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
 
   void _onUnitFocusChange() {
     if (_unitFocusNode.hasFocus) {
-      // Quando o dropdown recebe foco via TAB, não fazemos nada aqui
-      // O usuário pode pressionar Enter ou Space para abrir
     } else {
       _onFieldFocusChange();
     }
@@ -1614,7 +1616,6 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
     var s = input.trim();
     if (s.isEmpty) return null;
     
-    // Agora aceita decimal para todas unidades
     s = s.replaceAll(',', '.');
     final value = double.tryParse(s);
     if (value == null || value.isNaN || value.isInfinite || value < 0) return null;

@@ -57,53 +57,52 @@ class _UsuariosPageState extends State<UsuariosPage> {
   }
 
   Future<void> _deleteUsuario(UsuarioItem usuario) async {
-  final confirm = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Confirmar exclusão'),
-      content: Text('Deseja realmente excluir o usuário "${usuario.nome}"?'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancelar'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context, true),
-          style: TextButton.styleFrom(
-            foregroundColor: Theme.of(context).colorScheme.error,
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar exclusão'),
+        content: Text('Deseja realmente excluir o usuário "${usuario.nome}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
           ),
-          child: const Text('Excluir'),
-        ),
-      ],
-    ),
-  );
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
 
-  if (confirm != true) return;
+    if (confirm != true) return;
 
-  try {
-    await _repository.deleteUsuario(usuario.id);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Usuário excluído com sucesso')),
-      );
-      _loadUsuarios();
-    }
-  } catch (e) {
-    if (mounted) {
-      // ✅ Mensagem mais amigável
-      final errorMessage = e.toString().contains('própria conta')
-          ? 'Ñão permitido'
-          : 'Erro ao excluir usuário: $e';
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: Colors.red,
-        ),
-      );
+    try {
+      await _repository.deleteUsuario(usuario.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Usuário excluído com sucesso')),
+        );
+        _loadUsuarios();
+      }
+    } catch (e) {
+      if (mounted) {
+        final errorMessage = e.toString().contains('própria conta')
+            ? 'Não permitido'
+            : 'Erro ao excluir usuário: $e';
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -118,11 +117,12 @@ class _UsuariosPageState extends State<UsuariosPage> {
             padding: const EdgeInsets.all(32.0),
             child: Row(
               children: [
-                // ✅ ADICIONAR ESTE BOTÃO VOLTAR
-                IconButton(
-                  onPressed: () => context.go('/admin'),
-                  icon: const Icon(Icons.arrow_back),
-                  tooltip: 'Voltar para Admin',
+                ExcludeFocus(
+                  child: IconButton(
+                    onPressed: () => context.go('/admin'),
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: 'Voltar para Admin',
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Icon(
@@ -138,80 +138,84 @@ class _UsuariosPageState extends State<UsuariosPage> {
                   ),
                 ),
                 const Spacer(),
-                ElevatedButton.icon(
-                  onPressed: () => _showUsuarioDialog(),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Novo Usuário'),
+                ExcludeFocus(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showUsuarioDialog(),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Novo Usuário'),
+                  ),
                 ),
               ],
             ),
           ),
           Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _error != null
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                              size: 64,
-                              color: theme.colorScheme.error,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Erro ao carregar usuários',
-                              style: theme.textTheme.titleLarge,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              _error!,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurface
-                                    .withValues(alpha: 0.6),
+            child: ExcludeFocus(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                size: 64,
+                                color: theme.colorScheme.error,
                               ),
-                            ),
-                            const SizedBox(height: 24),
-                            ElevatedButton.icon(
-                              onPressed: _loadUsuarios,
-                              icon: const Icon(Icons.refresh),
-                              label: const Text('Tentar novamente'),
-                            ),
-                          ],
-                        ),
-                      )
-                    : _usuarios.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.people_outline,
-                                  size: 64,
+                              const SizedBox(height: 16),
+                              Text(
+                                'Erro ao carregar usuários',
+                                style: theme.textTheme.titleLarge,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _error!,
+                                style: theme.textTheme.bodyMedium?.copyWith(
                                   color: theme.colorScheme.onSurface
-                                      .withValues(alpha: 0.3),
+                                      .withValues(alpha: 0.6),
                                 ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Nenhum usuário cadastrado',
-                                  style: theme.textTheme.titleLarge,
-                                ),
-                              ],
-                            ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 32),
-                            itemCount: _usuarios.length,
-                            itemBuilder: (context, index) {
-                              final usuario = _usuarios[index];
-                              return _UsuarioCard(
-                                usuario: usuario,
-                                onEdit: () => _showUsuarioDialog(usuario: usuario),
-                                onDelete: () => _deleteUsuario(usuario),
-                              );
-                            },
+                              ),
+                              const SizedBox(height: 24),
+                              ElevatedButton.icon(
+                                onPressed: _loadUsuarios,
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Tentar novamente'),
+                              ),
+                            ],
                           ),
+                        )
+                      : _usuarios.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.people_outline,
+                                    size: 64,
+                                    color: theme.colorScheme.onSurface
+                                        .withValues(alpha: 0.3),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Nenhum usuário cadastrado',
+                                    style: theme.textTheme.titleLarge,
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 32),
+                              itemCount: _usuarios.length,
+                              itemBuilder: (context, index) {
+                                final usuario = _usuarios[index];
+                                return _UsuarioCard(
+                                  usuario: usuario,
+                                  onEdit: () => _showUsuarioDialog(usuario: usuario),
+                                  onDelete: () => _deleteUsuario(usuario),
+                                );
+                              },
+                            ),
+            ),
           ),
         ],
       ),
@@ -239,6 +243,7 @@ class _UsuarioCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
+        onTap: onEdit,
         contentPadding: const EdgeInsets.all(16),
         leading: CircleAvatar(
           radius: 24,
@@ -266,7 +271,6 @@ class _UsuarioCard extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             
-            // ✅ Badge ADMIN
             if (usuario.role == 'admin')
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -284,7 +288,6 @@ class _UsuarioCard extends StatelessWidget {
                 ),
               ),
             
-            // ✅ Badge ALMOXARIFE
             if (usuario.role == 'almoxarife')
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -302,7 +305,6 @@ class _UsuarioCard extends StatelessWidget {
                 ),
               ),
             
-            // ✅ Badge ORÇAMENTISTA (CORRIGIDO)
             if (usuario.role == 'user')
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -324,7 +326,6 @@ class _UsuarioCard extends StatelessWidget {
             
             const SizedBox(width: 8),
             
-            // Badge "VOCÊ"
             if (isCurrentUser)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -341,6 +342,35 @@ class _UsuarioCard extends StatelessWidget {
                   ),
                 ),
               ),
+          ],
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text(
+            usuario.username,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Editar usuário',
+              onPressed: onEdit,
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: isCurrentUser 
+                  ? '' 
+                  : 'Excluir usuário',
+              color: isCurrentUser 
+                  ? theme.colorScheme.onSurface.withValues(alpha: 0.3)
+                  : theme.colorScheme.error,
+              onPressed: isCurrentUser ? null : onDelete,
+            ),
           ],
         ),
       ),
@@ -405,13 +435,11 @@ class _UsuarioDialogState extends State<_UsuarioDialog> {
       }
 
       if (widget.usuario == null) {
-        // Criar novo
         if (_passwordController.text.isEmpty) {
           throw Exception('Senha é obrigatória para novos usuários');
         }
         await repository.createUsuario(data);
       } else {
-        // Atualizar existente
         await repository.updateUsuario(widget.usuario!.id, data);
       }
 
@@ -458,25 +486,27 @@ class _UsuarioDialogState extends State<_UsuarioDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Icon(
-                    isEditing ? Icons.edit : Icons.person_add,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    isEditing ? 'Editar Usuário' : 'Novo Usuário',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
+              ExcludeFocus(
+                child: Row(
+                  children: [
+                    Icon(
+                      isEditing ? Icons.edit : Icons.person_add,
+                      color: theme.colorScheme.primary,
                     ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    Text(
+                      isEditing ? 'Editar Usuário' : 'Novo Usuário',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 24),
               TextFormField(
@@ -496,7 +526,7 @@ class _UsuarioDialogState extends State<_UsuarioDialog> {
               TextFormField(
                 controller: _nomeController,
                 decoration: const InputDecoration(
-                  labelText: 'Nome completo',
+                  labelText: 'Nome',
                   prefixIcon: Icon(Icons.person_outline),
                 ),
                 validator: (value) {
@@ -513,17 +543,19 @@ class _UsuarioDialogState extends State<_UsuarioDialog> {
                 decoration: InputDecoration(
                   labelText: isEditing ? 'Nova senha (opcional)' : 'Senha',
                   prefixIcon: const Icon(Icons.lock_outline),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
+                  suffixIcon: ExcludeFocus(
+                    child: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _obscurePassword = !_obscurePassword;
+                        });
+                      },
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
                   ),
                 ),
                 validator: (value) {
@@ -540,12 +572,12 @@ class _UsuarioDialogState extends State<_UsuarioDialog> {
               DropdownButtonFormField<String>(
                 initialValue: _role,
                 decoration: const InputDecoration(
-                  labelText: 'Tipo de usuário',
+                  labelText: 'Função',
                   prefixIcon: Icon(Icons.admin_panel_settings_outlined),
                 ),
                 items: const [
-                  DropdownMenuItem(value: 'user', child: Text('Usuário')),
-                  DropdownMenuItem(value: 'almoxarife', child: Text('Almoxarife')), // ✅ NOVO
+                  DropdownMenuItem(value: 'user', child: Text('Orçamentista')),
+                  DropdownMenuItem(value: 'almoxarife', child: Text('Almoxarife')),
                   DropdownMenuItem(value: 'admin', child: Text('Administrador')),
                 ],
                 onChanged: (value) {
@@ -555,39 +587,43 @@ class _UsuarioDialogState extends State<_UsuarioDialog> {
                 },
               ),
               const SizedBox(height: 16),
-              SwitchListTile(
-                title: const Text('Usuário ativo'),
-                subtitle: Text(
-                  _ativo
-                      ? 'Usuário pode fazer login'
-                      : 'Usuário não pode fazer login',
-                  style: theme.textTheme.bodySmall,
+              ExcludeFocus(
+                child: SwitchListTile(
+                  title: const Text('Usuário ativo'),
+                  subtitle: Text(
+                    _ativo
+                        ? 'Usuário pode fazer login'
+                        : 'Usuário não pode fazer login',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  value: _ativo,
+                  onChanged: (value) {
+                    setState(() => _ativo = value);
+                  },
                 ),
-                value: _ativo,
-                onChanged: (value) {
-                  setState(() => _ativo = value);
-                },
               ),
               const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancelar'),
-                  ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _handleSave,
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(isEditing ? 'Salvar' : 'Criar'),
-                  ),
-                ],
+              ExcludeFocus(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancelar'),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: _isLoading ? null : _handleSave,
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(isEditing ? 'Salvar' : 'Criar'),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

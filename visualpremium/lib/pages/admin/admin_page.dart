@@ -38,7 +38,6 @@ class AdminPage extends StatelessWidget {
             ),
             const SizedBox(height: 32),
 
-            // Card de boas-vindas
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
@@ -99,7 +98,6 @@ class AdminPage extends StatelessWidget {
 
             const SizedBox(height: 32),
 
-            // Grid de funcionalidades administrativas
             LayoutBuilder(
               builder: (context, constraints) {
                 final crossAxisCount = constraints.maxWidth > 1200
@@ -108,77 +106,77 @@ class AdminPage extends StatelessWidget {
                         ? 2
                         : 1;
 
-                return GridView.count(
-                  crossAxisCount: crossAxisCount,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: 1.5,
-                  children: [
-                    _AdminFeatureCard(
-                      icon: Icons.people_outline,
-                      title: 'Gerenciar Usuários',
-                      description: 'Adicionar, editar e remover usuários do sistema',
-                      color: Colors.blue,
-                      onTap: () {
-                        context.go(AppRoutes.usuarios);
-                      },
-                    ),
-                    _AdminFeatureCard(
-                      icon: Icons.analytics_outlined,
-                      title: 'Relatórios',
-                      description: 'Visualizar relatórios e estatísticas',
-                      color: Colors.green,
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Funcionalidade em desenvolvimento')),
-                        );
-                      },
-                    ),
-                    _AdminFeatureCard(
-                      icon: Icons.backup_outlined,
-                      title: 'Backup',
-                      description: 'Fazer backup dos dados do sistema',
-                      color: Colors.orange,
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Funcionalidade em desenvolvimento')),
-                        );
-                      },
-                    ),
-                    _AdminFeatureCard(
-                      icon: Icons.security_outlined,
-                      title: 'Segurança',
-                      description: 'Gerenciar permissões e acessos',
-                      color: Colors.red,
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Funcionalidade em desenvolvimento')),
-                        );
-                      },
-                    ),
-                    _AdminFeatureCard(
-                      icon: Icons.history_outlined,
-                      title: 'Logs do Sistema',
-                      description: 'Visualizar histórico de ações',
-                      color: Colors.teal,
-                      onTap: () {
-                        context.go(AppRoutes.logs);
-                      },
-                    ),
-                    _AdminFeatureCard(
-                      icon: Icons.settings_outlined,
-                      title: 'Configurações Avançadas',
-                      description: 'Configurar parâmetros do sistema',
-                      color: Colors.purple,
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Funcionalidade em desenvolvimento')),
-                        );
-                      },
-                    ),
-                  ],
+                return ExcludeFocus(
+                  child: GridView.count(
+                    crossAxisCount: crossAxisCount,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 1.5,
+                    children: [
+                      _AdminFeatureCard(
+                        icon: Icons.people_outline,
+                        title: 'Gerenciar Usuários',
+                        description: 'Adicionar, editar e remover usuários do sistema',
+                        color: Colors.blue,
+                        onTap: () {
+                          context.go(AppRoutes.usuarios);
+                        },
+                      ),
+                      _AdminFeatureCard(
+                        icon: Icons.analytics_outlined,
+                        title: 'Relatórios',
+                        description: 'Visualizar relatórios de compras',
+                        color: Colors.green,
+                        onTap: () {
+                          context.go(AppRoutes.relatorio);
+                        },
+                      ),
+                      _AdminFeatureCard(
+                        icon: Icons.backup_outlined,
+                        title: 'Backup',
+                        description: 'Fazer backup dos dados do sistema',
+                        color: Colors.orange,
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Funcionalidade em desenvolvimento')),
+                          );
+                        },
+                      ),
+                      _AdminFeatureCard(
+                        icon: Icons.security_outlined,
+                        title: 'Segurança',
+                        description: 'Gerenciar permissões e acessos',
+                        color: Colors.red,
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Funcionalidade em desenvolvimento')),
+                          );
+                        },
+                      ),
+                      _AdminFeatureCard(
+                        icon: Icons.history_outlined,
+                        title: 'Logs do Sistema',
+                        description: 'Visualizar histórico de ações',
+                        color: Colors.teal,
+                        onTap: () {
+                          context.go(AppRoutes.logs);
+                        },
+                      ),
+                      _AdminFeatureCard(
+                        icon: Icons.settings_outlined,
+                        title: 'Configurações Avançadas',
+                        description: 'Configurar parâmetros do sistema',
+                        color: Colors.purple,
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Funcionalidade em desenvolvimento')),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 );
               },
             ),

@@ -50,7 +50,6 @@ class UsuarioService {
       throw new Error('A senha deve ter no mínimo 6 caracteres');
     }
 
-    // ✅ Validar roles permitidas
     const rolesPermitidas = ['admin', 'almoxarife', 'user'];
     if (role && !rolesPermitidas.includes(role)) {
       throw new Error('Role inválida. Use: admin, almoxarife ou user');
@@ -71,7 +70,7 @@ class UsuarioService {
         username,
         password: hashedPassword,
         nome,
-        role: role || 'user', // ✅ default continua 'user'
+        role: role || 'user',
         ativo: typeof ativo === 'boolean' ? ativo : true,
       },
       select: {
@@ -173,7 +172,6 @@ class UsuarioService {
       throw new Error('Usuário não encontrado');
     }
 
-    // ✅ NOVA VALIDAÇÃO: Impedir auto-exclusão
     if (user && user.id === id) {
       throw new Error('Você não pode deletar sua própria conta');
     }

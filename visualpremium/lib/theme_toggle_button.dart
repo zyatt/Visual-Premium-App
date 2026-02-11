@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:visualpremium/theme_provider.dart';
 
-/// Botão switch para alternar entre tema claro e escuro
 class ThemeToggleSwitch extends StatelessWidget {
   const ThemeToggleSwitch({super.key});
 
@@ -47,7 +46,6 @@ class ThemeToggleSwitch extends StatelessWidget {
   }
 }
 
-/// Botão de ícone para alternar tema (para usar em AppBar)
 class ThemeToggleIconButton extends StatelessWidget {
   const ThemeToggleIconButton({super.key});
 
@@ -69,7 +67,6 @@ class ThemeToggleIconButton extends StatelessWidget {
   }
 }
 
-/// Card expansível para mostrar opções de tema
 class ThemeSettingsCard extends StatelessWidget {
   const ThemeSettingsCard({super.key});
 

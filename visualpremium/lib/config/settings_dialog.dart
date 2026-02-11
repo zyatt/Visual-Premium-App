@@ -220,30 +220,24 @@ class SettingsDialog extends StatelessWidget {
               ),
             ),
             onPressed: () async {
-              final navigator = Navigator.of(context);
               final router = GoRouter.of(context);
-
-              navigator.pop();
+              final settingsNavigator = Navigator.of(context);
 
               final confirm = await showDialog<bool>(
-                context: navigator.context,
-                barrierDismissible: false,
+                context: context,
+                barrierDismissible: true,
                 builder: (dialogContext) => AlertDialog(
                   title: const Text('Sair'),
-                  content:
-                      const Text('Deseja realmente sair do sistema?'),
+                  content: const Text('Deseja realmente sair do sistema?'),
                   actions: [
                     TextButton(
-                      onPressed: () =>
-                          Navigator.of(dialogContext).pop(false),
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
                       child: const Text('Cancelar'),
                     ),
                     TextButton(
-                      onPressed: () =>
-                          Navigator.of(dialogContext).pop(true),
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
                       style: TextButton.styleFrom(
-                        foregroundColor:
-                            theme.colorScheme.error,
+                        foregroundColor: theme.colorScheme.error,
                       ),
                       child: const Text('Sair'),
                     ),
@@ -252,7 +246,10 @@ class SettingsDialog extends StatelessWidget {
               );
 
               if (confirm == true) {
+                settingsNavigator.pop();
+                
                 await authProvider.logout();
+                
                 router.go('/login');
               }
             },

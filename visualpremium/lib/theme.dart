@@ -30,7 +30,7 @@ class AppSpacing {
 
 class AppRadius {
   static const double sm = 8.0;
-  static const double md = 16.0; // Increased for modern look
+  static const double md = 16.0;
   static const double lg = 24.0;
   static const double xl = 32.0;
 }
@@ -50,21 +50,14 @@ extension TextStyleExtensions on TextStyle {
   TextStyle withSize(double size) => copyWith(fontSize: size);
 }
 
-// =============================================================================
-// COLORS
-// =============================================================================
-
 class AppColors {
-  // Brand Colors
   static const orangeVibrant = Color(0xFFff781f);
   static const orangeDark = Color(0xFFdc5800);
   
-  // Dark Mode Backgrounds
   static const darkBackground = Color(0xFF201e1e);
-  static const darkSurface = Color(0xFF2D2B2B); // Slightly lighter than background
+  static const darkSurface = Color(0xFF2D2B2B);
   static const darkSurfaceHighlight = Color(0xFF3A3838);
 
-  // Light Mode Backgrounds
   static const lightBackground = Color(0xFFffffff);
   static const lightSurface = Color(0xFFF7F9FA); 
   static const lightSurfaceHighlight = Color(0xFFF0F2F5);
@@ -81,7 +74,7 @@ class LightModeColors {
   static const secondaryContainer = Color(0xFFFFE5D6);
   static const onSecondaryContainer = Color(0xFF451B00);
 
-  static const tertiary = Color(0xFF384E77); // A complementary blue/slate
+  static const tertiary = Color(0xFF384E77);
   static const onTertiary = Colors.white;
 
   static const error = Color(0xFFBA1A1A);
@@ -99,7 +92,7 @@ class LightModeColors {
 
 class DarkModeColors {
   static const primary = AppColors.orangeVibrant;
-  static const onPrimary = Color(0xFF201e1e); // Dark text on vibrant orange
+  static const onPrimary = Color(0xFF201e1e);
   static const primaryContainer = AppColors.orangeDark;
   static const onPrimaryContainer = Colors.white;
 
@@ -123,10 +116,6 @@ class DarkModeColors {
   static const surfaceContainerHighest = AppColors.darkSurfaceHighlight;
   static const outline = Color(0xFF8E9099);
 }
-
-// =============================================================================
-// THEMES
-// =============================================================================
 
 ThemeData get lightTheme => ThemeData(
   useMaterial3: true,
@@ -271,9 +260,7 @@ TextTheme _buildTextTheme(Brightness brightness) {
       ? const Color(0xFF1A1C1E) 
       : const Color(0xFFE2E2E2);
 
-  // Use Poppins for Headings/Display
   final displayFont = GoogleFonts.poppins;
-  // Use Inter for Body
   final bodyFont = GoogleFonts.inter;
 
   return TextTheme(

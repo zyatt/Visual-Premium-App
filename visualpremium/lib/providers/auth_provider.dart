@@ -6,7 +6,7 @@ import '../config/config.dart';
 
 enum UserRole {
   admin,
-  almoxarife,  // ✅ NOVO
+  almoxarife,
   user,
 }
 
@@ -72,12 +72,12 @@ class AuthProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userData = prefs.getString(_userKey);
-      final token = prefs.getString(_tokenKey); // ✅ Carrega o token
+      final token = prefs.getString(_tokenKey);
       
       if (userData != null && token != null) {
         final Map<String, dynamic> json = jsonDecode(userData);
         _currentUser = User.fromJson(json);
-        _token = token; // ✅ Restaura o token
+        _token = token;
         _shouldShowWelcome = false;
       }
     } catch (e) {
@@ -104,12 +104,12 @@ class AuthProvider extends ChangeNotifier {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         _currentUser = User.fromJson(data);
-        _token = data['token']; // ✅ Salva o token recebido
+        _token = data['token'];
         _shouldShowWelcome = true;
 
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(_userKey, jsonEncode(_currentUser!.toJson()));
-        await prefs.setString(_tokenKey, _token!); // ✅ Persiste o token
+        await prefs.setString(_tokenKey, _token!);
 
         notifyListeners();
         return {'success': true};
@@ -140,12 +140,12 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     try {
       _currentUser = null;
-      _token = null; // ✅ Limpa o token
+      _token = null;
       _shouldShowWelcome = false;
       
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_userKey);
-      await prefs.remove(_tokenKey); // ✅ Remove o token do storage
+      await prefs.remove(_tokenKey);
       
       notifyListeners();
       

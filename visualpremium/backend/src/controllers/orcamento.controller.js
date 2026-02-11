@@ -41,7 +41,6 @@ class OrcamentoController {
     } catch (error) {
       console.error('Erro ao criar orçamento:', error);
       
-      // Erros de validação retornam 400
       if (
         error.message.includes('obrigatório') ||
         error.message.includes('inválid') ||
@@ -55,7 +54,6 @@ class OrcamentoController {
         });
       }
       
-      // Outros erros retornam 500
       return res.status(500).json({ 
         error: 'Erro ao criar orçamento',
         message: error.message 

@@ -2,10 +2,8 @@ import { config } from 'dotenv';
 import { defineConfig } from 'prisma/config';
 import path from 'path';
 
-// Define o arquivo .env conforme NODE_ENV
-const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env';
+const envFile = process.env.NODE_ENV === 'dev' ? '.env.dev' : '.env';
 
-// Carrega as variáveis do arquivo correto
 config({
   path: path.resolve(process.cwd(), envFile),
 });

@@ -3,7 +3,7 @@ import 'dart:convert';
 enum TipoOpcaoExtra {
   stringFloat,
   floatFloat,
-  percentFloat, // ✅ NOVO TIPO ADICIONADO
+  percentFloat,
 }
 
 class PedidoOpcaoExtraItem {
@@ -203,14 +203,16 @@ class PedidoMaterialItem {
 
       final materialMap = material as Map<String, dynamic>;
       final nome = materialMap['nome'] as String?;
-      final custo = materialMap['custo'];
       final unidade = materialMap['unidade'] as String?;
 
-      if (nome == null || custo == null || unidade == null) {
+      if (nome == null || unidade == null) {
         return null;
       }
 
-      final custoDouble = (custo is int) ? custo.toDouble() : (custo is double ? custo : 0.0);
+      final custoRaw = map['custo'] ?? materialMap['custo'];
+      if (custoRaw == null) return null;
+
+      final custoDouble = (custoRaw is int) ? custoRaw.toDouble() : (custoRaw is double ? custoRaw : 0.0);
       final quantidadeDouble = (quantidade is int) ? quantidade.toDouble() : (quantidade is double ? quantidade : 0.0);
 
       return PedidoMaterialItem(
@@ -277,15 +279,12 @@ class PedidoItem {
     
     for (final opcao in opcoesExtras) {
       if (opcao.tipo == TipoOpcaoExtra.stringFloat) {
-        // Descrição + Valor: o valor está em float1
         total += opcao.valorFloat1 ?? 0.0;
       } else if (opcao.tipo == TipoOpcaoExtra.floatFloat) {
-        // ✅ CORRIGIDO: Horas × Valor/Hora (não precisa dividir por 60)
         final horas = opcao.valorFloat1 ?? 0.0;
         final valorHora = opcao.valorFloat2 ?? 0.0;
-        total += horas * valorHora;  // ✅ CÁLCULO DIRETO
+        total += horas * valorHora;
       } else if (opcao.tipo == TipoOpcaoExtra.percentFloat) {
-        // % + Valor: calcular (percentual / 100) * valor
         final percentual = opcao.valorFloat1 ?? 0.0;
         final valor = opcao.valorFloat2 ?? 0.0;
         total += (percentual / 100.0) * valor;
