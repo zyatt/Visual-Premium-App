@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:visualpremium/data/orcamentos_repository.dart';
@@ -73,9 +74,9 @@ class _RelatoriosPageState extends State<RelatorioPage> {
     }
     
     final almoxarifadoId = almox['id'] as int;
-    final orc = (almox['orcamento'] as Map<String, dynamic>?) ?? {};
-    final numero = orc['numero'] as int? ?? 0;
-    final cliente = orc['cliente'] as String? ?? 'cliente';
+    final pedido = (almox['pedido'] as Map<String, dynamic>?) ?? {};
+    final numero = pedido['numero'] as int? ?? 0;
+    final cliente = pedido['cliente'] as String? ?? 'cliente';
     
     setState(() => _downloadingId = relatorioId);
     
@@ -105,7 +106,7 @@ class _RelatoriosPageState extends State<RelatorioPage> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('PDF gerado com sucesso!'),
+              content: Text('PDF gerado!'),
               duration: Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
             ),
@@ -151,11 +152,11 @@ class _RelatoriosPageState extends State<RelatorioPage> {
       final almox = r['almoxarifado'] as Map<String, dynamic>?;
       if (almox == null) return false;
       
-      final orc = almox['orcamento'] as Map<String, dynamic>?;
-      if (orc == null) return false;
+      final pedido = almox['pedido'] as Map<String, dynamic>?;
+      if (pedido == null) return false;
       
-      final cliente = orc['cliente'] as String? ?? '';
-      final numero = orc['numero']?.toString() ?? '';
+      final cliente = pedido['cliente'] as String? ?? '';
+      final numero = pedido['numero']?.toString() ?? '';
       
       return cliente.toLowerCase().contains(query) ||
           numero.contains(query);
@@ -183,6 +184,14 @@ class _RelatoriosPageState extends State<RelatorioPage> {
                 children: [
                   Row(
                     children: [
+                      ExcludeFocus(
+                        child: IconButton(
+                          onPressed: () => context.go('/admin'),
+                          icon: const Icon(Icons.arrow_back),
+                          tooltip: 'Voltar',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Icon(
                         Icons.analytics,
                         size: 32,
@@ -308,7 +317,7 @@ class _EmptyState extends StatelessWidget {
             if (!hasSearch) ...[
               const SizedBox(height: 8),
               Text(
-                'Relatórios aparecerão após finalizar ',
+                'Relatórios aparecerão após finalizar um pedido no almoxarifado',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
                 ),
@@ -341,11 +350,11 @@ class _RelatorioCard extends StatelessWidget {
     final theme = Theme.of(context);
     
     final almox = relatorio['almoxarifado'] as Map<String, dynamic>?;
-    final orc = (almox?['orcamento'] as Map<String, dynamic>?) ?? {};
-    final produto = (orc['produto'] as Map<String, dynamic>?) ?? {};
+    final pedido = (almox?['pedido'] as Map<String, dynamic>?) ?? {};
+    final produto = (pedido['produto'] as Map<String, dynamic>?) ?? {};
     
-    final cliente = orc['cliente'] as String? ?? 'N/A';
-    final numero = orc['numero'] as int? ?? 0;
+    final cliente = pedido['cliente'] as String? ?? 'N/A';
+    final numero = pedido['numero'] as int? ?? 0;
     final produtoNome = produto['nome'] as String? ?? 'N/A';
     
     final diferencaTotal = (relatorio['diferencaTotal'] as num?)?.toDouble() ?? 0.0;
@@ -358,96 +367,67 @@ class _RelatorioCard extends StatelessWidget {
     final statusColor = isEconomia ? Colors.green : isExcedeu ? Colors.red : Colors.grey;
     final statusText = isEconomia ? 'Economia' : isExcedeu ? 'Excedeu' : 'Conforme';
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: theme.cardTheme.color,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(
-            color: theme.dividerColor.withValues(alpha: 0.1),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        onTap: onTap,
+        splashColor: Colors.transparent,
+        hoverColor: theme.colorScheme.primary.withValues(alpha: 0.05),
+        focusColor: Colors.transparent,
+        contentPadding: const EdgeInsets.all(20),
+        title: Row(
+          children: [
+            Text(
+              'Pedido #$numero',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: statusColor.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Text(
+                statusText,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: statusColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ],
         ),
-        child: Column(
+        subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const SizedBox(height: 4),
             Row(
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Orçamento #$numero',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: statusColor.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: statusColor.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Text(
-                              statusText,
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: statusColor,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        cliente,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  onPressed: isDownloading ? null : onDownloadPdf,
-                  icon: isDownloading
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: theme.colorScheme.primary,
-                          ),
-                        )
-                      : Icon(Icons.picture_as_pdf, color: theme.colorScheme.primary, size: 20),
-                  tooltip: 'Baixar PDF',
-                  padding: EdgeInsets.zero,
-                  visualDensity: VisualDensity.compact,
-                ),
-                const SizedBox(width: 8),
                 Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+                  Icons.person_outline,
+                  size: 14,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    cliente,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: true,
+                  ),
                 ),
               ],
             ),
@@ -558,10 +538,38 @@ class _RelatorioCard extends StatelessWidget {
             ),
           ],
         ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              onPressed: isDownloading ? null : onDownloadPdf,
+              icon: isDownloading
+                  ? SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: theme.colorScheme.primary,
+                      ),
+                    )
+                  : Icon(Icons.picture_as_pdf, color: theme.colorScheme.primary, size: 20),
+              tooltip: 'Baixar PDF',
+              padding: EdgeInsets.zero,
+              visualDensity: VisualDensity.compact,
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 16,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
+
 
 String _formatCurrency(double value) {
   final valueIn1000 = (value * 1000).round();
@@ -592,11 +600,11 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
     final currency = NumberFormat.simpleCurrency(locale: 'pt_BR');
     
     final almox = relatorio['almoxarifado'] as Map<String, dynamic>?;
-    final orc = (almox?['orcamento'] as Map<String, dynamic>?) ?? {};
-    final produto = (orc['produto'] as Map<String, dynamic>?) ?? {};
+    final pedido = (almox?['pedido'] as Map<String, dynamic>?) ?? {};
+    final produto = (pedido['produto'] as Map<String, dynamic>?) ?? {};
     
-    final cliente = orc['cliente'] as String? ?? 'N/A';
-    final numero = orc['numero'] as int? ?? 0;
+    final cliente = pedido['cliente'] as String? ?? 'N/A';
+    final numero = pedido['numero'] as int? ?? 0;
     final produtoNome = produto['nome'] as String? ?? 'N/A';
     
     final analiseDetalhada = relatorio['analiseDetalhada'] as Map<String, dynamic>? ?? {};
@@ -651,7 +659,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Orçamento #$numero - $cliente',
+                          'Pedido #$numero - $cliente',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                           ),
@@ -743,6 +751,10 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.colorScheme.primary,
+                        foregroundColor: theme.colorScheme.onPrimary,
+                      ),
                       onPressed: () => Navigator.of(context).pop(),
                       child: const Text('Fechar'),
                     ),

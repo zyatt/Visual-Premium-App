@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:visualpremium/data/orcamentos_repository.dart';
-import 'package:visualpremium/models/orcamento_item.dart';
+import 'package:visualpremium/models/pedido_item.dart';
 import '../../../theme.dart';
 
 class AlmoxarifadoPage extends StatefulWidget {
@@ -14,39 +14,39 @@ class AlmoxarifadoPage extends StatefulWidget {
 class _AlmoxarifadoPageState extends State<AlmoxarifadoPage> {
   final _api = OrcamentosApiRepository();
   bool _loading = true;
-  List<OrcamentoItem> _orcamentosAprovados = [];
+  List<PedidoItem> _pedidosConcluidos = [];
   Map<int, String> _statusAlmoxarifado = {};
   String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    _loadOrcamentosAprovados();
+    _loadPedidosConcluidos();
   }
 
-  Future<void> _loadOrcamentosAprovados() async {
+  Future<void> _loadPedidosConcluidos() async {
     setState(() => _loading = true);
     try {
-      final allOrcamentos = await _api.fetchOrcamentos();
-      final aprovados = allOrcamentos.where((o) => o.status == 'Aprovado').toList();
+      final allPedidos = await _api.fetchPedidos();
+      final concluidos = allPedidos.where((p) => p.status == 'Concluído').toList();
       
       final statusMap = <int, String>{};
-      for (final orc in aprovados) {
+      for (final pedido in concluidos) {
         try {
-          final almox = await _api.fetchAlmoxarifadoPorOrcamento(orc.id);
+          final almox = await _api.fetchAlmoxarifadoPorPedido(pedido.id);
           if (almox != null) {
-            statusMap[orc.id] = almox['status'] as String? ?? 'Não Realizado';
+            statusMap[pedido.id] = almox['status'] as String? ?? 'Não Realizado';
           } else {
-            statusMap[orc.id] = 'Não Realizado';
+            statusMap[pedido.id] = 'Não Realizado';
           }
         } catch (e) {
-          statusMap[orc.id] = 'Não Realizado';
+          statusMap[pedido.id] = 'Não Realizado';
         }
       }
       
       if (!mounted) return;
       setState(() {
-        _orcamentosAprovados = aprovados;
+        _pedidosConcluidos = concluidos;
         _statusAlmoxarifado = statusMap;
         _loading = false;
       });
@@ -55,14 +55,14 @@ class _AlmoxarifadoPageState extends State<AlmoxarifadoPage> {
       setState(() => _loading = false);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar orçamentos: $e')),
+          SnackBar(content: Text('Erro ao carregar pedidos: $e')),
         );
       });
     }
   }
 
-  Future<void> _abrirOrcamento(OrcamentoItem orcamento) async {
-    final status = _statusAlmoxarifado[orcamento.id] ?? 'Não Realizado';
+  Future<void> _abrirPedido(PedidoItem pedido) async {
+    final status = _statusAlmoxarifado[pedido.id] ?? 'Não Realizado';
     final isRealizado = status == 'Realizado';
 
     final resultado = await showDialog<bool>(
@@ -70,39 +70,39 @@ class _AlmoxarifadoPageState extends State<AlmoxarifadoPage> {
       barrierDismissible: false,
       builder: (dialogContext) {
         return _AlmoxarifadoEditorDialog(
-          orcamento: orcamento,
+          pedido: pedido,
           isRealizado: isRealizado,
         );
       },
     );
 
     if (resultado == true) {
-      await _loadOrcamentosAprovados();
+      await _loadPedidosConcluidos();
     }
   }
 
-  List<OrcamentoItem> get _filteredOrcamentos {
+  List<PedidoItem> get _filteredPedidos {
     if (_searchQuery.isEmpty) {
-      return _orcamentosAprovados;
+      return _pedidosConcluidos;
     }
     
     final query = _searchQuery.toLowerCase();
-    return _orcamentosAprovados.where((o) {
-      return o.cliente.toLowerCase().contains(query) ||
-          o.numero.toString().contains(query) ||
-          o.produtoNome.toLowerCase().contains(query);
+    return _pedidosConcluidos.where((p) {
+      return p.cliente.toLowerCase().contains(query) ||
+          (p.numero?.toString().contains(query) ?? false) ||
+          p.produtoNome.toLowerCase().contains(query);
     }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final filteredOrcamentos = _filteredOrcamentos;
+    final filteredPedidos = _filteredPedidos;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: RefreshIndicator(
-        onRefresh: _loadOrcamentosAprovados,
+        onRefresh: _loadPedidosConcluidos,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(32.0),
@@ -130,7 +130,7 @@ class _AlmoxarifadoPageState extends State<AlmoxarifadoPage> {
                   ),
                   ExcludeFocus(
                     child: IconButton(
-                      onPressed: _loadOrcamentosAprovados,
+                      onPressed: _loadPedidosConcluidos,
                       icon: const Icon(Icons.refresh),
                       tooltip: 'Atualizar',
                     ),
@@ -155,7 +155,7 @@ class _AlmoxarifadoPageState extends State<AlmoxarifadoPage> {
                 child: TextField(
                   onChanged: (value) => setState(() => _searchQuery = value),
                   decoration: InputDecoration(
-                    hintText: 'Buscar orçamentos aprovados',
+                    hintText: 'Buscar pedidos concluídos',
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
@@ -178,7 +178,7 @@ class _AlmoxarifadoPageState extends State<AlmoxarifadoPage> {
                     ),
                   ),
                 )
-              else if (filteredOrcamentos.isEmpty)
+              else if (filteredPedidos.isEmpty)
                 _EmptyState(
                   hasSearch: _searchQuery.isNotEmpty,
                   onClearSearch: () => setState(() => _searchQuery = ''),
@@ -187,15 +187,15 @@ class _AlmoxarifadoPageState extends State<AlmoxarifadoPage> {
                 ListView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: filteredOrcamentos.length,
+                  itemCount: filteredPedidos.length,
                   itemBuilder: (context, index) {
-                    final orcamento = filteredOrcamentos[index];
-                    final status = _statusAlmoxarifado[orcamento.id] ?? 'Não Realizado';
+                    final pedido = filteredPedidos[index];
+                    final status = _statusAlmoxarifado[pedido.id] ?? 'Não Realizado';
                     
-                    return _OrcamentoCard(
-                      orcamento: orcamento,
+                    return _PedidoCard(
+                      pedido: pedido,
                       status: status,
-                      onTap: () => _abrirOrcamento(orcamento),
+                      onTap: () => _abrirPedido(pedido),
                     );
                   },
                 ),
@@ -234,8 +234,8 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               hasSearch
-                  ? 'Nenhum orçamento encontrado'
-                  : 'Nenhum orçamento aprovado',
+                  ? 'Nenhum pedido encontrado'
+                  : 'Nenhum pedido concluído',
               style: theme.textTheme.titleMedium?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
               ),
@@ -254,13 +254,13 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _OrcamentoCard extends StatelessWidget {
-  final OrcamentoItem orcamento;
+class _PedidoCard extends StatelessWidget {
+  final PedidoItem pedido;
   final String status;
   final VoidCallback onTap;
 
-  const _OrcamentoCard({
-    required this.orcamento,
+  const _PedidoCard({
+    required this.pedido,
     required this.status,
     required this.onTap,
   });
@@ -282,89 +282,107 @@ class _OrcamentoCard extends StatelessWidget {
         statusIcon = Icons.pending;
     }
 
-    return Container(
+    return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: theme.cardTheme.color,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(
-          color: theme.dividerColor.withValues(alpha: 0.1),
-        ),
-      ),
-      child: InkWell(
+      child: ListTile(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          'Orçamento #${orcamento.numero}',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: statusColor.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(AppRadius.sm),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                statusIcon,
-                                size: 14,
-                                color: statusColor,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                status,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: statusColor,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+        splashColor: Colors.transparent,
+        hoverColor: theme.colorScheme.primary.withValues(alpha: 0.05),
+        focusColor: Colors.transparent,
+        contentPadding: const EdgeInsets.all(16),
+        title: Row(
+          children: [
+            Text(
+              'Pedido ${pedido.numero != null ? "#${pedido.numero}" : "(ID: ${pedido.id})"}',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    statusIcon,
+                    size: 14,
+                    color: statusColor,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    status,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: statusColor,
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      orcamento.cliente,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      orcamento.produtoNome,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                      ),
-                    ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(
+                  Icons.person_outline,
+                  size: 14,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    pedido.cliente,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: true,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+              Row(
+                children: [
+                  Icon(
+                    Icons.inventory_2_outlined,
+                    size: 14,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      pedido.produtoNome,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                        fontSize: 10,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: true,
+                    ),
+                  ),
+                ],
               ),
-              Icon(
-                Icons.arrow_forward_ios,
-                size: 16,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
-              ),
-            ],
-          ),
+          ],
+        ),
+        trailing: Icon(
+          Icons.arrow_forward_ios,
+          size: 16,
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
         ),
       ),
     );
@@ -372,11 +390,11 @@ class _OrcamentoCard extends StatelessWidget {
 }
 
 class _AlmoxarifadoEditorDialog extends StatefulWidget {
-  final OrcamentoItem orcamento;
+  final PedidoItem pedido;
   final bool isRealizado;
 
   const _AlmoxarifadoEditorDialog({
-    required this.orcamento,
+    required this.pedido,
     this.isRealizado = false,
   });
 
@@ -414,19 +432,19 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
   }
 
   void _initControllers() {
-    for (var i = 0; i < widget.orcamento.materiais.length; i++) {
+    for (var i = 0; i < widget.pedido.materiais.length; i++) {
       _materialControllers[i] = TextEditingController();
       _materialFocusNodes[i] = FocusNode();
     }
 
-    for (var i = 0; i < widget.orcamento.despesasAdicionais.length; i++) {
+    for (var i = 0; i < widget.pedido.despesasAdicionais.length; i++) {
       _despesaControllers[i] = TextEditingController();
       _despesaFocusNodes[i] = FocusNode();
     }
 
 
-    for (var i = 0; i < widget.orcamento.opcoesExtras.length; i++) {
-      final opcao = widget.orcamento.opcoesExtras[i];
+    for (var i = 0; i < widget.pedido.opcoesExtras.length; i++) {
+      final opcao = widget.pedido.opcoesExtras[i];
       
       // Pular opções extras que foram marcadas como "Não" (todos os valores são null)
       final isNaoSelection = opcao.valorString == null && 
@@ -462,7 +480,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
     setState(() => _loadingData = true);
     
     try {
-      final almoxData = await _api.fetchAlmoxarifadoPorOrcamento(widget.orcamento.id);
+      final almoxData = await _api.fetchAlmoxarifadoPorPedido(widget.pedido.id);
       
       if (almoxData == null) {
         setState(() => _loadingData = false);
@@ -472,8 +490,8 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
       // Carregar materiais
       final materiais = almoxData['materiais'] as List?;
       if (materiais != null) {
-        for (var i = 0; i < widget.orcamento.materiais.length; i++) {
-          final material = widget.orcamento.materiais[i];
+        for (var i = 0; i < widget.pedido.materiais.length; i++) {
+          final material = widget.pedido.materiais[i];
           final materialData = materiais.firstWhere(
             (m) => m['materialId'] == material.materialId,
             orElse: () => null,
@@ -491,8 +509,8 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
       // Carregar despesas
       final despesas = almoxData['despesasAdicionais'] as List?;
       if (despesas != null) {
-        for (var i = 0; i < widget.orcamento.despesasAdicionais.length; i++) {
-          final despesa = widget.orcamento.despesasAdicionais[i];
+        for (var i = 0; i < widget.pedido.despesasAdicionais.length; i++) {
+          final despesa = widget.pedido.despesasAdicionais[i];
           final despesaData = despesas.firstWhere(
             (d) => d['descricao'] == despesa.descricao,
             orElse: () => null,
@@ -510,8 +528,8 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
       // Carregar opções extras
       final opcoesExtras = almoxData['opcoesExtras'] as List?;
       if (opcoesExtras != null) {
-        for (var i = 0; i < widget.orcamento.opcoesExtras.length; i++) {
-          final opcao = widget.orcamento.opcoesExtras[i];
+        for (var i = 0; i < widget.pedido.opcoesExtras.length; i++) {
+          final opcao = widget.pedido.opcoesExtras[i];
           final opcaoData = opcoesExtras.firstWhere(
             (o) => o['produtoOpcaoId'] == opcao.produtoOpcaoId,
             orElse: () => null,
@@ -613,7 +631,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
   // Verifica se todos os campos obrigatórios estão preenchidos
   bool _todosOsCamposPreenchidos() {
     // Verificar materiais
-    for (var i = 0; i < widget.orcamento.materiais.length; i++) {
+    for (var i = 0; i < widget.pedido.materiais.length; i++) {
       final controller = _materialControllers[i];
       if (controller == null || controller.text.trim().isEmpty) {
         return false;
@@ -625,7 +643,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
     }
 
     // Verificar despesas
-    for (var i = 0; i < widget.orcamento.despesasAdicionais.length; i++) {
+    for (var i = 0; i < widget.pedido.despesasAdicionais.length; i++) {
       final controller = _despesaControllers[i];
       if (controller == null || controller.text.trim().isEmpty) {
         return false;
@@ -637,8 +655,8 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
     }
 
     // Verificar opções extras
-    for (var i = 0; i < widget.orcamento.opcoesExtras.length; i++) {
-      final opcao = widget.orcamento.opcoesExtras[i];
+    for (var i = 0; i < widget.pedido.opcoesExtras.length; i++) {
+      final opcao = widget.pedido.opcoesExtras[i];
       
       // Pular opções extras que foram marcadas como "Não"
       final isNaoSelection = opcao.valorString == null && 
@@ -694,8 +712,8 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
 
     try {
       final materiais = <Map<String, dynamic>>[];
-      for (var i = 0; i < widget.orcamento.materiais.length; i++) {
-        final material = widget.orcamento.materiais[i];
+      for (var i = 0; i < widget.pedido.materiais.length; i++) {
+        final material = widget.pedido.materiais[i];
         final controller = _materialControllers[i];
         if (controller != null && controller.text.isNotEmpty) {
           final valor = double.tryParse(controller.text.replaceAll(',', '.'));
@@ -709,8 +727,8 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
       }
 
       final despesas = <Map<String, dynamic>>[];
-      for (var i = 0; i < widget.orcamento.despesasAdicionais.length; i++) {
-        final despesa = widget.orcamento.despesasAdicionais[i];
+      for (var i = 0; i < widget.pedido.despesasAdicionais.length; i++) {
+        final despesa = widget.pedido.despesasAdicionais[i];
         final controller = _despesaControllers[i];
         if (controller != null && controller.text.isNotEmpty) {
           final valor = double.tryParse(controller.text.replaceAll(',', '.'));
@@ -724,8 +742,8 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
       }
 
       final opcoesExtras = <Map<String, dynamic>>[];
-      for (var i = 0; i < widget.orcamento.opcoesExtras.length; i++) {
-        final opcao = widget.orcamento.opcoesExtras[i];
+      for (var i = 0; i < widget.pedido.opcoesExtras.length; i++) {
+        final opcao = widget.pedido.opcoesExtras[i];
         
         // Pular opções extras que foram marcadas como "Não"
         final isNaoSelection = opcao.valorString == null && 
@@ -780,7 +798,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
       }
 
       await _api.salvarAlmoxarifado(
-        widget.orcamento.id,
+        widget.pedido.id,
         materiais,
         despesas,
         opcoesExtras,
@@ -795,7 +813,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Dados salvos com sucesso!'),
+          content: Text('Dados salvos!'),
           backgroundColor: Colors.blue,
         ),
       );
@@ -822,8 +840,8 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
 
     try {
       final materiais = <Map<String, dynamic>>[];
-      for (var i = 0; i < widget.orcamento.materiais.length; i++) {
-        final material = widget.orcamento.materiais[i];
+      for (var i = 0; i < widget.pedido.materiais.length; i++) {
+        final material = widget.pedido.materiais[i];
         final controller = _materialControllers[i];
         if (controller != null && controller.text.isNotEmpty) {
           final valor = double.parse(controller.text.replaceAll(',', '.'));
@@ -835,8 +853,8 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
       }
 
       final despesas = <Map<String, dynamic>>[];
-      for (var i = 0; i < widget.orcamento.despesasAdicionais.length; i++) {
-        final despesa = widget.orcamento.despesasAdicionais[i];
+      for (var i = 0; i < widget.pedido.despesasAdicionais.length; i++) {
+        final despesa = widget.pedido.despesasAdicionais[i];
         final controller = _despesaControllers[i];
         if (controller != null && controller.text.isNotEmpty) {
           final valor = double.parse(controller.text.replaceAll(',', '.'));
@@ -849,8 +867,8 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
 
 
       final opcoesExtras = <Map<String, dynamic>>[];
-      for (var i = 0; i < widget.orcamento.opcoesExtras.length; i++) {
-        final opcao = widget.orcamento.opcoesExtras[i];
+      for (var i = 0; i < widget.pedido.opcoesExtras.length; i++) {
+        final opcao = widget.pedido.opcoesExtras[i];
         
         // Pular opções extras que foram marcadas como "Não"
         final isNaoSelection = opcao.valorString == null && 
@@ -903,19 +921,19 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
       }
 
       await _api.salvarAlmoxarifado(
-        widget.orcamento.id,
+        widget.pedido.id,
         materiais,
         despesas,
         opcoesExtras,
       );
 
-      await _api.finalizarAlmoxarifado(widget.orcamento.id);
+      await _api.finalizarAlmoxarifado(widget.pedido.id);
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Almoxarifado finalizado com sucesso!'),
+          content: Text('Almoxarifado finalizado!'),
           backgroundColor: Colors.green,
         ),
       );
@@ -1002,7 +1020,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Orçamento #${widget.orcamento.numero} - ${widget.orcamento.cliente}',
+                            'Pedido ${widget.pedido.numero != null ? "#${widget.pedido.numero}" : "(ID: ${widget.pedido.id})"} - ${widget.pedido.cliente}',
                             style: theme.textTheme.bodyMedium?.copyWith(
                               color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                             ),
@@ -1063,7 +1081,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    'Este orçamento já foi finalizado. Visualização apenas.',
+                                    'Este pedido já foi finalizado. Visualização apenas.',
                                     style: theme.textTheme.bodySmall?.copyWith(
                                       color: Colors.orange.shade700,
                                       fontWeight: FontWeight.w500,
@@ -1102,7 +1120,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                           ),
                         const SizedBox(height: 24),
 
-                        if (widget.orcamento.materiais.isNotEmpty) ...[
+                        if (widget.pedido.materiais.isNotEmpty) ...[
                           Text(
                             'Materiais',
                             style: theme.textTheme.titleSmall?.copyWith(
@@ -1111,8 +1129,8 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          ...List.generate(widget.orcamento.materiais.length, (index) {
-                            final material = widget.orcamento.materiais[index];
+                          ...List.generate(widget.pedido.materiais.length, (index) {
+                            final material = widget.pedido.materiais[index];
                             final controller = _materialControllers[index];
                             final focusNode = _materialFocusNodes[index];
                             
@@ -1183,7 +1201,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                           }),
                         ],
 
-                        if (widget.orcamento.despesasAdicionais.isNotEmpty) ...[
+                        if (widget.pedido.despesasAdicionais.isNotEmpty) ...[
                           const SizedBox(height: 24),
                           Text(
                             'Despesas Adicionais',
@@ -1193,8 +1211,8 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          ...List.generate(widget.orcamento.despesasAdicionais.length, (index) {
-                            final despesa = widget.orcamento.despesasAdicionais[index];
+                          ...List.generate(widget.pedido.despesasAdicionais.length, (index) {
+                            final despesa = widget.pedido.despesasAdicionais[index];
                             final controller = _despesaControllers[index];
                             final focusNode = _despesaFocusNodes[index];
                             
@@ -1258,9 +1276,9 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                           }),
                         ],
 
-                        if (widget.orcamento.opcoesExtras.isNotEmpty) ...[
+                        if (widget.pedido.opcoesExtras.isNotEmpty) ...[
 
-                        if (widget.orcamento.opcoesExtras.any((o) => 
+                        if (widget.pedido.opcoesExtras.any((o) => 
                             o.valorString != null || o.valorFloat1 != null || o.valorFloat2 != null)) ...[
                           const SizedBox(height: 24),
                           Text(
@@ -1271,8 +1289,8 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          ...List.generate(widget.orcamento.opcoesExtras.length, (index) {
-                            final opcao = widget.orcamento.opcoesExtras[index];
+                          ...List.generate(widget.pedido.opcoesExtras.length, (index) {
+                            final opcao = widget.pedido.opcoesExtras[index];
                             
                             final isNaoSelection = opcao.valorString == null && 
                                                    opcao.valorFloat1 == null && 
@@ -1514,12 +1532,18 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                         Expanded(
                           child: ExcludeFocus(
                             child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: theme.colorScheme.primary,
+                                  foregroundColor: theme.colorScheme.onPrimary,
+                                ),
                               onPressed: _saving ? null : _salvar,
                               icon: _saving
                                 ? const SizedBox(
+                                  
                                     width: 16,
                                     height: 16,
                                     child: CircularProgressIndicator(
+                                      
                                       strokeWidth: 2,
                                       color: Colors.white,
                                     ),
@@ -1546,8 +1570,8 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                                 : const Icon(Icons.check),
                               label: Text(_saving ? 'Finalizando...' : 'Finalizar'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green,
-                                foregroundColor: Colors.white,
+                                backgroundColor: theme.colorScheme.primary,
+                                foregroundColor: theme.colorScheme.onPrimary,
                               ),
                             ),
                           ),

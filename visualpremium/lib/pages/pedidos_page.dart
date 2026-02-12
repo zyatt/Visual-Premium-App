@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:visualpremium/data/orcamentos_repository.dart';
 import 'package:visualpremium/models/orcamento_item.dart' hide TipoOpcaoExtra;
 import 'package:visualpremium/models/pedido_item.dart';
+import 'package:visualpremium/widgets/clickable_ink.dart';
 import '../theme.dart';
 
 enum SortOption {
@@ -172,7 +173,7 @@ class _PedidosPageState extends State<PedidosPage> {
      WidgetsBinding.instance.addPostFrameCallback((_) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Pedido #${item.numero} salvo com sucesso'),
+          content: Text('Pedido #${item.numero} salvo!'),
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
         ),
@@ -262,7 +263,7 @@ class _PedidosPageState extends State<PedidosPage> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('PDF gerado e aberto com sucesso!'),
+              content: Text('PDF gerado!'),
               duration: Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
             ),
@@ -1336,7 +1337,7 @@ class _FilterDialogState extends State<_FilterDialog> {
                       style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 12),
-                    InkWell(
+                    ClickableInk(
                       onTap: _selectDateRange,
                       borderRadius: BorderRadius.circular(AppRadius.md),
                       child: Container(
@@ -1376,7 +1377,7 @@ class _FilterDialogState extends State<_FilterDialog> {
                             ),
                             if (_selectedDateRange != null) ...[
                               const SizedBox(width: 8),
-                              InkWell(
+                              ClickableInk(
                                 onTap: () {
                                   setState(() {
                                     _selectedDateRange = null;
@@ -1418,6 +1419,10 @@ class _FilterDialogState extends State<_FilterDialog> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.colorScheme.primary,
+                        foregroundColor: theme.colorScheme.onPrimary,
+                      ),
                       onPressed: () {
                         Navigator.of(context).pop(
                           PedidoFilters(
@@ -1677,6 +1682,10 @@ class _DateRangeInputDialogState extends State<_DateRangeInputDialog> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: theme.colorScheme.onPrimary,
+                        ),
                         onPressed: _save,
                         child: const Text('Aplicar'),
                       ),
@@ -1840,7 +1849,7 @@ class _SortOptionWithToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     
-    return InkWell(
+    return ClickableInk(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppRadius.sm),
       child: Container(
@@ -1996,212 +2005,186 @@ class _PedidoCard extends StatelessWidget {
     final statusColor = _getStatusColor(item.status);
     final dateFormat = DateFormat('dd/MM/yyyy');
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: theme.cardTheme.color,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ClickableInk(
+        onTap: onTap,
+        splashColor: Colors.transparent,
+        hoverColor: theme.colorScheme.primary.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.shopping_cart_outlined, color: theme.colorScheme.primary, size: 20),
               ),
-              child: Icon(Icons.shopping_cart_outlined, color: theme.colorScheme.primary, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Pedido ${item.numero != null ? "#${item.numero}" : "(sem número)"}',
-                    style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    item.cliente,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Pedido ${item.numero != null ? "#${item.numero}" : "(sem número)"}',
+                      style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.inventory_2_outlined,
-                        size: 14,
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          item.produtoNome,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                            fontSize: 10,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          softWrap: true,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (item.orcamentoNumero != null) ...[
                     const SizedBox(height: 2),
                     Row(
                       children: [
                         Icon(
-                          Icons.description_outlined,
+                          Icons.person_outline,
                           size: 14,
-                          color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                         ),
                         const SizedBox(width: 4),
-                        Text(
-                          'Orçamento #${item.orcamentoNumero}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.primary.withValues(alpha: 0.8),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
+                        Expanded(
+                          child: Text(
+                            item.cliente,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: true,
                           ),
                         ),
                       ],
                     ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          size: 14,
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            item.produtoNome,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                              fontSize: 10,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: true,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (item.orcamentoNumero != null) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.description_outlined,
+                            size: 14,
+                            color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Orçamento #${item.orcamentoNumero}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.primary.withValues(alpha: 0.8),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    formattedValue,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  Text(
+                    dateFormat.format(item.createdAt),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                    ),
+                  ),
                 ],
               ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  formattedValue,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: theme.colorScheme.primary,
-                  ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.2)),
                 ),
-                Text(
-                  dateFormat.format(item.createdAt),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                child: Text(
+                  item.status,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: statusColor.withValues(alpha: 0.2)),
-              ),
-              child: Text(
-                item.status,
-                style: TextStyle(
-                  color: statusColor,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              onPressed: isDownloading ? null : onDownloadPdf,
-              icon: isDownloading
-                  ? SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: theme.colorScheme.primary,
-                      ),
-                    )
-                  : Icon(Icons.picture_as_pdf, color: theme.colorScheme.primary, size: 20),
-              tooltip: 'Baixar PDF',
-              padding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-            ),
-            PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert, color: theme.colorScheme.onSurface.withValues(alpha: 0.4), size: 20),
-              padding: EdgeInsets.zero,
-              onSelected: (value) {
-                if (value == 'delete') {
-                  onDelete();
-                } else if (value == 'concluir') {
-                  onStatusChange('Concluído');
-                } else if (value == 'cancelar') {
-                  onStatusChange('Cancelado');
-                } else if (value == 'andamento') {
-                  onStatusChange('Em Andamento');
-                }
-              },
-              tooltip: 'Opções',
-              itemBuilder: (context) => [
-                if (item.status != 'Em Andamento')
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: isDownloading ? null : onDownloadPdf,
+                icon: isDownloading
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: theme.colorScheme.primary,
+                        ),
+                      )
+                    : Icon(Icons.picture_as_pdf, color: theme.colorScheme.primary, size: 20),
+                tooltip: 'Baixar PDF',
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              ),
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert, color: theme.colorScheme.onSurface.withValues(alpha: 0.4), size: 20),
+                padding: EdgeInsets.zero,
+                onSelected: (value) {
+                  if (value == 'delete') {
+                    onDelete();
+                  } else if (value == 'concluir') {
+                    onStatusChange('Concluído');
+                  } else if (value == 'cancelar') {
+                    onStatusChange('Cancelado');
+                  } else if (value == 'andamento') {
+                    onStatusChange('Em Andamento');
+                  }
+                },
+                tooltip: 'Opções',
+                itemBuilder: (context) => [
                   const PopupMenuItem(
-                    value: 'andamento',
+                    value: 'delete',
                     child: Row(
                       children: [
-                        Icon(Icons.play_circle_outline, color: Colors.blue, size: 18),
+                        Icon(Icons.delete_outline, color: Colors.red, size: 18),
                         SizedBox(width: 8),
-                        Text('Em Andamento'),
+                        Text('Excluir'),
                       ],
                     ),
                   ),
-                if (item.status != 'Concluído')
-                  const PopupMenuItem(
-                    value: 'concluir',
-                    child: Row(
-                      children: [
-                        Icon(Icons.check_circle, color: Colors.green, size: 18),
-                        SizedBox(width: 8),
-                        Text('Concluir'),
-                      ],
-                    ),
-                  ),
-                if (item.status != 'Cancelado')
-                  const PopupMenuItem(
-                    value: 'cancelar',
-                    child: Row(
-                      children: [
-                        Icon(Icons.cancel, color: Colors.red, size: 18),
-                        SizedBox(width: 8),
-                        Text('Cancelar'),
-                      ],
-                    ),
-                  ),
-                const PopupMenuDivider(),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete_outline, color: Colors.red, size: 18),
-                      SizedBox(width: 8),
-                      Text('Excluir'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -2231,6 +2214,9 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
   
   late final String _initialNumero;
   bool _isShowingDiscardDialog = false;
+  
+  final List<InformacaoAdicionalPedidoItem> _informacoesAdicionais = [];
+  late final List<InformacaoAdicionalPedidoItem> _initialInformacoesAdicionais;
 
   String _formatQuantity(double value) {
     if (value == value.toInt()) {
@@ -2246,12 +2232,23 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
     return unit;
   }
 
+  String _formatarData(DateTime data) {
+    return '${data.day.toString().padLeft(2, '0')}/${data.month.toString().padLeft(2, '0')}/${data.year} ${data.hour.toString().padLeft(2, '0')}:${data.minute.toString().padLeft(2, '0')}';
+  }
+
   @override
   void initState() {
     super.initState();
     
     _initialNumero = widget.initial.numero?.toString() ?? '';
     _numeroCtrl = TextEditingController(text: _initialNumero);
+    
+    if (widget.initial.informacoesAdicionais.isNotEmpty) {
+      _informacoesAdicionais.addAll(widget.initial.informacoesAdicionais);
+      _initialInformacoesAdicionais = List.from(widget.initial.informacoesAdicionais);
+    } else {
+      _initialInformacoesAdicionais = [];
+    }
     
     _numeroFocusNode.addListener(_onFieldFocusChange);
     
@@ -2271,7 +2268,137 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
   }
 
   bool get _hasChanges {
-    return _numeroCtrl.text != _initialNumero;
+    if (_numeroCtrl.text != _initialNumero) return true;
+    
+    if (_informacoesAdicionais.length != _initialInformacoesAdicionais.length) return true;
+    for (int i = 0; i < _informacoesAdicionais.length; i++) {
+      if (i >= _initialInformacoesAdicionais.length) return true;
+      final current = _informacoesAdicionais[i];
+      final initial = _initialInformacoesAdicionais[i];
+      if (current.data != initial.data || current.descricao != initial.descricao) return true;
+    }
+    
+    return false;
+  }
+
+  Widget _buildInformacoesAdicionaisSection() {
+    final theme = Theme.of(context);
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: theme.dividerColor.withValues(alpha: 0.1),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Informações Adicionais',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (_informacoesAdicionais.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Clique no + para adicionar informações',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ...List.generate(_informacoesAdicionais.length, (index) {
+                  final info = _informacoesAdicionais[index];
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Icon(
+                            Icons.event_note,
+                            size: 16,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _formatarData(info.data),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                info.descricao,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontSize: 11,
+                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -2363,6 +2490,8 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
 
     final item = widget.initial.copyWith(
       numero: numero,
+      informacoesAdicionais: _informacoesAdicionais,
+      status: 'Concluído',
     );
 
     Navigator.of(context).pop(item);
@@ -2935,6 +3064,7 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                         ),
                                       ),
+                                      _buildInformacoesAdicionaisSection(),
                                     ],
                                   ),
                                 ),
@@ -2991,6 +3121,10 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                 Expanded(
                                   child: ExcludeFocus(
                                     child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: theme.colorScheme.primary,
+                                        foregroundColor: theme.colorScheme.onPrimary,
+                                      ),
                                       onPressed: _save,
                                       child: const Text('Finalizar'),
                                     ),

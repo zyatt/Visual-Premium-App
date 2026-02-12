@@ -265,6 +265,19 @@ CREATE TABLE "relatorios_comparativos" (
     CONSTRAINT "relatorios_comparativos_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "faixas_custo_margem" (
+    "id" SERIAL NOT NULL,
+    "custoInicio" DOUBLE PRECISION NOT NULL,
+    "custoFim" DOUBLE PRECISION,
+    "margem" DOUBLE PRECISION NOT NULL,
+    "ordem" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "faixas_custo_margem_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "usuarios_username_key" ON "usuarios"("username");
 
@@ -299,13 +312,13 @@ CREATE UNIQUE INDEX "almoxarifado_opcoes_extras_almoxarifadoId_produtoOpcaoId_ke
 CREATE UNIQUE INDEX "relatorios_comparativos_almoxarifadoId_key" ON "relatorios_comparativos"("almoxarifadoId");
 
 -- AddForeignKey
-ALTER TABLE "produto_avisos" ADD CONSTRAINT "produto_avisos_produtoId_fkey" FOREIGN KEY ("produtoId") REFERENCES "produtos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "produto_avisos" ADD CONSTRAINT "produto_avisos_materialId_fkey" FOREIGN KEY ("materialId") REFERENCES "materiais"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "produto_avisos" ADD CONSTRAINT "produto_avisos_opcaoExtraId_fkey" FOREIGN KEY ("opcaoExtraId") REFERENCES "produto_opcoes_extras"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "produto_avisos" ADD CONSTRAINT "produto_avisos_produtoId_fkey" FOREIGN KEY ("produtoId") REFERENCES "produtos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "produto_opcoes_extras" ADD CONSTRAINT "produto_opcoes_extras_produtoId_fkey" FOREIGN KEY ("produtoId") REFERENCES "produtos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -320,10 +333,10 @@ ALTER TABLE "orcamento_opcoes_extras" ADD CONSTRAINT "orcamento_opcoes_extras_or
 ALTER TABLE "orcamento_opcoes_extras" ADD CONSTRAINT "orcamento_opcoes_extras_produtoOpcaoId_fkey" FOREIGN KEY ("produtoOpcaoId") REFERENCES "produto_opcoes_extras"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "pedidos" ADD CONSTRAINT "pedidos_produtoId_fkey" FOREIGN KEY ("produtoId") REFERENCES "produtos"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "pedidos" ADD CONSTRAINT "pedidos_orcamentoId_fkey" FOREIGN KEY ("orcamentoId") REFERENCES "orcamentos"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "pedidos" ADD CONSTRAINT "pedidos_orcamentoId_fkey" FOREIGN KEY ("orcamentoId") REFERENCES "orcamentos"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "pedidos" ADD CONSTRAINT "pedidos_produtoId_fkey" FOREIGN KEY ("produtoId") REFERENCES "produtos"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "pedido_opcoes_extras" ADD CONSTRAINT "pedido_opcoes_extras_pedidoId_fkey" FOREIGN KEY ("pedidoId") REFERENCES "pedidos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -338,22 +351,22 @@ ALTER TABLE "despesas_adicionais" ADD CONSTRAINT "despesas_adicionais_orcamentoI
 ALTER TABLE "pedidos_despesas_adicionais" ADD CONSTRAINT "pedidos_despesas_adicionais_pedidoId_fkey" FOREIGN KEY ("pedidoId") REFERENCES "pedidos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "produto_materiais" ADD CONSTRAINT "produto_materiais_produtoId_fkey" FOREIGN KEY ("produtoId") REFERENCES "produtos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "produto_materiais" ADD CONSTRAINT "produto_materiais_materialId_fkey" FOREIGN KEY ("materialId") REFERENCES "materiais"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "orcamento_materiais" ADD CONSTRAINT "orcamento_materiais_orcamentoId_fkey" FOREIGN KEY ("orcamentoId") REFERENCES "orcamentos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "produto_materiais" ADD CONSTRAINT "produto_materiais_produtoId_fkey" FOREIGN KEY ("produtoId") REFERENCES "produtos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "orcamento_materiais" ADD CONSTRAINT "orcamento_materiais_materialId_fkey" FOREIGN KEY ("materialId") REFERENCES "materiais"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "pedido_materiais" ADD CONSTRAINT "pedido_materiais_pedidoId_fkey" FOREIGN KEY ("pedidoId") REFERENCES "pedidos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "orcamento_materiais" ADD CONSTRAINT "orcamento_materiais_orcamentoId_fkey" FOREIGN KEY ("orcamentoId") REFERENCES "orcamentos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "pedido_materiais" ADD CONSTRAINT "pedido_materiais_materialId_fkey" FOREIGN KEY ("materialId") REFERENCES "materiais"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "pedido_materiais" ADD CONSTRAINT "pedido_materiais_pedidoId_fkey" FOREIGN KEY ("pedidoId") REFERENCES "pedidos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "almoxarifados" ADD CONSTRAINT "almoxarifados_orcamentoId_fkey" FOREIGN KEY ("orcamentoId") REFERENCES "orcamentos"("id") ON DELETE CASCADE ON UPDATE CASCADE;

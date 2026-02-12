@@ -1,6 +1,6 @@
-const service = require('../services/faixaCustoMarkup.service');
+const service = require('../services/faixaCustoMargem.service');
 
-class FaixaCustoMarkupController {
+class FaixaCustoMargemController {
   async listar(req, res) {
     try {
       const faixas = await service.listar();
@@ -48,7 +48,7 @@ class FaixaCustoMarkupController {
       const resultado = await service.calcularValorSugerido(parseFloat(custoTotal));
       
       if (!resultado) {
-        return res.status(404).json({ error: 'Nenhuma faixa de markup configurada' });
+        return res.status(404).json({ error: 'Nenhuma faixa de margem configurada' });
       }
 
       res.json(resultado);
@@ -58,4 +58,4 @@ class FaixaCustoMarkupController {
   }
 }
 
-module.exports = new FaixaCustoMarkupController();
+module.exports = new FaixaCustoMargemController();

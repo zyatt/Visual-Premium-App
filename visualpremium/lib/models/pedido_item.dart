@@ -6,6 +6,54 @@ enum TipoOpcaoExtra {
   percentFloat,
 }
 
+class InformacaoAdicionalPedidoItem {
+  final int id;
+  final DateTime data;
+  final String descricao;
+
+  const InformacaoAdicionalPedidoItem({
+    required this.id,
+    required this.data,
+    required this.descricao,
+  });
+
+  InformacaoAdicionalPedidoItem copyWith({
+    int? id,
+    DateTime? data,
+    String? descricao,
+  }) =>
+      InformacaoAdicionalPedidoItem(
+        id: id ?? this.id,
+        data: data ?? this.data,
+        descricao: descricao ?? this.descricao,
+      );
+
+  Map<String, Object?> toMap() => {
+        'data': data.toIso8601String(),
+        'descricao': descricao,
+      };
+
+  static InformacaoAdicionalPedidoItem? tryFromMap(Map<String, Object?> map) {
+    try {
+      final id = map['id'];
+      final data = map['data'];
+      final descricao = map['descricao'];
+
+      if (id == null || data == null || descricao is! String) {
+        return null;
+      }
+
+      return InformacaoAdicionalPedidoItem(
+        id: int.parse(id.toString()),
+        data: DateTime.parse(data.toString()).toLocal(),
+        descricao: descricao.trim(),
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+}
+
 class PedidoOpcaoExtraItem {
   final int id;
   final int produtoOpcaoId;
@@ -239,6 +287,7 @@ class PedidoItem {
   final List<PedidoMaterialItem> materiais;
   final List<PedidoDespesaAdicionalItem> despesasAdicionais;
   final List<PedidoOpcaoExtraItem> opcoesExtras;
+  final List<InformacaoAdicionalPedidoItem> informacoesAdicionais;
   final String formaPagamento;
   final String condicoesPagamento;
   final String prazoEntrega;
@@ -257,6 +306,7 @@ class PedidoItem {
     required this.materiais,
     this.despesasAdicionais = const [],
     this.opcoesExtras = const [],
+    this.informacoesAdicionais = const [],
     required this.formaPagamento,
     required this.condicoesPagamento,
     required this.prazoEntrega,
@@ -308,6 +358,7 @@ class PedidoItem {
     List<PedidoMaterialItem>? materiais,
     List<PedidoDespesaAdicionalItem>? despesasAdicionais,
     List<PedidoOpcaoExtraItem>? opcoesExtras,
+    List<InformacaoAdicionalPedidoItem>? informacoesAdicionais,
     String? formaPagamento,
     String? condicoesPagamento,
     String? prazoEntrega,
@@ -326,6 +377,7 @@ class PedidoItem {
         materiais: materiais ?? this.materiais,
         despesasAdicionais: despesasAdicionais ?? this.despesasAdicionais,
         opcoesExtras: opcoesExtras ?? this.opcoesExtras,
+        informacoesAdicionais: informacoesAdicionais ?? this.informacoesAdicionais,
         formaPagamento: formaPagamento ?? this.formaPagamento,
         condicoesPagamento: condicoesPagamento ?? this.condicoesPagamento,
         prazoEntrega: prazoEntrega ?? this.prazoEntrega,
@@ -343,6 +395,7 @@ class PedidoItem {
       'materiais': materiais.map((e) => e.toMap()).toList(),
       'despesasAdicionais': despesasAdicionais.map((e) => e.toMap()).toList(),
       'opcoesExtras': opcoesExtras.map((e) => e.toMap()).toList(),
+      'informacoesAdicionais': informacoesAdicionais.map((e) => e.toMap()).toList(),
       'formaPagamento': formaPagamento,
       'condicoesPagamento': condicoesPagamento,
       'prazoEntrega': prazoEntrega,
@@ -366,6 +419,7 @@ class PedidoItem {
       final materiaisData = map['materiais'];
       final despesasData = map['despesasAdicionais'];
       final opcoesExtrasData = map['opcoesExtras'];
+      final informacoesAdicionaisData = map['informacoesAdicionais'];
       final createdAt = map['createdAt'];
       final updatedAt = map['updatedAt'];
       final formaPagamento = map['formaPagamento'];
@@ -421,6 +475,16 @@ class PedidoItem {
         }
       }
 
+      final informacoesAdicionais = <InformacaoAdicionalPedidoItem>[];
+      if (informacoesAdicionaisData is List) {
+        for (final i in informacoesAdicionaisData) {
+          if (i is Map) {
+            final item = InformacaoAdicionalPedidoItem.tryFromMap(i.map((k, v) => MapEntry(k.toString(), v)));
+            if (item != null) informacoesAdicionais.add(item);
+          }
+        }
+      }
+
       return PedidoItem(
         id: int.parse(id.toString()),
         cliente: cliente.trim(),
@@ -431,6 +495,7 @@ class PedidoItem {
         materiais: materiais,
         despesasAdicionais: despesasAdicionais,
         opcoesExtras: opcoesExtras,
+        informacoesAdicionais: informacoesAdicionais,
         formaPagamento: formaPagamento.trim(),
         condicoesPagamento: condicoesPagamento.trim(),
         prazoEntrega: prazoEntrega.trim(),

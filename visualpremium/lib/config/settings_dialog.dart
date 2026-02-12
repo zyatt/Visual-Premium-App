@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:visualpremium/providers/auth_provider.dart';
+import 'package:visualpremium/widgets/clickable_ink.dart';
+import 'package:visualpremium/widgets/theme_loading_overlay.dart';
 import '../theme_provider.dart';
 
 class SettingsDialog extends StatelessWidget {
@@ -24,58 +26,61 @@ class SettingsDialog extends StatelessWidget {
     final theme = Theme.of(context);
     final themeProvider = Provider.of<ThemeProvider>(context);
 
-    return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Container(
-        width: 450,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(context, theme),
+    return ThemeLoadingOverlay(
+      isVisible: themeProvider.isChangingTheme,
+      child: Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Container(
+          width: 450,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(context, theme),
 
-            const SizedBox(height: 24),
-            const Divider(height: 1),
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
+              const Divider(height: 1),
+              const SizedBox(height: 24),
 
-            _buildAppearanceSection(theme),
-            const SizedBox(height: 20),
+              _buildAppearanceSection(theme),
+              const SizedBox(height: 20),
 
-            Row(
-              children: [
-                Expanded(
-                  child: _ThemeOptionCard(
-                    icon: Icons.light_mode,
-                    label: 'Claro',
-                    isSelected: !themeProvider.isDarkMode,
-                    onTap: () => themeProvider.setThemeMode(ThemeMode.light),
+              Row(
+                children: [
+                  Expanded(
+                    child: _ThemeOptionCard(
+                      icon: Icons.light_mode,
+                      label: 'Claro',
+                      isSelected: !themeProvider.isDarkMode,
+                      onTap: () => themeProvider.setThemeMode(ThemeMode.light),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _ThemeOptionCard(
-                    icon: Icons.dark_mode,
-                    label: 'Escuro',
-                    isSelected: themeProvider.isDarkMode,
-                    onTap: () => themeProvider.setThemeMode(ThemeMode.dark),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _ThemeOptionCard(
+                      icon: Icons.dark_mode,
+                      label: 'Escuro',
+                      isSelected: themeProvider.isDarkMode,
+                      onTap: () => themeProvider.setThemeMode(ThemeMode.dark),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
 
-            const SizedBox(height: 24),
-            const Divider(height: 1),
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
+              const Divider(height: 1),
+              const SizedBox(height: 24),
 
-            _buildAccountSection(context, theme),
+              _buildAccountSection(context, theme),
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            _buildCloseButton(context, theme),
-          ],
+              _buildCloseButton(context, theme),
+            ],
+          ),
         ),
       ),
     );
@@ -301,9 +306,12 @@ class _ThemeOptionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return InkWell(
+    return ClickableInk(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
+      hoverColor: isSelected
+          ? theme.colorScheme.primary.withValues(alpha: 0.15)
+          : theme.colorScheme.primary.withValues(alpha: 0.05),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
         decoration: BoxDecoration(

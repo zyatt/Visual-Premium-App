@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:visualpremium/widgets/clickable_ink.dart';
 import '../config/settings_dialog.dart';
 import '../providers/auth_provider.dart';
 
@@ -147,10 +148,11 @@ class _Sidebar extends StatelessWidget {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                InkWell(
+                ClickableInk(
                   onTap: () => SettingsDialog.show(context),
                   borderRadius: BorderRadius.circular(12),
-                  child: Container(
+                  hoverColor: colorScheme.primary.withValues(alpha: 0.05),  // <-- Adicione esta linha
+                  child: Ink(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
@@ -200,8 +202,8 @@ class _Sidebar extends StatelessWidget {
                 ),
                 
                 const SizedBox(height: 8),
-                
-                InkWell(
+
+                ClickableInk(
                   onTap: () async {
                     final router = GoRouter.of(context);
                     
@@ -229,12 +231,12 @@ class _Sidebar extends StatelessWidget {
                     
                     if (confirm == true) {
                       await authProvider.logout();
-                      
                       router.go('/login');
                     }
                   },
                   borderRadius: BorderRadius.circular(12),
-                  child: Container(
+                  hoverColor: colorScheme.error.withValues(alpha: 0.05),  // <-- Adicione esta linha
+                  child: Ink(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       color: colorScheme.error.withValues(alpha: 0.1),
@@ -290,12 +292,11 @@ class _NavItem extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
+        child: ClickableInk(
           onTap: () => context.go(route),
           borderRadius: BorderRadius.circular(10),
           hoverColor: colorScheme.primary.withValues(alpha: 0.05),
+          splashColor: Colors.transparent,  // <-- Adicione para remover ripple
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
@@ -336,7 +337,6 @@ class _NavItem extends StatelessWidget {
             ),
           ),
         ),
-      ),
     );
   }
 }

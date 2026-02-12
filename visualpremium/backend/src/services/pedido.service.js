@@ -26,6 +26,11 @@ class PedidoService {
             produtoOpcao: true
           }
         },
+        informacoesAdicionais: {
+          orderBy: {
+            data: 'desc'
+          }
+        },
         orcamento: {
           select: {
             id: true,
@@ -62,6 +67,11 @@ class PedidoService {
         opcoesExtras: {
           include: {
             produtoOpcao: true
+          }
+        },
+        informacoesAdicionais: {
+          orderBy: {
+            data: 'desc'
           }
         },
         orcamento: {
@@ -108,6 +118,7 @@ class PedidoService {
       materiais,
       despesasAdicionais,
       opcoesExtras,
+      informacoesAdicionais,
       formaPagamento,
       condicoesPagamento,
       prazoEntrega,
@@ -282,6 +293,19 @@ class PedidoService {
       }
     }
 
+    const informacoesValidadas = [];
+    if (informacoesAdicionais && Array.isArray(informacoesAdicionais) && informacoesAdicionais.length > 0) {
+      for (const info of informacoesAdicionais) {
+        if (!info.data || !info.descricao || info.descricao.trim() === '') {
+          throw new Error('Data e descrição são obrigatórias para informações adicionais');
+        }
+        informacoesValidadas.push({
+          data: new Date(info.data),
+          descricao: info.descricao.trim()
+        });
+      }
+    }
+
     const createData = {
       cliente: cliente.trim(),
       status: 'Em Andamento',
@@ -317,6 +341,12 @@ class PedidoService {
       };
     }
 
+    if (informacoesValidadas.length > 0) {
+      createData.informacoesAdicionais = {
+        create: informacoesValidadas
+      };
+    }
+
     const pedidoCriado = await prisma.pedido.create({
       data: createData,
       include: {
@@ -339,6 +369,11 @@ class PedidoService {
         opcoesExtras: {
           include: {
             produtoOpcao: true
+          }
+        },
+        informacoesAdicionais: {
+          orderBy: {
+            data: 'desc'
           }
         },
         orcamento: {
@@ -374,6 +409,7 @@ class PedidoService {
       materiais,
       despesasAdicionais,
       opcoesExtras,
+      informacoesAdicionais,
       formaPagamento,
       condicoesPagamento,
       prazoEntrega
@@ -570,6 +606,22 @@ class PedidoService {
       }
     }
 
+    let informacoesValidadas;
+    if (informacoesAdicionais !== undefined) {
+      informacoesValidadas = [];
+      if (Array.isArray(informacoesAdicionais) && informacoesAdicionais.length > 0) {
+        for (const info of informacoesAdicionais) {
+          if (!info.data || !info.descricao || info.descricao.trim() === '') {
+            throw new Error('Data e descrição são obrigatórias para informações adicionais');
+          }
+          informacoesValidadas.push({
+            data: new Date(info.data),
+            descricao: info.descricao.trim()
+          });
+        }
+      }
+    }
+
     if (materiaisValidados !== undefined) {
       await prisma.pedidoMaterial.deleteMany({
         where: { pedidoId: id }
@@ -584,6 +636,12 @@ class PedidoService {
 
     if (opcoesExtrasValidadas !== undefined) {
       await prisma.pedidoOpcaoExtra.deleteMany({
+        where: { pedidoId: id }
+      });
+    }
+
+    if (informacoesValidadas !== undefined) {
+      await prisma.pedidoInformacaoAdicional.deleteMany({
         where: { pedidoId: id }
       });
     }
@@ -617,6 +675,12 @@ class PedidoService {
       };
     }
 
+    if (informacoesValidadas !== undefined && informacoesValidadas.length > 0) {
+      updateData.informacoesAdicionais = {
+        create: informacoesValidadas
+      };
+    }
+
     const pedidoAtualizado = await prisma.pedido.update({
       where: { id },
       data: updateData,
@@ -640,6 +704,11 @@ class PedidoService {
         opcoesExtras: {
           include: {
             produtoOpcao: true
+          }
+        },
+        informacoesAdicionais: {
+          orderBy: {
+            data: 'desc'
           }
         },
         orcamento: {
@@ -669,7 +738,11 @@ class PedidoService {
 
   async atualizarStatus(id, status, user) {
     const pedido = await prisma.pedido.findUnique({
-      where: { id }
+      where: { id },
+      include: {
+        almoxarifado: true,
+        produto: true
+      }
     });
 
     if (!pedido) {
@@ -681,6 +754,89 @@ class PedidoService {
     }
 
     const statusAnterior = pedido.status;
+    
+    console.log(`[PEDIDO] Atualizando status do pedido ${id}:`);
+    console.log(`  - Status anterior: ${statusAnterior}`);
+    console.log(`  - Status novo: ${status}`);
+    console.log(`  - Tem almoxarifado? ${!!pedido.almoxarifado}`);
+    
+    // Se o status está mudando para "Concluído" e não existe almoxarifado, criar
+    if (status === 'Concluído' && statusAnterior !== 'Concluído' && !pedido.almoxarifado) {
+      console.log(`[PEDIDO] Criando almoxarifado para o pedido ${id}...`);
+      
+      return await prisma.$transaction(async (tx) => {
+        // Atualizar status do pedido
+        const pedidoAtualizado = await tx.pedido.update({
+          where: { id },
+          data: { status },
+          include: {
+            produto: {
+              include: {
+                materiais: {
+                  include: {
+                    material: true
+                  }
+                },
+                opcoesExtras: true
+              }
+            },
+            materiais: {
+              include: {
+                material: true
+              }
+            },
+            despesasAdicionais: true,
+            opcoesExtras: {
+              include: {
+                produtoOpcao: true
+              }
+            },
+            informacoesAdicionais: {
+              orderBy: {
+                data: 'desc'
+              }
+            },
+            orcamento: {
+              select: {
+                id: true,
+                numero: true
+              }
+            }
+          }
+        });
+
+        // Criar almoxarifado vazio
+        const almoxarifado = await tx.almoxarifado.create({
+          data: {
+            pedidoId: id,
+            status: 'Não Realizado'
+          }
+        });
+
+        console.log(`[PEDIDO] Almoxarifado ${almoxarifado.id} criado com sucesso para o pedido ${id}`);
+
+        await logService.registrar({
+          usuarioId: user?.id || 1,
+          usuarioNome: user?.nome || 'Sistema',
+          acao: 'EDITAR',
+          entidade: 'PEDIDO',
+          entidadeId: id,
+          descricao: `Alterou o status do pedido "${pedido.numero ? `#${pedido.numero}"` : `(ID: ${id})"`} de "${statusAnterior}" para "${status}" e criou almoxarifado`,
+          detalhes: {
+            statusAnterior,
+            statusNovo: status,
+            almoxarifadoCriado: true,
+            almoxarifadoId: almoxarifado.id
+          },
+        });
+
+        return pedidoAtualizado;
+      });
+    }
+
+    console.log(`[PEDIDO] Atualizando apenas o status (sem criar almoxarifado)`);
+
+    // Atualizar apenas o status
     const pedidoAtualizado = await prisma.pedido.update({
       where: { id },
       data: { status },
@@ -704,6 +860,11 @@ class PedidoService {
         opcoesExtras: {
           include: {
             produtoOpcao: true
+          }
+        },
+        informacoesAdicionais: {
+          orderBy: {
+            data: 'desc'
           }
         },
         orcamento: {
@@ -738,7 +899,8 @@ class PedidoService {
         produto: true,
         materiais: { include: { material: true } },
         despesasAdicionais: true,
-        opcoesExtras: { include: { produtoOpcao: true } }
+        opcoesExtras: { include: { produtoOpcao: true } },
+        informacoesAdicionais: true
       }
     });
 
@@ -755,6 +917,10 @@ class PedidoService {
     });
 
     await prisma.pedidoOpcaoExtra.deleteMany({
+      where: { pedidoId: id }
+    });
+
+    await prisma.pedidoInformacaoAdicional.deleteMany({
       where: { pedidoId: id }
     });
 

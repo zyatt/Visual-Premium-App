@@ -10,7 +10,7 @@ const usuarioRoutes = require('./usuario.routes');
 const authRoutes = require('./auth.routes');
 const logRoutes = require('./log.routes');
 const almoxarifadoRoutes = require('./almoxarifado.routes');
-const faixaCustoMarkupRoutes = require('./faixaCustoMarkup.routes');
+const faixaCustoMargemRoutes = require('./faixaCustoMargem.routes');
 
 const routes = Router();
 
@@ -24,6 +24,6 @@ routes.use('/usuarios', usuarioRoutes);
 routes.use('/auth', authRoutes);
 routes.use('/logs', logRoutes);
 routes.use('/almoxarifado', almoxarifadoRoutes);
-routes.use('/faixas-custo-markup', faixaCustoMarkupRoutes);
+routes.use('/faixas-custo-margem', faixaCustoMargemRoutes);
 
 module.exports = routes;

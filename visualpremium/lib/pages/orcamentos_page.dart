@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:visualpremium/data/orcamentos_repository.dart';
 import 'package:visualpremium/data/faixas_custo_repository.dart';
 import 'package:visualpremium/models/orcamento_item.dart';
+import 'package:visualpremium/widgets/clickable_ink.dart';
 import '../theme.dart';
 
 enum SortOption {
@@ -222,7 +223,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Orçamento: $newStatus'),
+            content: Text('Orçamento $newStatus'),
             duration: const Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
           ),
@@ -293,7 +294,7 @@ class _BudgetsPageState extends State<BudgetsPage> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('PDF gerado com sucesso!'),
+              content: Text('PDF gerado!'),
               duration: Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
             ),
@@ -908,7 +909,6 @@ class _FilterChip extends StatelessWidget {
     );
   }
 }
-
 class _FilterDialog extends StatefulWidget {
   final OrcamentoFilters currentFilters;
   final List<OrcamentoItem> allItems;
@@ -1374,7 +1374,7 @@ class _FilterDialogState extends State<_FilterDialog> {
                       style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 12),
-                    InkWell(
+                    ClickableInk(
                       onTap: _selectDateRange,
                       borderRadius: BorderRadius.circular(AppRadius.md),
                       child: Container(
@@ -1414,7 +1414,7 @@ class _FilterDialogState extends State<_FilterDialog> {
                             ),
                             if (_selectedDateRange != null) ...[
                               const SizedBox(width: 8),
-                              InkWell(
+                              ClickableInk(
                                 onTap: () {
                                   setState(() {
                                     _selectedDateRange = null;
@@ -1456,6 +1456,10 @@ class _FilterDialogState extends State<_FilterDialog> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.colorScheme.primary,
+                        foregroundColor: theme.colorScheme.onPrimary,
+                      ),
                       onPressed: () {
                         Navigator.of(context).pop(
                           OrcamentoFilters(
@@ -1712,6 +1716,10 @@ class _DateRangeInputDialogState extends State<_DateRangeInputDialog> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: theme.colorScheme.onPrimary,
+                        ),
                         onPressed: _save,
                         child: const Text('Aplicar'),
                       ),
@@ -1875,7 +1883,7 @@ class _SortOptionWithToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     
-    return InkWell(
+    return ClickableInk(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppRadius.sm),
       child: Container(
@@ -1991,7 +1999,13 @@ class _EmptyOrcamentosState extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          ElevatedButton.icon(onPressed: onCreate, icon: const Icon(Icons.add, size: 18), label: const Text('Criar')),
+          ElevatedButton.icon(onPressed: onCreate, icon: const Icon(Icons.add, size: 18), label: const Text('Criar'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: theme.colorScheme.onPrimary,
+            ),
+          ),
+          
         ],
       ),
     );
@@ -2034,191 +2048,199 @@ class _OrcamentoCard extends StatelessWidget {
     final statusColor = _getStatusColor(item.status);
     final dateFormat = DateFormat('dd/MM/yyyy');
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: theme.cardTheme.color,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ClickableInk(
+        onTap: onTap,
+        splashColor: Colors.transparent,
+        hoverColor: theme.colorScheme.primary.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.description_outlined, color: theme.colorScheme.primary, size: 20),
               ),
-              child: Icon(Icons.description_outlined, color: theme.colorScheme.primary, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Orçamento #${item.numero}',
+                      style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.person_outline,
+                          size: 14,
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            item.cliente,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: true,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          size: 14,
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            item.produtoNome,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                              fontSize: 10,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: true,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    'Orçamento #${item.numero}',
-                    style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    item.cliente,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                    formattedValue,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.primary,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.inventory_2_outlined,
-                        size: 14,
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          item.produtoNome,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                            fontSize: 10,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          softWrap: true,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    dateFormat.format(item.createdAt),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                    ),
                   ),
                 ],
               ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  formattedValue,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: theme.colorScheme.primary,
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.2)),
+                ),
+                child: Text(
+                  item.status,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                Text(
-                  dateFormat.format(item.createdAt),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: statusColor.withValues(alpha: 0.2)),
               ),
-              child: Text(
-                item.status,
-                style: TextStyle(
-                  color: statusColor,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: isDownloading ? null : onDownloadPdf,
+                icon: isDownloading
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: theme.colorScheme.primary,
+                        ),
+                      )
+                    : Icon(Icons.picture_as_pdf, color: theme.colorScheme.primary, size: 20),
+                tooltip: 'Baixar PDF',
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
               ),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              onPressed: isDownloading ? null : onDownloadPdf,
-              icon: isDownloading
-                  ? SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: theme.colorScheme.primary,
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert, color: theme.colorScheme.onSurface.withValues(alpha: 0.4), size: 20),
+                padding: EdgeInsets.zero,
+                onSelected: (value) {
+                  if (value == 'delete') {
+                    onDelete();
+                  } else if (value == 'approve') {
+                    onStatusChange('Aprovado');
+                  } else if (value == 'reject') {
+                    onStatusChange('Não Aprovado');
+                  } else if (value == 'pending') {
+                    onStatusChange('Pendente');
+                  }
+                },
+                tooltip: 'Opções',
+                itemBuilder: (context) => [
+                  if (item.status != 'Aprovado')
+                    const PopupMenuItem(
+                      value: 'approve',
+                      child: Row(
+                        children: [
+                          Icon(Icons.check_circle, color: Colors.green, size: 18),
+                          SizedBox(width: 8),
+                          Text('Aprovar'),
+                        ],
                       ),
-                    )
-                  : Icon(Icons.picture_as_pdf, color: theme.colorScheme.primary, size: 20),
-              tooltip: 'Baixar PDF',
-              padding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-            ),
-            PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert, color: theme.colorScheme.onSurface.withValues(alpha: 0.4), size: 20),
-              padding: EdgeInsets.zero,
-              onSelected: (value) {
-                if (value == 'delete') {
-                  onDelete();
-                } else if (value == 'approve') {
-                  onStatusChange('Aprovado');
-                } else if (value == 'reject') {
-                  onStatusChange('Não Aprovado');
-                } else if (value == 'pending') {
-                  onStatusChange('Pendente');
-                }
-              },
-              tooltip: 'Opções',
-              itemBuilder: (context) => [
-                if (item.status != 'Aprovado')
+                    ),
+                  if (item.status != 'Não Aprovado')
+                    const PopupMenuItem(
+                      value: 'reject',
+                      child: Row(
+                        children: [
+                          Icon(Icons.cancel, color: Colors.red, size: 18),
+                          SizedBox(width: 8),
+                          Text('Não Aprovar'),
+                        ],
+                      ),
+                    ),
+                  if (item.status != 'Pendente')
+                    const PopupMenuItem(
+                      value: 'pending',
+                      child: Row(
+                        children: [
+                          Icon(Icons.schedule, color: Colors.orange, size: 18),
+                          SizedBox(width: 8),
+                          Text('Pendente'),
+                        ],
+                      ),
+                    ),
+                  const PopupMenuDivider(),
                   const PopupMenuItem(
-                    value: 'approve',
+                    value: 'delete',
                     child: Row(
                       children: [
-                        Icon(Icons.check_circle, color: Colors.green, size: 18),
+                        Icon(Icons.delete_outline, color: Colors.red, size: 18),
                         SizedBox(width: 8),
-                        Text('Aprovar'),
+                        Text('Excluir'),
                       ],
                     ),
                   ),
-                if (item.status != 'Não Aprovado')
-                  const PopupMenuItem(
-                    value: 'reject',
-                    child: Row(
-                      children: [
-                        Icon(Icons.cancel, color: Colors.red, size: 18),
-                        SizedBox(width: 8),
-                        Text('Não Aprovar'),
-                      ],
-                    ),
-                  ),
-                if (item.status != 'Pendente')
-                  const PopupMenuItem(
-                    value: 'pending',
-                    child: Row(
-                      children: [
-                        Icon(Icons.schedule, color: Colors.orange, size: 18),
-                        SizedBox(width: 8),
-                        Text('Pendente'),
-                      ],
-                    ),
-                  ),
-                const PopupMenuDivider(),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete_outline, color: Colors.red, size: 18),
-                      SizedBox(width: 8),
-                      Text('Excluir'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -2325,6 +2347,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   late final List<String> _initialDespesasValor;
   final Map<int, double> _initialQuantities = {};
   final Map<int, String> _initialQuantityStrings = {};
+  final List<InformacaoAdicionalItem> _initialInformacoesAdicionais = [];
 
   final Map<int, bool?> _opcoesExtrasEnabled = {};
   final Map<int, bool?> _initialOpcoesExtrasEnabled = {};
@@ -2337,7 +2360,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   final Map<int, FocusNode> _opcaoExtraStringFocusNodes = {};
   final Map<int, FocusNode> _opcaoExtraFloat1FocusNodes = {};
   final Map<int, FocusNode> _opcaoExtraFloat2FocusNodes = {};
-
+  
   final List<String> _formaPagamentoOptions = [
     'A COMBINAR',
     'BOLETO',
@@ -2423,7 +2446,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       _recalcularValorSugerido();
     });
   }
-
   void _recalcularValorSugerido() {
     if (_faixas.isEmpty) {
       _valorSugeridoLocal = null;
@@ -2437,24 +2459,14 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
 
     Map<String, dynamic>? faixaAplicavel;
     for (final faixa in _faixas) {
-      final custoAte = faixa['custoAte'];
-      if (custoAte == null) {
+      final dentroDoInicio = custoTotal >= (faixa['custoInicio'] as num);
+      final custoFim = faixa['custoFim'] as num?;
+      final dentroDoFim = custoFim == null || custoTotal <= custoFim;
+      
+      if (dentroDoInicio && dentroDoFim) {
         faixaAplicavel = faixa;
         break;
-      } else {
-        final custoAteDouble = (custoAte is int)
-            ? custoAte.toDouble()
-            : (custoAte as double);
-        if (custoTotal <= custoAteDouble) {
-          faixaAplicavel = faixa;
-          break;
-        }
       }
-    }
-
-    // fallback: última faixa
-    if (faixaAplicavel == null && _faixas.isNotEmpty) {
-      faixaAplicavel = _faixas.last;
     }
 
     if (faixaAplicavel == null) {
@@ -2462,16 +2474,18 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       return;
     }
 
-    final markup = (faixaAplicavel['markup'] is int)
-        ? (faixaAplicavel['markup'] as int).toDouble()
-        : faixaAplicavel['markup'] as double;
+    final margem = (faixaAplicavel['margem'] is int)
+    ? (faixaAplicavel['margem'] as int).toDouble()
+    : faixaAplicavel['margem'] as double;
 
-    final valorSugerido = custoTotal * (1 + markup / 100);
+    final valorSugerido = custoTotal * (1 + margem / 100);
     _valorSugeridoLocal = {
       'custoTotal': custoTotal,
-      'markup': markup,
+      'margem': margem,
       'valorSugerido': valorSugerido,
       'faixaId': faixaAplicavel['id'],
+      'custoInicio': faixaAplicavel['custoInicio'],
+      'custoFim': faixaAplicavel['custoFim'],
     };
   }
   
@@ -2479,7 +2493,10 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   ProdutoItem? _selectedProduto;
   final Map<int, TextEditingController> _quantityControllers = {};
   final Map<int, FocusNode> _quantityFocusNodes = {};
+  final List<InformacaoAdicionalItem> _informacoesAdicionais = [];
   bool _loading = true;
+  bool _faixasCarregadas = false;
+  bool _produtosCarregados = false;
   bool _isShowingDiscardDialog = false;
   String _produtoSearchQuery = '';
   String? _selectedFormaPagamento;
@@ -2493,6 +2510,12 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     }
     return value.toString();
   }
+
+  String _formatarData(DateTime data) {
+    return '${data.day.toString().padLeft(2, '0')}/${data.month.toString().padLeft(2, '0')}/${data.year} ${data.hour.toString().padLeft(2, '0')}:${data.minute.toString().padLeft(2, '0')}';
+  }
+
+  bool get _isAprovado => widget.initial?.status == 'Aprovado';
 
   @override
   void initState() {
@@ -2510,6 +2533,11 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     
     _initialDespesasDesc = widget.initial?.despesasAdicionais.map((d) => d.descricao).toList() ?? [];
     _initialDespesasValor = widget.initial?.despesasAdicionais.map((d) => d.valor.toStringAsFixed(2)).toList() ?? [];
+    
+    if (widget.initial != null && widget.initial!.informacoesAdicionais.isNotEmpty) {
+      _informacoesAdicionais.addAll(widget.initial!.informacoesAdicionais);
+      _initialInformacoesAdicionais.addAll(widget.initial!.informacoesAdicionais);
+    }
     
     if (widget.initial != null && widget.initial!.opcoesExtras.isNotEmpty) {
       for (final opcaoValor in widget.initial!.opcoesExtras) {
@@ -2669,7 +2697,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     }
   }
 
-   bool get _hasChanges {
+  bool get _hasChanges {
     if (_clienteCtrl.text.trim() != _initialCliente) return true;
     if (_numeroCtrl.text != _initialNumero) return true;
     
@@ -2697,7 +2725,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       if (entry.value.text != initialQty) return true;
     }
     
-    
     for (final key in {..._opcoesExtrasEnabled.keys, ..._initialOpcoesExtrasEnabled.keys}) {
       final initialEnabled = _initialOpcoesExtrasEnabled[key];
       final currentEnabled = _opcoesExtrasEnabled[key];
@@ -2723,6 +2750,14 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       }
     }
     
+    if (_informacoesAdicionais.length != _initialInformacoesAdicionais.length) return true;
+    for (int i = 0; i < _informacoesAdicionais.length; i++) {
+      if (i >= _initialInformacoesAdicionais.length) return true;
+      final current = _informacoesAdicionais[i];
+      final initial = _initialInformacoesAdicionais[i];
+      if (current.data != initial.data || current.descricao != initial.descricao) return true;
+    }
+    
     return false;
   }
 
@@ -2732,13 +2767,14 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       if (!mounted) return;
       setState(() {
         _faixas = faixas;
-        if (widget.initial?.valorSugerido != null) {
-          _valorSugeridoLocal = widget.initial!.valorSugerido;
-        } else {
-          _recalcularValorSugerido();
-        }
+        _faixasCarregadas = true;
       });
+      _tentarRecalcularValorInicial();
     } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _faixasCarregadas = true;
+      });
     }
   }
 
@@ -2749,6 +2785,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       setState(() {
         _produtos = produtos..sort((a, b) => a.nome.toLowerCase().compareTo(b.nome.toLowerCase()));
         _loading = false;
+        _produtosCarregados = true;
         if (widget.initial != null) {
           _selectedProduto = produtos.firstWhere(
             (p) => p.id == widget.initial!.produtoId,
@@ -2757,125 +2794,135 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
           _initializeQuantityControllers();
         }
       });
+      _tentarRecalcularValorInicial();
     } catch (e) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _produtosCarregados = true;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao carregar produtos: $e')),
       );
     }
   }
 
+  void _tentarRecalcularValorInicial() {
+    if (_faixasCarregadas && _produtosCarregados && _selectedProduto != null) {
+      _recalcularValorSugerido();
+    }
+  }
+
   void _initializeQuantityControllers() {
-  if (_selectedProduto == null) return;
-  
-  for (final controller in _opcaoExtraStringControllers.values) {
-    controller.dispose();
-  }
-  for (final controller in _opcaoExtraFloat1Controllers.values) {
-    controller.dispose();
-  }
-  for (final controller in _opcaoExtraFloat2Controllers.values) {
-    controller.dispose();
-  }
-  for (final focusNode in _opcaoExtraStringFocusNodes.values) {
-    focusNode.dispose();
-  }
-  for (final focusNode in _opcaoExtraFloat1FocusNodes.values) {
-    focusNode.dispose();
-  }
-  for (final focusNode in _opcaoExtraFloat2FocusNodes.values) {
-    focusNode.dispose();
-  }
-  
-  _opcaoExtraStringControllers.clear();
-  _opcaoExtraFloat1Controllers.clear();
-  _opcaoExtraFloat2Controllers.clear();
-  _opcaoExtraStringFocusNodes.clear();
-  _opcaoExtraFloat1FocusNodes.clear();
-  _opcaoExtraFloat2FocusNodes.clear();
-  _opcoesExtrasEnabled.clear();
-  
-  for (final mat in _selectedProduto!.materiais) {
-    final existingQty = widget.initial?.materiais
-        .firstWhere((m) => m.materialId == mat.materialId,
-            orElse: () => const OrcamentoMaterialItem(
-                id: 0,
-                materialId: 0,
-                materialNome: '',
-                materialUnidade: '',
-                materialCusto: 0,
-                quantidade: 0))
-        .quantidade ?? 0;
+    if (_selectedProduto == null) return;
     
-    final controller = TextEditingController(
-      text: existingQty > 0 ? _formatQuantity(existingQty) : ''
-    );
-    final focusNode = FocusNode();
+    for (final controller in _opcaoExtraStringControllers.values) {
+      controller.dispose();
+    }
+    for (final controller in _opcaoExtraFloat1Controllers.values) {
+      controller.dispose();
+    }
+    for (final controller in _opcaoExtraFloat2Controllers.values) {
+      controller.dispose();
+    }
+    for (final focusNode in _opcaoExtraStringFocusNodes.values) {
+      focusNode.dispose();
+    }
+    for (final focusNode in _opcaoExtraFloat1FocusNodes.values) {
+      focusNode.dispose();
+    }
+    for (final focusNode in _opcaoExtraFloat2FocusNodes.values) {
+      focusNode.dispose();
+    }
     
-    controller.addListener(_updateTotal);
-    focusNode.addListener(_onFieldFocusChange);
+    _opcaoExtraStringControllers.clear();
+    _opcaoExtraFloat1Controllers.clear();
+    _opcaoExtraFloat2Controllers.clear();
+    _opcaoExtraStringFocusNodes.clear();
+    _opcaoExtraFloat1FocusNodes.clear();
+    _opcaoExtraFloat2FocusNodes.clear();
+    _opcoesExtrasEnabled.clear();
     
-    _quantityControllers[mat.materialId] = controller;
-    _quantityFocusNodes[mat.materialId] = focusNode;
-  }
-  
-  for (final opcao in _selectedProduto!.opcoesExtras) {
-    final existingOpcao = widget.initial?.opcoesExtras.firstWhere(
-      (o) => o.produtoOpcaoId == opcao.id,
-      orElse: () => const OrcamentoOpcaoExtraItem(
-        id: 0,
-        produtoOpcaoId: 0,
-        nome: '',
-        tipo: TipoOpcaoExtra.stringFloat,
-        valorString: null,
-        valorFloat1: null,
-        valorFloat2: null,
-      ),
-    );
-    
-    if (existingOpcao != null && existingOpcao.id != 0) {
-      final hasValues = existingOpcao.valorString != null || 
-                       existingOpcao.valorFloat1 != null || 
-                       existingOpcao.valorFloat2 != null;
+    for (final mat in _selectedProduto!.materiais) {
+      final existingQty = widget.initial?.materiais
+          .firstWhere((m) => m.materialId == mat.materialId,
+              orElse: () => const OrcamentoMaterialItem(
+                  id: 0,
+                  materialId: 0,
+                  materialNome: '',
+                  materialUnidade: '',
+                  materialCusto: 0,
+                  quantidade: 0))
+          .quantidade ?? 0;
       
-      _opcoesExtrasEnabled[opcao.id] = hasValues;
+      final controller = TextEditingController(
+        text: existingQty > 0 ? _formatQuantity(existingQty) : ''
+      );
+      final focusNode = FocusNode();
       
-      if (hasValues) {
-        final stringCtrl = TextEditingController(text: existingOpcao.valorString ?? '');
+      controller.addListener(_updateTotal);
+      focusNode.addListener(_onFieldFocusChange);
+      
+      _quantityControllers[mat.materialId] = controller;
+      _quantityFocusNodes[mat.materialId] = focusNode;
+    }
+    
+    for (final opcao in _selectedProduto!.opcoesExtras) {
+      final existingOpcao = widget.initial?.opcoesExtras.firstWhere(
+        (o) => o.produtoOpcaoId == opcao.id,
+        orElse: () => const OrcamentoOpcaoExtraItem(
+          id: 0,
+          produtoOpcaoId: 0,
+          nome: '',
+          tipo: TipoOpcaoExtra.stringFloat,
+          valorString: null,
+          valorFloat1: null,
+          valorFloat2: null,
+        ),
+      );
+      
+      if (existingOpcao != null && existingOpcao.id != 0) {
+        final hasValues = existingOpcao.valorString != null || 
+                         existingOpcao.valorFloat1 != null || 
+                         existingOpcao.valorFloat2 != null;
         
-        final float1Ctrl = TextEditingController(
-          text: existingOpcao.valorFloat1 != null 
-              ? _formatQuantity(existingOpcao.valorFloat1!) 
-              : ''
-        );
-        final float2Ctrl = TextEditingController(
-          text: existingOpcao.valorFloat2 != null 
-              ? _formatQuantity(existingOpcao.valorFloat2!) 
-              : ''
-        );
+        _opcoesExtrasEnabled[opcao.id] = hasValues;
         
-        final stringFocus = FocusNode();
-        final float1Focus = FocusNode();
-        final float2Focus = FocusNode();
-        
-        stringCtrl.addListener(_updateTotal);
-        float1Ctrl.addListener(_updateTotal);
-        float2Ctrl.addListener(_updateTotal);
-        stringFocus.addListener(_onFieldFocusChange);
-        float1Focus.addListener(_onFieldFocusChange);
-        float2Focus.addListener(_onFieldFocusChange);
-        
-        _opcaoExtraStringControllers[opcao.id] = stringCtrl;
-        _opcaoExtraFloat1Controllers[opcao.id] = float1Ctrl;
-        _opcaoExtraFloat2Controllers[opcao.id] = float2Ctrl;
-        _opcaoExtraStringFocusNodes[opcao.id] = stringFocus;
-        _opcaoExtraFloat1FocusNodes[opcao.id] = float1Focus;
-        _opcaoExtraFloat2FocusNodes[opcao.id] = float2Focus;
+        if (hasValues) {
+          final stringCtrl = TextEditingController(text: existingOpcao.valorString ?? '');
+          
+          final float1Ctrl = TextEditingController(
+            text: existingOpcao.valorFloat1 != null 
+                ? _formatQuantity(existingOpcao.valorFloat1!) 
+                : ''
+          );
+          final float2Ctrl = TextEditingController(
+            text: existingOpcao.valorFloat2 != null 
+                ? _formatQuantity(existingOpcao.valorFloat2!) 
+                : ''
+          );
+          
+          final stringFocus = FocusNode();
+          final float1Focus = FocusNode();
+          final float2Focus = FocusNode();
+          
+          stringCtrl.addListener(_updateTotal);
+          float1Ctrl.addListener(_updateTotal);
+          float2Ctrl.addListener(_updateTotal);
+          stringFocus.addListener(_onFieldFocusChange);
+          float1Focus.addListener(_onFieldFocusChange);
+          float2Focus.addListener(_onFieldFocusChange);
+          
+          _opcaoExtraStringControllers[opcao.id] = stringCtrl;
+          _opcaoExtraFloat1Controllers[opcao.id] = float1Ctrl;
+          _opcaoExtraFloat2Controllers[opcao.id] = float2Ctrl;
+          _opcaoExtraStringFocusNodes[opcao.id] = stringFocus;
+          _opcaoExtraFloat1FocusNodes[opcao.id] = float1Focus;
+          _opcaoExtraFloat2FocusNodes[opcao.id] = float2Focus;
+        }
       }
     }
   }
-}
 
   @override
   void dispose() {
@@ -2938,7 +2985,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     super.dispose();
   }
 
-  /// Calcula a base: materiais + despesas adicionais + opções extras não-percentuais.
   double _calcularBasePercentual() {
     if (_selectedProduto == null) return 0.0;
 
@@ -2975,7 +3021,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
           base += horas * valorHora;
         }
       }
-      // PERCENTFLOAT propositalmente excluído — não entra na própria base
     }
 
     return base;
@@ -2984,10 +3029,8 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   double _calculateTotal() {
     if (_selectedProduto == null) return 0.0;
 
-    // Base completa = materiais + despesas + opções não-percentuais
     final basePercentual = _calcularBasePercentual();
 
-    // Soma das opções percentuais aplicadas sobre a base completa
     double totalPercentuais = 0.0;
     for (final opcao in _selectedProduto!.opcoesExtras) {
       final isEnabled = _opcoesExtrasEnabled[opcao.id] ?? false;
@@ -3034,6 +3077,251 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       _despesaDescFocusNodes.removeAt(index);
       _despesaValorFocusNodes.removeAt(index);
     });
+  }
+
+  Future<void> _adicionarInformacaoAdicional() async {
+    final descricaoController = TextEditingController();
+    final theme = Theme.of(context);
+
+    final resultado = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Adicionar Informação Adicional'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 300),
+          child: TextField(
+            controller: descricaoController,
+            decoration: const InputDecoration(
+              labelText: 'Descrição',
+              border: OutlineInputBorder(),
+              alignLabelWithHint: true,
+            ),
+            maxLines: 4,
+            textCapitalization: TextCapitalization.sentences,
+            autofocus: true,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: theme.colorScheme.onPrimary,
+            ),
+            onPressed: () {
+              if (descricaoController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Digite uma descrição'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(context, true);
+            },
+            child: const Text('Adicionar'),
+          ),
+        ],
+      ),
+    );
+
+    if (resultado == true) {
+      setState(() {
+        _informacoesAdicionais.add(
+          InformacaoAdicionalItem(
+            id: DateTime.now().millisecondsSinceEpoch,
+            data: DateTime.now(),
+            descricao: descricaoController.text.trim(),
+          ),
+        );
+      });
+    }
+  }
+
+  void _removerInformacaoAdicional(int index) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar Exclusão'),
+        content: const Text(
+          'Deseja realmente remover esta informação adicional?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _informacoesAdicionais.removeAt(index);
+              });
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Remover'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInformacoesAdicionaisSection() {
+    final theme = Theme.of(context);
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: theme.dividerColor.withValues(alpha: 0.1),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Informações Adicionais',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                      color: _isAprovado 
+                          ? theme.colorScheme.onSurface 
+                          : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
+                  ),
+                  if (_isAprovado)
+                    ExcludeFocus(
+                      child: IconButton(
+                        onPressed: _adicionarInformacaoAdicional,
+                        icon: const Icon(Icons.add_circle_outline, size: 18),
+                        tooltip: 'Adicionar informação',
+                        style: IconButton.styleFrom(
+                          foregroundColor: theme.colorScheme.primary,
+                          padding: EdgeInsets.zero,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (_informacoesAdicionais.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _isAprovado
+                              ? 'Clique no + para adicionar informações'
+                              : 'Nenhuma informação adicional registrada',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ...List.generate(_informacoesAdicionais.length, (index) {
+                  final info = _informacoesAdicionais[index];
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Icon(
+                            Icons.event_note,
+                            size: 16,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _formatarData(info.data),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                info.descricao,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontSize: 11,
+                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (_isAprovado) ...[
+                          const SizedBox(width: 6),
+                          ExcludeFocus(
+                            child: IconButton(
+                              onPressed: () => _removerInformacaoAdicional(index),
+                              icon: const Icon(Icons.delete_outline, size: 16),
+                              color: theme.colorScheme.error,
+                              tooltip: 'Remover',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                }),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   String? _validateNumeroOrcamento(String? value) {
@@ -3109,174 +3397,184 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   }
 
   void _save() {
-    if (!_formKey.currentState!.validate()) return;
-
-    final materiais = <OrcamentoMaterialItem>[];
+  if (_isAprovado) {
+    final now = DateTime.now();
+    final item = widget.initial!.copyWith(
+      informacoesAdicionais: _informacoesAdicionais,
+      updatedAt: now,
+    );
     
-    for(final mat in _selectedProduto!.materiais) {
-      final controller = _quantityControllers[mat.materialId];
-      if (controller == null) continue;
-      
-      final qty = controller.text.trim();
-      if (qty.isEmpty) continue;
-      
-      final qtyValue = double.tryParse(qty.replaceAll(',', '.'));
-      if (qtyValue == null || qtyValue < 0) continue;
-      
-      materiais.add(OrcamentoMaterialItem(
-        id: widget.initial?.materiais
-                .firstWhere((m) => m.materialId == mat.materialId,
-                    orElse: () => const OrcamentoMaterialItem(
-                        id: 0,
-                        materialId: 0,
-                        materialNome: '',
-                        materialUnidade: '',
-                        materialCusto: 0,
-                        quantidade: 0))
-                .id ??
-            0,
-        materialId: mat.materialId,
-        materialNome: mat.materialNome,
-        materialUnidade: mat.materialUnidade,
-        materialCusto: mat.materialCusto,
-        quantidade: qtyValue,
-      ));
-    }
+    Navigator.of(context).pop(item);
+    return;
+  }
+  
+  if (!_formKey.currentState!.validate()) return;
 
-    final despesas = <DespesaAdicionalItem>[];
-    for (int i = 0; i < _despesaDescControllers.length; i++) {
-      final desc = _despesaDescControllers[i].text.trim();
-      final valorText = _despesaValorControllers[i].text.trim();
-      
-      if (desc.isEmpty || valorText.isEmpty) continue;
-      
-      final valor = double.tryParse(valorText.replaceAll(',', '.'));
-      if (valor == null || valor <= 0) continue;
-      
-      despesas.add(DespesaAdicionalItem(
-        id: widget.initial != null && i < widget.initial!.despesasAdicionais.length 
-            ? widget.initial!.despesasAdicionais[i].id 
-            : 0,
-        descricao: desc,
-        valor: valor,
-      ));
-    }
+  final materiais = <OrcamentoMaterialItem>[];
+  
+  for(final mat in _selectedProduto!.materiais) {
+    final controller = _quantityControllers[mat.materialId];
+    if (controller == null) continue;
+    
+    final qty = controller.text.trim();
+    if (qty.isEmpty) continue;
+    
+    final qtyValue = double.tryParse(qty.replaceAll(',', '.'));
+    if (qtyValue == null || qtyValue < 0) continue;
+    
+    materiais.add(OrcamentoMaterialItem(
+      id: widget.initial?.materiais
+              .firstWhere((m) => m.materialId == mat.materialId,
+                  orElse: () => const OrcamentoMaterialItem(
+                      id: 0,
+                      materialId: 0,
+                      materialNome: '',
+                      materialUnidade: '',
+                      materialCusto: 0,
+                      quantidade: 0))
+              .id ??
+          0,
+      materialId: mat.materialId,
+      materialNome: mat.materialNome,
+      materialUnidade: mat.materialUnidade,
+      materialCusto: mat.materialCusto,
+      quantidade: qtyValue,
+    ));
+  }
 
-    final opcoesExtras = <OrcamentoOpcaoExtraItem>[];
-    for (final opcao in _selectedProduto!.opcoesExtras) {
-      final isEnabled = _opcoesExtrasEnabled[opcao.id];
-      
-      final existingId = widget.initial?.opcoesExtras
-          .firstWhere(
-            (o) => o.produtoOpcaoId == opcao.id,
-            orElse: () => const OrcamentoOpcaoExtraItem(
-              id: 0,
-              produtoOpcaoId: 0,
-              nome: '',
-              tipo: TipoOpcaoExtra.stringFloat,
-              valorString: null,
-              valorFloat1: null,
-              valorFloat2: null,
-            ),
-          )
-          .id ?? 0;
-      
-      // CORREÇÃO: Salvar opções marcadas como "Não" com valores null
-      if (isEnabled == false) {
-        opcoesExtras.add(OrcamentoOpcaoExtraItem(
-          id: existingId,
-          produtoOpcaoId: opcao.id,
-          nome: opcao.nome,
-          tipo: opcao.tipo,
-          valorString: null,
-          valorFloat1: null,
-          valorFloat2: null,
-        ));
-        continue;
-      }
-      
-      // Se não foi selecionado (null), pular
-      if (isEnabled == null) continue;
-      
-      final stringCtrl = _opcaoExtraStringControllers[opcao.id];
-      final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id];
-      final float2Ctrl = _opcaoExtraFloat2Controllers[opcao.id];
-      
-      String? valorString;
-      double? valorFloat1;
-      double? valorFloat2;
-      
-      if (opcao.tipo == TipoOpcaoExtra.stringFloat) {
-        valorString = stringCtrl?.text.trim();
-        final float1Text = float1Ctrl?.text.trim() ?? '';
-        if (float1Text.isNotEmpty) {
-          valorFloat1 = double.tryParse(float1Text.replaceAll(',', '.'));
-        }
-      } else if (opcao.tipo == TipoOpcaoExtra.floatFloat) {
-        final float1Text = float1Ctrl?.text.trim() ?? '';
-        final float2Text = float2Ctrl?.text.trim() ?? '';
-        
-        if (float1Text.isNotEmpty) {
-          valorFloat1 = double.tryParse(float1Text.replaceAll(',', '.'));
-        }
-        if (float2Text.isNotEmpty) {
-          valorFloat2 = double.tryParse(float2Text.replaceAll(',', '.'));
-        }
-      } else if (opcao.tipo == TipoOpcaoExtra.percentFloat) {
-        final float1Text = float1Ctrl?.text.trim() ?? '';
-        
-        if (float1Text.isNotEmpty) {
-          valorFloat1 = double.tryParse(float1Text.replaceAll(',', '.'));
-        }
-      }
-      
+  final despesas = <DespesaAdicionalItem>[];
+  for (int i = 0; i < _despesaDescControllers.length; i++) {
+    final desc = _despesaDescControllers[i].text.trim();
+    final valorText = _despesaValorControllers[i].text.trim();
+    
+    if (desc.isEmpty || valorText.isEmpty) continue;
+    
+    final valor = double.tryParse(valorText.replaceAll(',', '.'));
+    if (valor == null || valor <= 0) continue;
+    
+    despesas.add(DespesaAdicionalItem(
+      id: widget.initial != null && i < widget.initial!.despesasAdicionais.length 
+          ? widget.initial!.despesasAdicionais[i].id 
+          : 0,
+      descricao: desc,
+      valor: valor,
+    ));
+  }
+
+  final opcoesExtras = <OrcamentoOpcaoExtraItem>[];
+  for (final opcao in _selectedProduto!.opcoesExtras) {
+    final isEnabled = _opcoesExtrasEnabled[opcao.id];
+    
+    final existingId = widget.initial?.opcoesExtras
+        .firstWhere(
+          (o) => o.produtoOpcaoId == opcao.id,
+          orElse: () => const OrcamentoOpcaoExtraItem(
+            id: 0,
+            produtoOpcaoId: 0,
+            nome: '',
+            tipo: TipoOpcaoExtra.stringFloat,
+            valorString: null,
+            valorFloat1: null,
+            valorFloat2: null,
+          ),
+        )
+        .id ?? 0;
+    
+    if (isEnabled == false) {
       opcoesExtras.add(OrcamentoOpcaoExtraItem(
         id: existingId,
         produtoOpcaoId: opcao.id,
         nome: opcao.nome,
         tipo: opcao.tipo,
-        valorString: valorString,
-        valorFloat1: valorFloat1,
-        valorFloat2: valorFloat2,
+        valorString: null,
+        valorFloat1: null,
+        valorFloat2: null,
       ));
+      continue;
     }
-
-    final formaPagamento = _formaPagamentoCtrl.text.trim();
-    final condicoesPagamento = _selectedCondicaoPagamento == 'OUTROS'
-        ? _condicoesPagamentoOutrasCtrl.text.trim()
-        : _condicoesPagamentoCtrl.text.trim();
-
-    final now = DateTime.now();
-    final item = (widget.initial ??
-            OrcamentoItem(
-              id: 0,
-              cliente: '',
-              numero: 0,
-              status: 'Pendente',
-              produtoId: 0,
-              produtoNome: '',
-              materiais: [],
-              formaPagamento: '',
-              condicoesPagamento: '',
-              prazoEntrega: '',
-              createdAt: now,
-              updatedAt: now,
-            ))
-        .copyWith(
-      cliente: _clienteCtrl.text.trim(),
-      numero: int.parse(_numeroCtrl.text.trim()),
-      produtoId: _selectedProduto!.id,
-      produtoNome: _selectedProduto!.nome,
-      materiais: materiais,
-      despesasAdicionais: despesas,
-      opcoesExtras: opcoesExtras,
-      formaPagamento: formaPagamento,
-      condicoesPagamento: condicoesPagamento,
-      prazoEntrega: _prazoEntregaCtrl.text.trim(),
-    );
-
-    Navigator.of(context).pop(item);
+    
+    if (isEnabled == null) continue;
+    
+    final stringCtrl = _opcaoExtraStringControllers[opcao.id];
+    final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id];
+    final float2Ctrl = _opcaoExtraFloat2Controllers[opcao.id];
+    
+    String? valorString;
+    double? valorFloat1;
+    double? valorFloat2;
+    
+    if (opcao.tipo == TipoOpcaoExtra.stringFloat) {
+      valorString = stringCtrl?.text.trim();
+      final float1Text = float1Ctrl?.text.trim() ?? '';
+      if (float1Text.isNotEmpty) {
+        valorFloat1 = double.tryParse(float1Text.replaceAll(',', '.'));
+      }
+    } else if (opcao.tipo == TipoOpcaoExtra.floatFloat) {
+      final float1Text = float1Ctrl?.text.trim() ?? '';
+      final float2Text = float2Ctrl?.text.trim() ?? '';
+      
+      if (float1Text.isNotEmpty) {
+        valorFloat1 = double.tryParse(float1Text.replaceAll(',', '.'));
+      }
+      if (float2Text.isNotEmpty) {
+        valorFloat2 = double.tryParse(float2Text.replaceAll(',', '.'));
+      }
+    } else if (opcao.tipo == TipoOpcaoExtra.percentFloat) {
+      final float1Text = float1Ctrl?.text.trim() ?? '';
+      
+      if (float1Text.isNotEmpty) {
+        valorFloat1 = double.tryParse(float1Text.replaceAll(',', '.'));
+      }
+    }
+    
+    opcoesExtras.add(OrcamentoOpcaoExtraItem(
+      id: existingId,
+      produtoOpcaoId: opcao.id,
+      nome: opcao.nome,
+      tipo: opcao.tipo,
+      valorString: valorString,
+      valorFloat1: valorFloat1,
+      valorFloat2: valorFloat2,
+    ));
   }
+
+  final formaPagamento = _formaPagamentoCtrl.text.trim();
+  final condicoesPagamento = _selectedCondicaoPagamento == 'OUTROS'
+      ? _condicoesPagamentoOutrasCtrl.text.trim()
+      : _condicoesPagamentoCtrl.text.trim();
+
+  final now = DateTime.now();
+  final item = (widget.initial ??
+          OrcamentoItem(
+            id: 0,
+            cliente: '',
+            numero: 0,
+            status: 'Pendente',
+            produtoId: 0,
+            produtoNome: '',
+            materiais: [],
+            formaPagamento: '',
+            condicoesPagamento: '',
+            prazoEntrega: '',
+            createdAt: now,
+            updatedAt: now,
+          ))
+      .copyWith(
+    cliente: _clienteCtrl.text.trim(),
+    numero: int.parse(_numeroCtrl.text.trim()),
+    produtoId: _selectedProduto!.id,
+    produtoNome: _selectedProduto!.nome,
+    materiais: materiais,
+    despesasAdicionais: despesas,
+    opcoesExtras: opcoesExtras,
+    informacoesAdicionais: _informacoesAdicionais,
+    formaPagamento: formaPagamento,
+    condicoesPagamento: condicoesPagamento,
+    prazoEntrega: _prazoEntregaCtrl.text.trim(),
+  );
+
+  Navigator.of(context).pop(item);
+}
 
   List<ProdutoItem> get _filteredProdutos {
     if (_produtoSearchQuery.isEmpty) {
@@ -3301,7 +3599,13 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         const SizedBox(height: 16),
         Text(
           'Outros',
-          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600, 
+            fontSize: 12,
+            color: _isAprovado 
+                ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
+                : theme.colorScheme.onSurface,
+          ),
         ),
         const SizedBox(height: 8),
         ..._selectedProduto!.opcoesExtras.map((opcao) {
@@ -3375,6 +3679,9 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                       style: theme.textTheme.bodySmall?.copyWith(
                                         fontWeight: FontWeight.w600,
                                         fontSize: 12,
+                                        color: _isAprovado 
+                                            ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
+                                            : theme.colorScheme.onSurface,
                                       ),
                                     ),
                                   ],
@@ -3411,6 +3718,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                         Row(
                           children: [
                             _buildToggleButton('Não', isEnabled == false, () {
+                              if (_isAprovado) return;
                               setState(() {
                                 _opcoesExtrasEnabled[opcao.id] = false;
                                 _opcaoExtraStringControllers[opcao.id]?.clear();
@@ -3421,6 +3729,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                             }),
                             const SizedBox(width: 6),
                             _buildToggleButton('Sim', isEnabled == true, () {
+                              if (_isAprovado) return;
                               setState(() {
                                 _opcoesExtrasEnabled[opcao.id] = true;
                                 
@@ -3473,6 +3782,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                               child: TextFormField(
                                 controller: _opcaoExtraStringControllers[opcao.id],
                                 focusNode: _opcaoExtraStringFocusNodes[opcao.id],
+                                enabled: !_isAprovado,
                                 style: const TextStyle(fontSize: 12),
                                 decoration: const InputDecoration(
                                   labelText: 'Descrição',
@@ -3490,6 +3800,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                               child: TextFormField(
                                 controller: _opcaoExtraFloat1Controllers[opcao.id],
                                 focusNode: _opcaoExtraFloat1FocusNodes[opcao.id],
+                                enabled: !_isAprovado,
                                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                 inputFormatters: [
                                   FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
@@ -3522,6 +3833,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                               child: TextFormField(
                                 controller: _opcaoExtraFloat1Controllers[opcao.id],
                                 focusNode: _opcaoExtraFloat1FocusNodes[opcao.id],
+                                enabled: !_isAprovado,
                                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                 inputFormatters: [
                                   FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
@@ -3551,6 +3863,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                               child: TextFormField(
                                 controller: _opcaoExtraFloat2Controllers[opcao.id],
                                 focusNode: _opcaoExtraFloat2FocusNodes[opcao.id],
+                                enabled: !_isAprovado,
                                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                 inputFormatters: [
                                   FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
@@ -3584,6 +3897,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                             TextFormField(
                               controller: _opcaoExtraFloat1Controllers[opcao.id],
                               focusNode: _opcaoExtraFloat1FocusNodes[opcao.id],
+                              enabled: !_isAprovado,
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
                               inputFormatters: [
                                 FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
@@ -3612,7 +3926,6 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                             
                             Builder(
                               builder: (context) {
-                                // Base = materiais + despesas + opções não-percentuais
                                 final totalBase = _calcularBasePercentual();
 
                                 final percentualCtrl = _opcaoExtraFloat1Controllers[opcao.id];
@@ -3701,105 +4014,112 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   }
 
   Widget _buildDespesasSection() {
-    final theme = Theme.of(context);
-    
-    return FormField<bool>(
-      initialValue: _despesasAdicionais,
-      validator: (value) {
-        if (value == null) {
-          return 'Selecione Sim ou Não';
-        }
-        if (value == true && _despesaDescControllers.isEmpty) {
-          return 'Adicione pelo menos uma despesa';
-        }
-        return null;
-      },
-      builder: (formFieldState) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: formFieldState.hasError
-                      ? theme.colorScheme.error
-                      : _despesasAdicionais == true
-                          ? theme.colorScheme.primary.withValues(alpha: 0.3)
-                          : theme.dividerColor.withValues(alpha: 0.1),
-                ),
+  final theme = Theme.of(context);
+  
+  return FormField<bool>(
+    initialValue: _despesasAdicionais,
+    validator: (value) {
+      if (value == null) {
+        return 'Selecione Sim ou Não';
+      }
+      if (value == true && _despesaDescControllers.isEmpty) {
+        return 'Adicione pelo menos uma despesa';
+      }
+      return null;
+    },
+    builder: (formFieldState) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: formFieldState.hasError
+                    ? theme.colorScheme.error
+                    : theme.dividerColor.withValues(alpha: 0.1),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Despesas Adicionais',
-                          style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Despesas Adicionais',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600, 
+                          fontSize: 12,
+                          color: _isAprovado 
+                              ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
+                              : theme.colorScheme.onSurface,
                         ),
-                      ),
-                      Row(
-                        children: [
-                          _buildToggleButton('Não', _despesasAdicionais == false, () {
-                            setState(() {
-                              _despesasAdicionais = false;
-                              for (final controller in _despesaDescControllers) {
-                                controller.dispose();
-                              }
-                              for (final controller in _despesaValorControllers) {
-                                controller.dispose();
-                              }
-                              for (final focusNode in _despesaDescFocusNodes) {
-                                focusNode.dispose();
-                              }
-                              for (final focusNode in _despesaValorFocusNodes) {
-                                focusNode.dispose();
-                              }
-                              _despesaDescControllers.clear();
-                              _despesaValorControllers.clear();
-                              _despesaDescFocusNodes.clear();
-                              _despesaValorFocusNodes.clear();
-                            });
-                            formFieldState.didChange(false);
-                          }),
-                          const SizedBox(width: 6),
-                          _buildToggleButton('Sim', _despesasAdicionais == true, () {
-                            setState(() {
-                              _despesasAdicionais = true;
-                            });
-                            formFieldState.didChange(true);
-                          }),
-                        ],
-                      ),
-                    ],
-                  ),
-                  if (formFieldState.hasError) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      formFieldState.errorText ?? '',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.error,
-                        fontSize: 10,
                       ),
                     ),
-                  ],
-                  if (_despesasAdicionais == true) ...[
-                    const SizedBox(height: 8),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Lista de Despesas',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 11,
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                          ),
+                        _buildToggleButton('Não', _despesasAdicionais == false, () {
+                          if (_isAprovado) return;
+                          setState(() {
+                            _despesasAdicionais = false;
+                            for (final controller in _despesaDescControllers) {
+                              controller.dispose();
+                            }
+                            for (final controller in _despesaValorControllers) {
+                              controller.dispose();
+                            }
+                            for (final focusNode in _despesaDescFocusNodes) {
+                              focusNode.dispose();
+                            }
+                            for (final focusNode in _despesaValorFocusNodes) {
+                              focusNode.dispose();
+                            }
+                            _despesaDescControllers.clear();
+                            _despesaValorControllers.clear();
+                            _despesaDescFocusNodes.clear();
+                            _despesaValorFocusNodes.clear();
+                          });
+                          formFieldState.didChange(false);
+                        }),
+                        const SizedBox(width: 6),
+                        _buildToggleButton('Sim', _despesasAdicionais == true, () {
+                          if (_isAprovado) return;
+                          setState(() {
+                            _despesasAdicionais = true;
+                          });
+                          formFieldState.didChange(true);
+                        }),
+                      ],
+                    ),
+                  ],
+                ),
+                if (formFieldState.hasError) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    formFieldState.errorText ?? '',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+                if (_despesasAdicionais == true) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Lista de Despesas',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 11,
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                         ),
+                      ),
+                      if (!_isAprovado)
                         ExcludeFocus(
                           child: IconButton(
                             onPressed: _adicionarDespesa,
@@ -3812,92 +4132,97 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                             visualDensity: VisualDensity.compact,
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    if (_despesaDescControllers.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(10),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  if (_despesaDescControllers.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            size: 16,
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _isAprovado 
+                                  ? 'Nenhuma despesa adicional' 
+                                  : 'Clique no + para adicionar despesas',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    ...List.generate(_despesaDescControllers.length, (index) {
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
                         ),
                         child: Row(
                           children: [
-                            Icon(
-                              Icons.info_outline,
-                              size: 16,
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                            Expanded(
+                              flex: 2,
+                              child: TextFormField(
+                                controller: _despesaDescControllers[index],
+                                focusNode: _despesaDescFocusNodes[index],
+                                enabled: !_isAprovado,
+                                style: const TextStyle(fontSize: 12),
+                                decoration: const InputDecoration(
+                                  labelText: 'Descrição',
+                                  isDense: true,
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                ),
+                                validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe a descrição' : null,
+                              ),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: Text(
-                                'Clique no + para adicionar despesas',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                                  fontSize: 11,
+                              child: TextFormField(
+                                controller: _despesaValorControllers[index],
+                                focusNode: _despesaValorFocusNodes[index],
+                                enabled: !_isAprovado,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                ],
+                                style: const TextStyle(fontSize: 12),
+                                decoration: const InputDecoration(
+                                  labelText: 'Valor',
+                                  isDense: true,
+                                  prefixText: 'R\$ ',
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                                 ),
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) {
+                                    return 'Informe o valor';
+                                  }
+                                  final value = double.tryParse(v.replaceAll(',', '.'));
+                                  if (value == null || value <= 0) {
+                                    return 'Inválido';
+                                  }
+                                  return null;
+                                },
                               ),
                             ),
-                          ],
-                        ),
-                      )
-                    else
-                      ...List.generate(_despesaDescControllers.length, (index) {
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 6),
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 2,
-                                child: TextFormField(
-                                  controller: _despesaDescControllers[index],
-                                  focusNode: _despesaDescFocusNodes[index],
-                                  style: const TextStyle(fontSize: 12),
-                                  decoration: const InputDecoration(
-                                    labelText: 'Descrição',
-                                    isDense: true,
-                                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                  ),
-                                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe a descrição' : null,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _despesaValorControllers[index],
-                                  focusNode: _despesaValorFocusNodes[index],
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                  ],
-                                  style: const TextStyle(fontSize: 12),
-                                  decoration: const InputDecoration(
-                                    labelText: 'Valor',
-                                    isDense: true,
-                                    prefixText: 'R\$ ',
-                                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                                  ),
-                                  validator: (v) {
-                                    if (v == null || v.trim().isEmpty) {
-                                      return 'Informe o valor';
-                                    }
-                                    final value = double.tryParse(v.replaceAll(',', '.'));
-                                    if (value == null || value <= 0) {
-                                      return 'Inválido';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 6),
+                            const SizedBox(width: 6),
+                            if (!_isAprovado)
                               ExcludeFocus(
                                 child: IconButton(
                                   onPressed: () => _removerDespesa(index),
@@ -3908,19 +4233,19 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                   constraints: const BoxConstraints(),
                                 ),
                               ),
-                            ],
-                          ),
-                        );
-                      }),
-                  ],
+                          ],
+                        ),
+                      );
+                    }),
                 ],
-              ),
+              ],
             ),
-          ],
-        );
-      },
-    );
-  }
+          ),
+        ],
+      );
+    },
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -3987,12 +4312,18 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                     children: [
                                       Text(
                                         'Produtos',
-                                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                                        style: theme.textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                          color: _isAprovado 
+                                              ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
+                                              : theme.colorScheme.onSurface,
+                                        ),
                                       ),
                                       const SizedBox(height: 12),
                                       TextField(
                                         controller: _produtoSearchCtrl,
                                         focusNode: _produtoSearchFocusNode,
+                                        enabled: !_isAprovado,
                                         decoration: InputDecoration(
                                           hintText: 'Buscar...',
                                           isDense: true,
@@ -4036,8 +4367,8 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                               
                                               return Padding(
                                                 padding: const EdgeInsets.only(bottom: 6),
-                                                child: InkWell(
-                                                  onTap: () {
+                                                child: ClickableInk(
+                                                  onTap: _isAprovado ? null : () {
                                                     setState(() {
                                                       _selectedProduto = produto;
                                                       for (final controller in _quantityControllers.values) {
@@ -4057,13 +4388,21 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                     padding: const EdgeInsets.all(10),
                                                     decoration: BoxDecoration(
                                                       color: isSelected
-                                                          ? theme.colorScheme.primary.withValues(alpha: 0.15)
-                                                          : theme.colorScheme.surface,
+                                                          ? (_isAprovado 
+                                                              ? theme.colorScheme.primary.withValues(alpha: 0.08)
+                                                              : theme.colorScheme.primary.withValues(alpha: 0.15))
+                                                          : (_isAprovado 
+                                                              ? theme.colorScheme.surface.withValues(alpha: 0.5)
+                                                              : theme.colorScheme.surface),
                                                       borderRadius: BorderRadius.circular(8),
                                                       border: Border.all(
                                                         color: isSelected
-                                                            ? theme.colorScheme.primary.withValues(alpha: 0.5)
-                                                            : theme.dividerColor.withValues(alpha: 0.1),
+                                                            ? (_isAprovado 
+                                                                ? theme.colorScheme.primary.withValues(alpha: 0.3)
+                                                                : theme.colorScheme.primary.withValues(alpha: 0.5))
+                                                            : (_isAprovado 
+                                                                ? theme.dividerColor.withValues(alpha: 0.05)
+                                                                : theme.dividerColor.withValues(alpha: 0.1)),
                                                         width: isSelected ? 2 : 1,
                                                       ),
                                                     ),
@@ -4073,13 +4412,19 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                           padding: const EdgeInsets.all(6),
                                                           decoration: BoxDecoration(
                                                             color: isSelected
-                                                                ? theme.colorScheme.primary.withValues(alpha: 0.2)
-                                                                : theme.colorScheme.primary.withValues(alpha: 0.1),
+                                                                ? (_isAprovado 
+                                                                    ? theme.colorScheme.primary.withValues(alpha: 0.1)
+                                                                    : theme.colorScheme.primary.withValues(alpha: 0.2))
+                                                                : (_isAprovado 
+                                                                    ? theme.colorScheme.primary.withValues(alpha: 0.05)
+                                                                    : theme.colorScheme.primary.withValues(alpha: 0.1)),
                                                             borderRadius: BorderRadius.circular(6),
                                                           ),
                                                           child: Icon(
                                                             Icons.inventory_2_outlined,
-                                                            color: theme.colorScheme.primary,
+                                                            color: _isAprovado 
+                                                                ? theme.colorScheme.primary.withValues(alpha: 0.4)
+                                                                : theme.colorScheme.primary,
                                                             size: 16,
                                                           ),
                                                         ),
@@ -4092,6 +4437,9 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                                 style: theme.textTheme.bodySmall?.copyWith(
                                                                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                                                                   fontSize: 12,
+                                                                  color: _isAprovado 
+                                                                      ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
+                                                                      : theme.colorScheme.onSurface,
                                                                 ),
                                                                 maxLines: 2,
                                                                 overflow: TextOverflow.ellipsis,
@@ -4099,7 +4447,9 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                               Text(
                                                                 '${produto.materiais.length} materiais',
                                                                 style: theme.textTheme.bodySmall?.copyWith(
-                                                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                                                  color: _isAprovado 
+                                                                      ? theme.colorScheme.onSurface.withValues(alpha: 0.3)
+                                                                      : theme.colorScheme.onSurface.withValues(alpha: 0.5),
                                                                   fontSize: 10,
                                                                 ),
                                                               ),
@@ -4168,6 +4518,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                 child: TextFormField(
                                                   controller: _clienteCtrl,
                                                   focusNode: _clienteFocusNode,
+                                                  enabled: !_isAprovado,
                                                   style: const TextStyle(fontSize: 13),
                                                   decoration: const InputDecoration(
                                                     labelText: 'Cliente',
@@ -4182,6 +4533,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                 child: TextFormField(
                                                   controller: _numeroCtrl,
                                                   focusNode: _numeroFocusNode,
+                                                  enabled: !_isAprovado,
                                                   keyboardType: TextInputType.number,
                                                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                                                   style: const TextStyle(fontSize: 13),
@@ -4286,6 +4638,9 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                       style: theme.textTheme.titleSmall?.copyWith(
                                                         fontWeight: FontWeight.w600,
                                                         fontSize: 12,
+                                                        color: _isAprovado 
+                                                            ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
+                                                            : theme.colorScheme.onSurface,
                                                       ),
                                                     ),
                                                   ),
@@ -4301,6 +4656,9 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                       style: theme.textTheme.titleSmall?.copyWith(
                                                         fontWeight: FontWeight.w600,
                                                         fontSize: 12,
+                                                        color: _isAprovado 
+                                                            ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
+                                                            : theme.colorScheme.onSurface,
                                                       ),
                                                     ),
                                                   ),
@@ -4316,6 +4674,9 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                       style: theme.textTheme.titleSmall?.copyWith(
                                                         fontWeight: FontWeight.w600,
                                                         fontSize: 12,
+                                                        color: _isAprovado 
+                                                            ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
+                                                            : theme.colorScheme.onSurface,
                                                       ),
                                                     ),
                                                   ),
@@ -4363,13 +4724,18 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                                       style: theme.textTheme.bodySmall?.copyWith(
                                                                         fontWeight: FontWeight.w600,
                                                                         fontSize: 11,
+                                                                        color: _isAprovado 
+                                                                            ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
+                                                                            : theme.colorScheme.onSurface,
                                                                       ),
                                                                     ),
                                                                     Text(
                                                                       '${currency.format(mat.materialCusto)} / ${mat.materialUnidade}',
                                                                       style: theme.textTheme.bodySmall?.copyWith(
                                                                         fontSize: 10,
-                                                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                                                        color: _isAprovado 
+                                                                            ? theme.colorScheme.onSurface.withValues(alpha: 0.3)
+                                                                            : theme.colorScheme.onSurface.withValues(alpha: 0.5),
                                                                       ),
                                                                     ),
                                                                   ],
@@ -4408,6 +4774,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                       child: TextFormField(
                                                         controller: controller,
                                                         focusNode: focusNode,
+                                                        enabled: !_isAprovado,
                                                         keyboardType: TextInputType.numberWithOptions(
                                                           decimal: mat.materialUnidade == 'Kg',
                                                         ),
@@ -4440,7 +4807,9 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                         currency.format(total),
                                                         style: theme.textTheme.bodySmall?.copyWith(
                                                           fontWeight: FontWeight.bold,
-                                                          color: theme.colorScheme.primary,
+                                                          color: _isAprovado 
+                                                              ? theme.colorScheme.primary.withValues(alpha: 0.4)
+                                                              : theme.colorScheme.primary,
                                                           fontSize: 11,
                                                         ),
                                                         textAlign: TextAlign.right,
@@ -4464,19 +4833,30 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                   child: DropdownButtonFormField<String>(
                                                     initialValue: _selectedFormaPagamento,
                                                     focusNode: _formaPagamentoFocusNode,
-                                                    decoration: const InputDecoration(
+                                                    decoration: InputDecoration(
                                                       labelText: 'Forma de Pagamento',
+                                                      labelStyle: _isAprovado 
+                                                          ? TextStyle(
+                                                              color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                                                            )
+                                                          : null,
                                                       isDense: true,
-                                                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                                     ),
-                                                    style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface), // ← ADICIONADO
+                                                    style: TextStyle(
+                                                      fontSize: 13, 
+                                                      color: _isAprovado 
+                                                          ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
+                                                          : theme.colorScheme.onSurface,
+                                                    ),
                                                     items: _formaPagamentoOptions.map((option) {
                                                       return DropdownMenuItem<String>(
                                                         value: option,
+                                                        enabled: !_isAprovado,
                                                         child: Text(option),
                                                       );
                                                     }).toList(),
-                                                    onChanged: (value) {
+                                                    onChanged: _isAprovado ? null : (value) {
                                                       setState(() {
                                                         _selectedFormaPagamento = value;
                                                         if (value != null) {
@@ -4495,19 +4875,30 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                       DropdownButtonFormField<String>(
                                                         initialValue: _selectedCondicaoPagamento,
                                                         focusNode: _condicoesPagamentoFocusNode,
-                                                        decoration: const InputDecoration(
+                                                        decoration: InputDecoration(
                                                           labelText: 'Condições de Pagamento',
+                                                          labelStyle: _isAprovado 
+                                                              ? TextStyle(
+                                                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                                                                )
+                                                              : null,
                                                           isDense: true,
-                                                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                                         ),
-                                                        style: TextStyle(fontSize: 13, color: theme.colorScheme.onSurface), // ← ADICIONADO
+                                                        style: TextStyle(
+                                                          fontSize: 13, 
+                                                          color: _isAprovado 
+                                                              ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
+                                                              : theme.colorScheme.onSurface,
+                                                        ),
                                                         items: _condicoesPagamentoOptions.map((option) {
                                                           return DropdownMenuItem<String>(
                                                             value: option,
+                                                            enabled: !_isAprovado,
                                                             child: Text(option),
                                                           );
                                                         }).toList(),
-                                                        onChanged: (value) {
+                                                        onChanged: _isAprovado ? null : (value) {
                                                           setState(() {
                                                             _selectedCondicaoPagamento = value;
                                                             if (value != null && value != 'OUTROS') {
@@ -4525,6 +4916,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                         TextFormField(
                                                           controller: _condicoesPagamentoOutrasCtrl,
                                                           focusNode: _condicoesPagamentoOutrasFocusNode,
+                                                          enabled: !_isAprovado,
                                                           style: const TextStyle(fontSize: 13),
                                                           decoration: const InputDecoration(
                                                             labelText: 'Especifique as condições',
@@ -4546,6 +4938,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                             TextFormField(
                                               controller: _prazoEntregaCtrl,
                                               focusNode: _prazoEntregaFocusNode,
+                                              enabled: !_isAprovado,
                                               style: const TextStyle(fontSize: 13),
                                               decoration: const InputDecoration(
                                                 labelText: 'Prazo de Entrega',
@@ -4554,6 +4947,8 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                               ),
                                               validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe o prazo' : null,
                                             ),
+                                            
+                                            _buildInformacoesAdicionaisSection(),
                                           ],
                                         ],
                                       ),
@@ -4627,7 +5022,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                         ),
                                                       ),
                                                       Text(
-                                                        'Markup de ${_valorSugeridoLocal!['markup']}% aplicado',
+                                                        'Margem de ${_valorSugeridoLocal!['margem']}% aplicada',
                                                         style: theme.textTheme.bodySmall?.copyWith(
                                                           color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                                                           fontSize: 10,
@@ -4667,8 +5062,16 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                             Expanded(
                                               child: ExcludeFocus(
                                                 child: ElevatedButton(
+                                                  style: ElevatedButton.styleFrom(
+                                                    backgroundColor: theme.colorScheme.primary,
+                                                    foregroundColor: theme.colorScheme.onPrimary,
+                                                  ),
                                                   onPressed: _save,
-                                                  child: Text(widget.initial == null ? 'Finalizar' : 'Salvar'),
+                                                  child: Text(
+                                                    _isAprovado 
+                                                        ? 'Salvar' 
+                                                        : (widget.initial == null ? 'Finalizar' : 'Salvar')
+                                                  ),
                                                 ),
                                               ),
                                             ),
@@ -4695,19 +5098,23 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     final theme = Theme.of(context);
     
     return ExcludeFocus(
-      child: InkWell(
-        onTap: onTap,
+      child: ClickableInk(
+        onTap: _isAprovado ? null : onTap,
         borderRadius: BorderRadius.circular(6),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
           decoration: BoxDecoration(
             color: selected 
-                ? theme.colorScheme.primary 
+                ? (_isAprovado 
+                    ? theme.colorScheme.primary.withValues(alpha: 0.3)
+                    : theme.colorScheme.primary)
                 : theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(6),
             border: Border.all(
               color: selected 
-                  ? theme.colorScheme.primary 
+                  ? (_isAprovado 
+                      ? theme.colorScheme.primary.withValues(alpha: 0.3)
+                      : theme.colorScheme.primary)
                   : theme.dividerColor.withValues(alpha: 0.3),
             ),
           ),
@@ -4716,8 +5123,12 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
             style: TextStyle(
               fontSize: 11,
               color: selected 
-                  ? theme.colorScheme.onPrimary 
-                  : theme.colorScheme.onSurface,
+                  ? (_isAprovado 
+                      ? theme.colorScheme.primary.withValues(alpha: 0.5)
+                      : theme.colorScheme.onPrimary)
+                  : (_isAprovado 
+                      ? theme.colorScheme.onSurface.withValues(alpha: 0.3)
+                      : theme.colorScheme.onSurface),
               fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
             ),
           ),

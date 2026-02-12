@@ -6,6 +6,54 @@ enum TipoOpcaoExtra {
   percentFloat,
 }
 
+class InformacaoAdicionalItem {
+  final int id;
+  final DateTime data;
+  final String descricao;
+
+  const InformacaoAdicionalItem({
+    required this.id,
+    required this.data,
+    required this.descricao,
+  });
+
+  InformacaoAdicionalItem copyWith({
+    int? id,
+    DateTime? data,
+    String? descricao,
+  }) =>
+      InformacaoAdicionalItem(
+        id: id ?? this.id,
+        data: data ?? this.data,
+        descricao: descricao ?? this.descricao,
+      );
+
+  Map<String, Object?> toMap() => {
+        'data': data.toIso8601String(),
+        'descricao': descricao,
+      };
+
+  static InformacaoAdicionalItem? tryFromMap(Map<String, Object?> map) {
+    try {
+      final id = map['id'];
+      final data = map['data'];
+      final descricao = map['descricao'];
+
+      if (id == null || data == null || descricao is! String) {
+        return null;
+      }
+
+      return InformacaoAdicionalItem(
+        id: int.parse(id.toString()),
+        data: DateTime.parse(data.toString()).toLocal(),
+        descricao: descricao.trim(),
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+}
+
 class DespesaAdicionalItem {
   final int id;
   final String descricao;
@@ -470,6 +518,7 @@ class OrcamentoItem {
   final List<OrcamentoMaterialItem> materiais;
   final List<DespesaAdicionalItem> despesasAdicionais;
   final List<OrcamentoOpcaoExtraItem> opcoesExtras;
+  final List<InformacaoAdicionalItem> informacoesAdicionais;
   final String formaPagamento;
   final String condicoesPagamento;
   final String prazoEntrega;
@@ -487,6 +536,7 @@ class OrcamentoItem {
     required this.materiais,
     this.despesasAdicionais = const [],
     this.opcoesExtras = const [],
+    this.informacoesAdicionais = const [],
     required this.formaPagamento,
     required this.condicoesPagamento,
     required this.prazoEntrega,
@@ -553,6 +603,7 @@ class OrcamentoItem {
     List<OrcamentoMaterialItem>? materiais,
     List<DespesaAdicionalItem>? despesasAdicionais,
     List<OrcamentoOpcaoExtraItem>? opcoesExtras,
+    List<InformacaoAdicionalItem>? informacoesAdicionais,
     String? formaPagamento,
     String? condicoesPagamento,
     String? prazoEntrega,
@@ -570,6 +621,7 @@ class OrcamentoItem {
       materiais: materiais ?? this.materiais,
       despesasAdicionais: despesasAdicionais ?? this.despesasAdicionais,
       opcoesExtras: opcoesExtras ?? this.opcoesExtras,
+      informacoesAdicionais: informacoesAdicionais ?? this.informacoesAdicionais,
       formaPagamento: formaPagamento ?? this.formaPagamento,
       condicoesPagamento: condicoesPagamento ?? this.condicoesPagamento,
       prazoEntrega: prazoEntrega ?? this.prazoEntrega,
@@ -587,6 +639,7 @@ class OrcamentoItem {
         'materiais': materiais.map((e) => e.toMap()).toList(),
         'despesasAdicionais': despesasAdicionais.map((e) => e.toMap()).toList(),
         'opcoesExtras': opcoesExtras.map((e) => e.toMap()).toList(),
+        'informacoesAdicionais': informacoesAdicionais.map((e) => e.toMap()).toList(),
         'formaPagamento': formaPagamento,
         'condicoesPagamento': condicoesPagamento,
         'prazoEntrega': prazoEntrega,
@@ -603,6 +656,7 @@ class OrcamentoItem {
       final materiaisData = map['materiais'];
       final despesasData = map['despesasAdicionais'];
       final opcoesExtrasData = map['opcoesExtras'];
+      final informacoesAdicionaisData = map['informacoesAdicionais'];
       final createdAt = map['createdAt'];
       final updatedAt = map['updatedAt'];
       final formaPagamento = map['formaPagamento'];
@@ -651,6 +705,16 @@ class OrcamentoItem {
         }
       }
 
+      final informacoesAdicionais = <InformacaoAdicionalItem>[];
+      if (informacoesAdicionaisData is List) {
+        for (final i in informacoesAdicionaisData) {
+          if (i is Map) {
+            final item = InformacaoAdicionalItem.tryFromMap(i.map((k, v) => MapEntry(k.toString(), v)));
+            if (item != null) informacoesAdicionais.add(item);
+          }
+        }
+      }
+
       Map<String, dynamic>? valorSugerido;
       if (valorSugeridoData != null && valorSugeridoData is Map) {
         valorSugerido = Map<String, dynamic>.from(valorSugeridoData);
@@ -666,12 +730,13 @@ class OrcamentoItem {
         materiais: materiais,
         despesasAdicionais: despesasAdicionais,
         opcoesExtras: opcoesExtras,
+        informacoesAdicionais: informacoesAdicionais,
         formaPagamento: formaPagamento.trim(),
         condicoesPagamento: condicoesPagamento.trim(),
         prazoEntrega: prazoEntrega.trim(),
         createdAt: createdAt != null ? DateTime.parse(createdAt.toString()) : DateTime.now(),
         updatedAt: updatedAt != null ? DateTime.parse(updatedAt.toString()) : DateTime.now(),
-        valorSugerido: valorSugerido, // ADICIONE ESTA LINHA
+        valorSugerido: valorSugerido,
       );
     } catch (e) {
       return null;

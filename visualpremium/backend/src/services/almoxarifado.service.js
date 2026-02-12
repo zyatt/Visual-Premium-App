@@ -5,7 +5,7 @@ class AlmoxarifadoService {
   async listar() {
       return prisma.almoxarifado.findMany({
         include: {
-          orcamento: {
+          pedido: {
             include: {
               produto: true,
               materiais: {
@@ -44,7 +44,7 @@ class AlmoxarifadoService {
       const almoxarifado = await prisma.almoxarifado.findUnique({
         where: { id },
         include: {
-          orcamento: {
+          pedido: {
             include: {
               produto: true,
               materiais: {
@@ -82,11 +82,11 @@ class AlmoxarifadoService {
       return almoxarifado;
     }
 
-    async buscarPorOrcamento(orcamentoId) {
+    async buscarPorPedido(pedidoId) {
       return prisma.almoxarifado.findUnique({
-        where: { orcamentoId },
+        where: { pedidoId },
         include: {
-          orcamento: {
+          pedido: {
             include: {
               produto: true,
               materiais: {
@@ -118,10 +118,10 @@ class AlmoxarifadoService {
       });
     }
 
-    async salvar(orcamentoId, data, user) {
+    async salvar(pedidoId, data, user) {
       try {
-        const orcamento = await prisma.orcamento.findUnique({
-          where: { id: orcamentoId },
+        const pedido = await prisma.pedido.findUnique({
+          where: { id: pedidoId },
           include: {
             produto: true,
             materiais: {
@@ -138,48 +138,46 @@ class AlmoxarifadoService {
           }
         });
 
-        if (!orcamento) {
-          throw new Error('Orçamento não encontrado');
+        if (!pedido) {
+          throw new Error('Pedido não encontrado');
         }
 
-        if (orcamento.status !== 'Aprovado') {
-          throw new Error('Apenas orçamentos aprovados podem ser registrados no almoxarifado');
+        if (pedido.status !== 'Concluído') {
+          throw new Error('Apenas pedidos concluídos podem ter almoxarifado registrado');
         }
 
         const { materiais, despesasAdicionais, opcoesExtras, observacoes } = data;
 
-        // Validar materiais
         const materiaisValidados = [];
         if (materiais && materiais.length > 0) {
           for (const m of materiais) {
-            const materialOrcamento = orcamento.materiais.find(om => om.materialId === m.materialId);
-            if (!materialOrcamento) {
-              throw new Error(`Material ${m.materialId} não pertence ao orçamento`);
+            const materialPedido = pedido.materiais.find(pm => pm.materialId === m.materialId);
+            if (!materialPedido) {
+              throw new Error(`Material ${m.materialId} não pertence ao pedido`);
             }
 
             const custoRealizado = parseFloat(m.custoRealizado);
             if (isNaN(custoRealizado) || custoRealizado < 0) {
-              throw new Error(`Custo realizado inválido para material ${materialOrcamento.material.nome}`);
+              throw new Error(`Custo realizado inválido para material ${materialPedido.material.nome}`);
             }
 
             materiaisValidados.push({
               materialId: m.materialId,
-              quantidade: materialOrcamento.quantidade,
+              quantidade: materialPedido.quantidade,
               custoRealizado: custoRealizado,
             });
           }
         }
 
-        // Validar despesas adicionais
         const despesasValidadas = [];
         if (despesasAdicionais && despesasAdicionais.length > 0) {
           for (const d of despesasAdicionais) {
-            const despesaOrcamento = orcamento.despesasAdicionais.find(
-              od => od.descricao === d.descricao
+            const despesaPedido = pedido.despesasAdicionais.find(
+              pd => pd.descricao === d.descricao
             );
 
-            if (!despesaOrcamento) {
-              throw new Error(`Despesa "${d.descricao}" não pertence ao orçamento`);
+            if (!despesaPedido) {
+              throw new Error(`Despesa "${d.descricao}" não pertence ao pedido`);
             }
 
             const valorRealizado = parseFloat(d.valorRealizado);
@@ -198,12 +196,12 @@ class AlmoxarifadoService {
         const opcoesExtrasValidadas = [];
         if (opcoesExtras && opcoesExtras.length > 0) {
           for (const o of opcoesExtras) {
-            const opcaoOrcamento = orcamento.opcoesExtras.find(
-              oo => oo.produtoOpcaoId === o.produtoOpcaoId
+            const opcaoPedido = pedido.opcoesExtras.find(
+              po => po.produtoOpcaoId === o.produtoOpcaoId
             );
 
-            if (!opcaoOrcamento) {
-              throw new Error(`Opção extra ${o.produtoOpcaoId} não pertence ao orçamento`);
+            if (!opcaoPedido) {
+              throw new Error(`Opção extra ${o.produtoOpcaoId} não pertence ao pedido`);
             }
 
             const opcaoData = {
@@ -228,7 +226,7 @@ class AlmoxarifadoService {
         }
 
         const almoxarifadoExistente = await prisma.almoxarifado.findUnique({
-          where: { orcamentoId }
+          where: { pedidoId }
         });
 
         let almoxarifado;
@@ -264,7 +262,7 @@ class AlmoxarifadoService {
                 } : undefined,
               },
               include: {
-                orcamento: {
+                pedido: {
                   include: {
                     produto: true,
                     materiais: { include: { material: true } },
@@ -285,14 +283,14 @@ class AlmoxarifadoService {
             acao: 'EDITAR',
             entidade: 'ALMOXARIFADO',
             entidadeId: almoxarifado.id,
-            descricao: `Atualizou dados do almoxarifado do orçamento #${orcamento.numero}`,
-            detalhes: { orcamentoId, materiaisCount: materiaisValidados.length }
+            descricao: `Atualizou dados do almoxarifado do pedido ${pedido.numero ? `#${pedido.numero}` : `(ID: ${pedido.id})`}`,
+            detalhes: { pedidoId, materiaisCount: materiaisValidados.length }
           });
         } else {
           // Criar novo
           almoxarifado = await prisma.almoxarifado.create({
             data: {
-              orcamentoId,
+              pedidoId,
               status: 'Não Realizado',
               observacoes: observacoes || null,
               materiais: {
@@ -306,7 +304,7 @@ class AlmoxarifadoService {
               } : undefined,
             },
             include: {
-              orcamento: {
+              pedido: {
                 include: {
                   produto: true,
                   materiais: { include: { material: true } },
@@ -326,8 +324,8 @@ class AlmoxarifadoService {
             acao: 'CRIAR',
             entidade: 'ALMOXARIFADO',
             entidadeId: almoxarifado.id,
-            descricao: `Criou registro de almoxarifado para orçamento #${orcamento.numero}`,
-            detalhes: { orcamentoId, materiaisCount: materiaisValidados.length }
+            descricao: `Criou registro de almoxarifado para pedido ${pedido.numero ? `#${pedido.numero}` : `(ID: ${pedido.id})`}`,
+            detalhes: { pedidoId, materiaisCount: materiaisValidados.length }
           });
         }
 
@@ -337,12 +335,12 @@ class AlmoxarifadoService {
       }
     }  
   // MÉTODO FINALIZAR CORRIGIDO
-  async finalizar(orcamentoId, user) {
+  async finalizar(pedidoId, user) {
     try {
       const almoxarifado = await prisma.almoxarifado.findUnique({
-        where: { orcamentoId },
+        where: { pedidoId },
         include: {
-          orcamento: {
+          pedido: {
             include: {
               produto: true,
               materiais: {
@@ -381,9 +379,9 @@ class AlmoxarifadoService {
         throw new Error('Almoxarifado já finalizado');
       }
 
-      const totalOrcadoMateriais = this._calcularTotalMateriais(almoxarifado.orcamento.materiais);
-      const totalOrcadoDespesas = this._calcularTotalDespesas(almoxarifado.orcamento.despesasAdicionais);
-      const totalOrcadoOpcoesExtras = this._calcularTotalOpcoesExtras(almoxarifado.orcamento.opcoesExtras);
+      const totalOrcadoMateriais = this._calcularTotalMateriais(almoxarifado.pedido.materiais);
+      const totalOrcadoDespesas = this._calcularTotalDespesas(almoxarifado.pedido.despesasAdicionais);
+      const totalOrcadoOpcoesExtras = this._calcularTotalOpcoesExtras(almoxarifado.pedido.opcoesExtras);
       const totalOrcado = totalOrcadoMateriais + totalOrcadoDespesas + totalOrcadoOpcoesExtras;
 
       const totalRealizadoMateriais = this._calcularTotalMateriaisRealizados(almoxarifado.materiais);
@@ -410,7 +408,7 @@ class AlmoxarifadoService {
         ? (diferencaTotal / totalOrcado) * 100 
         : 0;
 
-      const analiseDetalhada = this._gerarAnaliseDetalhada(almoxarifado.orcamento, almoxarifado);
+      const analiseDetalhada = this._gerarAnaliseDetalhada(almoxarifado.pedido, almoxarifado);
 
       const resultado = await prisma.$transaction(async (tx) => {
         const almoxarifadoAtualizado = await tx.almoxarifado.update({
@@ -453,7 +451,7 @@ class AlmoxarifadoService {
             include: {
               almoxarifado: {
                 include: {
-                  orcamento: {
+                  pedido: {
                     include: {
                       produto: true
                     }
@@ -487,7 +485,7 @@ class AlmoxarifadoService {
             include: {
               almoxarifado: {
                 include: {
-                  orcamento: {
+                  pedido: {
                     include: {
                       produto: true
                     }
@@ -510,9 +508,9 @@ class AlmoxarifadoService {
         acao: 'FINALIZAR',
         entidade: 'ALMOXARIFADO',
         entidadeId: almoxarifado.id,
-        descricao: `Finalizou almoxarifado do orçamento #${almoxarifado.orcamento.numero} e gerou relatório comparativo`,
+        descricao: `Finalizou almoxarifado do pedido ${almoxarifado.pedido.numero ? `#${almoxarifado.pedido.numero}` : `(ID: ${almoxarifado.pedido.id})`} e gerou relatório comparativo`,
         detalhes: {
-          orcamentoId,
+          pedidoId,
           totalOrcado,
           totalRealizado,
           diferencaTotal,
@@ -574,7 +572,7 @@ class AlmoxarifadoService {
   }
 
   // Gerar análise detalhada
-  _gerarAnaliseDetalhada(orcamento, almoxarifado) {
+  _gerarAnaliseDetalhada(pedido, almoxarifado) {
     const analise = {
       materiais: [],
       despesas: [],
@@ -584,20 +582,20 @@ class AlmoxarifadoService {
     const EPSILON = 0.0001;
 
     // Análise de materiais
-    for (const materialOrc of orcamento.materiais) {
-      const materialAlm = almoxarifado.materiais.find(m => m.materialId === materialOrc.materialId);
+    for (const materialPed of pedido.materiais) {
+      const materialAlm = almoxarifado.materiais.find(m => m.materialId === materialPed.materialId);
       
-      const valorOrcado = materialOrc.custo * materialOrc.quantidade;
+      const valorOrcado = materialPed.custo * materialPed.quantidade;
       const valorRealizado = materialAlm ? materialAlm.custoRealizado : 0;
       const diferenca = valorRealizado - valorOrcado;
       const percentual = Math.abs(valorOrcado) > EPSILON ? (diferenca / valorOrcado) * 100 : 0;
 
       analise.materiais.push({
-        materialId: materialOrc.materialId,
-        materialNome: materialOrc.material.nome,
-        quantidade: materialOrc.quantidade,
-        unidade: materialOrc.material.unidade,
-        custoUnitarioOrcado: materialOrc.custo,
+        materialId: materialPed.materialId,
+        materialNome: materialPed.material.nome,
+        quantidade: materialPed.quantidade,
+        unidade: materialPed.material.unidade,
+        custoUnitarioOrcado: materialPed.custo,
         valorOrcado,
         custoRealizadoTotal: valorRealizado,
         diferenca,
@@ -607,18 +605,18 @@ class AlmoxarifadoService {
     }
 
     // Análise de despesas
-    for (const despesaOrc of orcamento.despesasAdicionais) {
+    for (const despesaPed of pedido.despesasAdicionais) {
       const despesaAlm = almoxarifado.despesasAdicionais.find(
-        d => d.descricao === despesaOrc.descricao
+        d => d.descricao === despesaPed.descricao
       );
       
-      const valorOrcado = despesaOrc.valor;
+      const valorOrcado = despesaPed.valor;
       const valorRealizado = despesaAlm ? despesaAlm.valorRealizado : 0;
       const diferenca = valorRealizado - valorOrcado;
       const percentual = Math.abs(valorOrcado) > EPSILON ? (diferenca / valorOrcado) * 100 : 0;
 
       analise.despesas.push({
-        descricao: despesaOrc.descricao,
+        descricao: despesaPed.descricao,
         valorOrcado,
         valorRealizado,
         diferenca,
@@ -628,24 +626,24 @@ class AlmoxarifadoService {
     }
 
     // Análise de opções extras
-    for (const opcaoOrc of orcamento.opcoesExtras) {
+    for (const opcaoPed of pedido.opcoesExtras) {
       const opcaoAlm = almoxarifado.opcoesExtras.find(
-        o => o.produtoOpcaoId === opcaoOrc.produtoOpcaoId
+        o => o.produtoOpcaoId === opcaoPed.produtoOpcaoId
       );
       
       let valorOrcado = 0;
       let valorRealizado = 0;
 
-      if (opcaoOrc.produtoOpcao.tipo === 'STRINGFLOAT') {
-        valorOrcado = opcaoOrc.valorFloat1 || 0;
+      if (opcaoPed.produtoOpcao.tipo === 'STRINGFLOAT') {
+        valorOrcado = opcaoPed.valorFloat1 || 0;
         valorRealizado = opcaoAlm ? (opcaoAlm.valorFloat1 || 0) : 0;
-      } else if (opcaoOrc.produtoOpcao.tipo === 'FLOATFLOAT') {
-        valorOrcado = (opcaoOrc.valorFloat1 || 0) * (opcaoOrc.valorFloat2 || 0);
+      } else if (opcaoPed.produtoOpcao.tipo === 'FLOATFLOAT') {
+        valorOrcado = (opcaoPed.valorFloat1 || 0) * (opcaoPed.valorFloat2 || 0);
         valorRealizado = opcaoAlm 
           ? ((opcaoAlm.valorFloat1 || 0) * (opcaoAlm.valorFloat2 || 0))
           : 0;
-      } else if (opcaoOrc.produtoOpcao.tipo === 'PERCENTFLOAT') {
-        valorOrcado = ((opcaoOrc.valorFloat1 || 0) / 100) * (opcaoOrc.valorFloat2 || 0);
+      } else if (opcaoPed.produtoOpcao.tipo === 'PERCENTFLOAT') {
+        valorOrcado = ((opcaoPed.valorFloat1 || 0) / 100) * (opcaoPed.valorFloat2 || 0);
         valorRealizado = opcaoAlm 
           ? (((opcaoAlm.valorFloat1 || 0) / 100) * (opcaoAlm.valorFloat2 || 0))
           : 0;
@@ -655,8 +653,8 @@ class AlmoxarifadoService {
       const percentual = Math.abs(valorOrcado) > EPSILON ? (diferenca / valorOrcado) * 100 : 0;
 
       analise.opcoesExtras.push({
-        nome: opcaoOrc.produtoOpcao.nome,
-        tipo: opcaoOrc.produtoOpcao.tipo,
+        nome: opcaoPed.produtoOpcao.nome,
+        tipo: opcaoPed.produtoOpcao.tipo,
         valorOrcado,
         valorRealizado,
         diferenca,
@@ -674,7 +672,7 @@ class AlmoxarifadoService {
       include: {
         almoxarifado: {
           include: {
-            orcamento: {
+            pedido: {
               include: {
                 produto: true
               }
@@ -695,7 +693,7 @@ class AlmoxarifadoService {
       include: {
         almoxarifado: {
           include: {
-            orcamento: {
+            pedido: {
               include: {
                 produto: true
               }
@@ -721,7 +719,7 @@ class AlmoxarifadoService {
       include: {
         almoxarifado: {
           include: {
-            orcamento: {
+            pedido: {
               include: {
                 produto: true
               }

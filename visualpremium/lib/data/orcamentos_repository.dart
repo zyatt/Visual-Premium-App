@@ -243,8 +243,7 @@ class OrcamentosApiRepository {
 
   Future<PedidoItem> updatePedido(PedidoItem item) async {
     final url = Uri.parse('$baseUrl/pedidos/${item.id}');
-    final headers = await _getHeaders();
-    
+    final headers = await _getHeaders();   
     final response = await http.put(
       url,
       headers: headers,
@@ -347,11 +346,11 @@ class OrcamentosApiRepository {
     }
   }
 
-  // ===== NOVOS MÉTODOS PARA ALMOXARIFADO =====
+  // ===== MÉTODOS PARA ALMOXARIFADO (AGORA VINCULADO A PEDIDOS) =====
 
-  Future<Map<String, dynamic>?> fetchAlmoxarifadoPorOrcamento(int orcamentoId) async {
+  Future<Map<String, dynamic>?> fetchAlmoxarifadoPorPedido(int pedidoId) async {
     try {
-      final url = Uri.parse('$baseUrl/almoxarifado/orcamento/$orcamentoId');
+      final url = Uri.parse('$baseUrl/almoxarifado/pedido/$pedidoId');
       final headers = await _getHeaders();
       final response = await http.get(url, headers: headers);
 
@@ -377,13 +376,13 @@ class OrcamentosApiRepository {
   }
 
   Future<void> salvarAlmoxarifado(
-    int orcamentoId,
+    int pedidoId,
     List<Map<String, dynamic>> materiais,
     List<Map<String, dynamic>> despesas,
     List<Map<String, dynamic>> opcoesExtras,
   ) async {
     try {
-      final url = Uri.parse('$baseUrl/almoxarifado/orcamento/$orcamentoId');
+      final url = Uri.parse('$baseUrl/almoxarifado/pedido/$pedidoId');
       final headers = await _getHeaders();
       
       final response = await http.post(
@@ -416,9 +415,9 @@ class OrcamentosApiRepository {
     }
   }
 
-  Future<void> finalizarAlmoxarifado(int orcamentoId) async {
+  Future<void> finalizarAlmoxarifado(int pedidoId) async {
     try {
-      final url = Uri.parse('$baseUrl/almoxarifado/orcamento/$orcamentoId/finalizar');
+      final url = Uri.parse('$baseUrl/almoxarifado/pedido/$pedidoId/finalizar');
       final headers = await _getHeaders();
       
       final response = await http.post(url, headers: headers);
@@ -569,7 +568,6 @@ class OrcamentosApiRepository {
         throw Exception('$errorMessage (${response.statusCode})');
       }
     } catch (e) {
-      print('❌ Erro ao baixar PDF: $e');
       if (e is Exception) {
         rethrow;
       }

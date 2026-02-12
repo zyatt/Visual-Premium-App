@@ -34,21 +34,21 @@ class AlmoxarifadoController {
     }
   }
 
-  async buscarPorOrcamento(req, res) {
+  async buscarPorPedido(req, res) {
     try {
-      const { orcamentoId } = req.params;
-      const almoxarifado = await almoxarifadoService.buscarPorOrcamento(parseInt(orcamentoId));
+      const { pedidoId } = req.params;
+      const almoxarifado = await almoxarifadoService.buscarPorPedido(parseInt(pedidoId));
       
       if (!almoxarifado) {
         return res.status(404).json({ 
-          error: 'Almoxarifado não encontrado para este orçamento',
-          message: 'Almoxarifado não encontrado para este orçamento'
+          error: 'Almoxarifado não encontrado para este pedido',
+          message: 'Almoxarifado não encontrado para este pedido'
         });
       }
       
       return res.status(200).json(almoxarifado);
     } catch (error) {
-      console.error('Erro ao buscar almoxarifado por orçamento:', error);
+      console.error('Erro ao buscar almoxarifado por pedido:', error);
       return res.status(500).json({ 
         error: 'Erro ao buscar almoxarifado',
         message: error.message 
@@ -58,9 +58,9 @@ class AlmoxarifadoController {
 
   async salvar(req, res) {
     try {
-      const { orcamentoId } = req.params;
+      const { pedidoId } = req.params;
       const almoxarifado = await almoxarifadoService.salvar(
-        parseInt(orcamentoId),
+        parseInt(pedidoId),
         req.body,
         req.user
       );
@@ -72,7 +72,7 @@ class AlmoxarifadoController {
         error.message.includes('não encontrado') ||
         error.message.includes('não pertence') ||
         error.message.includes('inválido') ||
-        error.message.includes('Apenas orçamentos aprovados')
+        error.message.includes('Apenas pedidos concluídos')
       ) {
         return res.status(400).json({ 
           error: error.message,
@@ -89,9 +89,9 @@ class AlmoxarifadoController {
 
   async finalizar(req, res) {
     try {
-      const { orcamentoId } = req.params;
+      const { pedidoId } = req.params;
       const resultado = await almoxarifadoService.finalizar(
-        parseInt(orcamentoId),
+        parseInt(pedidoId),
         req.user
       );
       return res.status(200).json(resultado);

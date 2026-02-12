@@ -5,6 +5,7 @@
   import 'package:visualpremium/data/materials_repository.dart';
   import 'package:visualpremium/models/product_item.dart';
   import 'package:visualpremium/models/material_item.dart';
+  import 'package:visualpremium/widgets/clickable_ink.dart';
   import 'package:visualpremium/widgets/product_avisos_section.dart';
   import 'package:visualpremium/theme.dart';
 
@@ -783,7 +784,7 @@
                             _EmptyProductsState(
                               hasSearch: _searchQuery.isNotEmpty || _filters.hasActiveFilters,
                               onCreate: () => _showProductEditor(null),
-                            )
+                          )
                           else
                             ExcludeFocus(
                               child: ListView.separated(
@@ -1203,6 +1204,10 @@
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: theme.colorScheme.onPrimary,
+                        ),
                         onPressed: () {
                           Navigator.of(context).pop(
                             ProductFilters(
@@ -1337,7 +1342,7 @@
     Widget build(BuildContext context) {
       final theme = Theme.of(context);
       
-      return InkWell(
+      return ClickableInk(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.sm),
         child: Container(
@@ -1412,124 +1417,115 @@
     Widget build(BuildContext context) {
       final theme = Theme.of(context);
       
-      return InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          decoration: BoxDecoration(
-            color: theme.cardTheme.color,
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(
-              color: theme.dividerColor.withValues(alpha: 0.1),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.secondary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+      return Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: ClickableInk(
+          onTap: onTap,
+          splashColor: Colors.transparent,
+          hoverColor: theme.colorScheme.primary.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.secondary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.inventory_2_outlined,
+                    color: theme.colorScheme.secondary,
+                    size: 20,
+                  ),
                 ),
-                child: Icon(
-                  Icons.inventory_2_outlined,
-                  color: theme.colorScheme.secondary,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.name,
-                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Text(
-                          '${item.materials.length} ${item.materials.length == 1 ? 'material' : 'materiais'}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                          ),
-                        ),
-                        if (item.opcoesExtras.isNotEmpty) ...[
+                const SizedBox(width: 24),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.name,
+                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
                           Text(
-                            ' • ',
+                            '${item.materials.length} ${item.materials.length == 1 ? 'material' : 'materiais'}',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                             ),
                           ),
-                          Text(
-                            '${item.opcoesExtras.length} ${item.opcoesExtras.length == 1 ? 'Outro' : 'Outros'}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                            ),
-                          ),
-                        ],
-                        if (item.avisos.isNotEmpty) ...[
-                          Text(
-                            ' • ',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                            ),
-                          ),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.warning_amber_rounded,
-                                size: 14,
-                                color: theme.colorScheme.error.withValues(alpha: 0.7),
+                          if (item.opcoesExtras.isNotEmpty) ...[
+                            Text(
+                              ' • ',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                               ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${item.avisos.length} ${item.avisos.length == 1 ? 'aviso' : 'avisos'}',
-                                style: theme.textTheme.bodySmall?.copyWith(
+                            ),
+                            Text(
+                              '${item.opcoesExtras.length} ${item.opcoesExtras.length == 1 ? 'Outro' : 'Outros'}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                              ),
+                            ),
+                          ],
+                          if (item.avisos.isNotEmpty) ...[
+                            Text(
+                              ' • ',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.warning_amber_rounded,
+                                  size: 14,
                                   color: theme.colorScheme.error.withValues(alpha: 0.7),
-                                  fontWeight: FontWeight.w500,
                                 ),
-                              ),
-                            ],
-                          ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${item.avisos.length} ${item.avisos.length == 1 ? 'aviso' : 'avisos'}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.error.withValues(alpha: 0.7),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.more_vert, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
+                  onSelected: (value) {
+                    if (value == 'delete') {
+                      onDelete();
+                    }
+                  },
+                  tooltip: 'Opções',
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                          SizedBox(width: 8),
+                          Text('Excluir'),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              ),
-              PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
-                onSelected: (value) {
-                  if (value == 'delete') {
-                    onDelete();
-                  }
-                },
-                tooltip: 'Opções',
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'delete',
-                    child: Row(
-                      children: [
-                        Icon(Icons.delete_outline, color: Colors.red, size: 20),
-                        SizedBox(width: 8),
-                        Text('Excluir'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );
@@ -1593,7 +1589,12 @@
             ),
             const SizedBox(width: 16),
             ExcludeFocus(
-              child: ElevatedButton.icon(onPressed: onCreate, icon: const Icon(Icons.add), label: const Text('Cadastrar')),
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                ),
+                onPressed: onCreate, icon: const Icon(Icons.add), label: const Text('Cadastrar')),
             ),
           ],
         ),
@@ -1921,17 +1922,13 @@
             title: const Text('Descartar alterações?'),
             content: const Text('Você tem alterações não salvas. Deseja descartá-las?'),
             actions: [
-              ExcludeFocus(
-                child: TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(false),
-                  child: const Text('Cancelar'),
-                ),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancelar'),
               ),
-              ExcludeFocus(
-                child: TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(true),
-                  child: const Text('Descartar'),
-                ),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Descartar'),
               ),
             ],
           ),
@@ -2076,6 +2073,8 @@
                             label: Text(_selectedMaterialIds.isEmpty ? 'Selecionar materiais' : 'Editar seleção'),
                             style: ElevatedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              backgroundColor: theme.colorScheme.primary,
+                              foregroundColor: theme.colorScheme.onPrimary,
                             ),
                           ),
                         ),
@@ -2137,6 +2136,8 @@
                             label: const Text('Adicionar opção'),
                             style: ElevatedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              backgroundColor: theme.colorScheme.primary,
+                              foregroundColor: theme.colorScheme.onPrimary,
                             ),
                           ),
                         ),
@@ -2216,7 +2217,7 @@
                                               case TipoOpcaoExtra.floatFloat:
                                                 return 'Tempo + Valor';
                                               case TipoOpcaoExtra.percentFloat:
-                                                return '% + Valor';
+                                                return '%';
                                             }
                                           }(),
                                           style: theme.textTheme.bodySmall?.copyWith(
@@ -2328,12 +2329,6 @@
                     context.pop();
                   }
                 },
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
-                  side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
-                  foregroundColor: theme.colorScheme.onSurface,
-                ),
                 child: const Text('Cancelar'),
               ),
             ),
@@ -2342,6 +2337,10 @@
           Expanded(
             child: ExcludeFocus(
               child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                ),
                 onPressed: () {
                   if (!_formKey.currentState!.validate()) return;
                   
@@ -2474,7 +2473,9 @@
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
+                          child: Text
+
+(
                             widget.initial == null ? 'Nova opção extra' : 'Editar opção extra',
                             style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                           ),
@@ -2528,7 +2529,7 @@
                                 ),
                                 RadioListTile<TipoOpcaoExtra>(
                                   value: TipoOpcaoExtra.percentFloat,
-                                  title: const Text('% + Valor'),
+                                  title: const Text('%'),
                                   contentPadding: EdgeInsets.zero,
                                 ),
                               ],
@@ -2544,12 +2545,6 @@
                           child: ExcludeFocus(
                             child: OutlinedButton(
                               onPressed: () => Navigator.of(context).pop(),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
-                                side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
-                                foregroundColor: theme.colorScheme.onSurface,
-                              ),
                               child: const Text('Cancelar'),
                             ),
                           ),
@@ -2558,6 +2553,10 @@
                         Expanded(
                           child: ExcludeFocus(
                             child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: theme.colorScheme.primary,
+                                foregroundColor: theme.colorScheme.onPrimary,
+                              ),
                               onPressed: () {
                                 if (!_formKey.currentState!.validate()) return;
                                 
@@ -2807,12 +2806,6 @@
                         child: ExcludeFocus(
                           child: OutlinedButton(
                             onPressed: () => Navigator.of(context).pop(),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
-                              side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
-                              foregroundColor: theme.colorScheme.onSurface,
-                            ),
                             child: const Text('Cancelar'),
                           ),
                         ),
@@ -2821,6 +2814,10 @@
                       Expanded(
                         child: ExcludeFocus(
                           child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: theme.colorScheme.primary,
+                              foregroundColor: theme.colorScheme.onPrimary,
+                            ),
                             onPressed: () => Navigator.of(context).pop(_tempSelectedIds),
                             child: const Text('Confirmar'),
                           ),
@@ -2861,30 +2858,20 @@
             Row(
               children: [
                 Expanded(
-                  child: ExcludeFocus(
-                    child: OutlinedButton(
-                      onPressed: () => context.pop(false),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
-                        side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18)),
-                        foregroundColor: theme.colorScheme.onSurface,
-                      ),
-                      child: const Text('Cancelar'),
-                    ),
+                  child: OutlinedButton(
+                    onPressed: () => context.pop(false),
+                    child: const Text('Cancelar'),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: ExcludeFocus(
-                    child: ElevatedButton(
-                      onPressed: () => context.pop(true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: theme.colorScheme.error,
-                        foregroundColor: theme.colorScheme.onError,
-                      ),
-                      child: const Text('Excluir'),
+                  child: ElevatedButton(
+                    onPressed: () => context.pop(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.colorScheme.error,
+                      foregroundColor: theme.colorScheme.onError,
                     ),
+                    child: const Text('Excluir'),
                   ),
                 ),
               ],

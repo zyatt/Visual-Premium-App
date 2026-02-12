@@ -1,6 +1,6 @@
 const prisma = require('../config/prisma');
 const logService = require('./log.service');
-const faixaCustoMarkupService = require('./faixaCustoMarkup.service');
+const faixaCustoMargemService = require('./faixaCustoMargem.service');
 
 class OrcamentoService {
   async listar() {
@@ -17,6 +17,11 @@ class OrcamentoService {
           include: {
             produtoOpcao: true
           }
+        },
+        informacoesAdicionais: {
+          orderBy: {
+            data: 'desc'
+          }
         }
       },
       orderBy: {
@@ -24,7 +29,6 @@ class OrcamentoService {
       }
     });
 
-    // Calcular valor sugerido para cada orçamento
     const orcamentosComValorSugerido = await Promise.all(
       orcamentos.map(async (orcamento) => {
         let total = 0;
@@ -51,7 +55,7 @@ class OrcamentoService {
           }
         }
 
-        const sugestao = await faixaCustoMarkupService.calcularValorSugerido(total);
+        const sugestao = await faixaCustoMargemService.calcularValorSugerido(total);
 
         return {
           ...orcamento,
@@ -78,6 +82,11 @@ class OrcamentoService {
           include: {
             produtoOpcao: true
           }
+        },
+        informacoesAdicionais: {
+          orderBy: {
+            data: 'desc'
+          }
         }
       }
     });
@@ -86,7 +95,6 @@ class OrcamentoService {
       throw new Error('Orçamento não encontrado');
     }
 
-    // Calcular total
     let total = 0;
     
     for (const mat of orcamento.materiais) {
@@ -111,7 +119,7 @@ class OrcamentoService {
       }
     }
 
-    const sugestao = await faixaCustoMarkupService.calcularValorSugerido(total);
+    const sugestao = await faixaCustoMargemService.calcularValorSugerido(total);
 
     return {
       ...orcamento,
@@ -136,7 +144,6 @@ class OrcamentoService {
       }
     }
 
-    // Inclui opções extras não-percentuais (STRINGFLOAT e FLOATFLOAT) na base do cálculo percentual
     for (const opcao of opcoesExtrasNaoPercentuais) {
       if (opcao._tipo === 'STRINGFLOAT') {
         total += parseFloat(opcao.valorFloat1) || 0;
@@ -257,7 +264,6 @@ class OrcamentoService {
         }
       }
 
-      // Primeira passagem: valida e coleta opções extras, separando percentuais das demais
       const opcoesExtrasValidadas = [];
       if (opcoesExtras && Array.isArray(opcoesExtras) && opcoesExtras.length > 0) {
         const opcoesPrimeiraPassagem = [];
@@ -275,131 +281,102 @@ class OrcamentoService {
             (opcaoValor.valorFloat2 === null || opcaoValor.valorFloat2 === undefined);
 
           if (isNaoSelection) {
-            opcoesPrimeiraPassagem.push({
-              tipo: opcaoExtra.tipo,
-              isNaoSelection: true,
-              dados: { produtoOpcaoId: opcaoValor.produtoOpcaoId, valorString: null, valorFloat1: null, valorFloat2: null }
-            });
             continue;
           }
 
-          if (opcaoExtra.tipo === 'STRINGFLOAT') {
-            if (!opcaoValor.valorString || opcaoValor.valorString.trim() === '') {
-              throw new Error(`Valor texto é obrigatório para a opção "${opcaoExtra.nome}"`);
-            }
-            const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
-            if (isNaN(valorFloat1) || valorFloat1 < 0) {
-              throw new Error(`Valor numérico inválido para a opção "${opcaoExtra.nome}"`);
-            }
-            opcoesPrimeiraPassagem.push({
-              tipo: 'STRINGFLOAT', isNaoSelection: false,
-              dados: { produtoOpcaoId: opcaoValor.produtoOpcaoId, valorString: opcaoValor.valorString.trim(), valorFloat1: valorFloat1, valorFloat2: null }
-            });
-          } else if (opcaoExtra.tipo === 'FLOATFLOAT') {
-            const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
-            const valorFloat2 = parseFloat(opcaoValor.valorFloat2);
-            if (isNaN(valorFloat1) || valorFloat1 < 0) {
-              throw new Error(`Primeiro valor numérico inválido para a opção "${opcaoExtra.nome}"`);
-            }
-            if (isNaN(valorFloat2) || valorFloat2 < 0) {
-              throw new Error(`Segundo valor numérico inválido para a opção "${opcaoExtra.nome}"`);
-            }
-            opcoesPrimeiraPassagem.push({
-              tipo: 'FLOATFLOAT', isNaoSelection: false,
-              dados: { produtoOpcaoId: opcaoValor.produtoOpcaoId, valorString: null, valorFloat1: valorFloat1, valorFloat2: valorFloat2 }
-            });
-          } else if (opcaoExtra.tipo === 'PERCENTFLOAT') {
-            const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
-            if (isNaN(valorFloat1) || valorFloat1 < 0 || valorFloat1 > 100) {
-              throw new Error(`Percentual inválido para a opção "${opcaoExtra.nome}" (deve estar entre 0 e 100)`);
-            }
-            opcoesPrimeiraPassagem.push({
-              tipo: 'PERCENTFLOAT', isNaoSelection: false,
-              percentual: valorFloat1,
-              produtoOpcaoId: opcaoValor.produtoOpcaoId
-            });
-          }
+          const obj = {
+            produtoOpcaoId: opcaoValor.produtoOpcaoId,
+            valorString: opcaoValor.valorString || null,
+            valorFloat1: opcaoValor.valorFloat1 != null ? parseFloat(opcaoValor.valorFloat1) : null,
+            valorFloat2: opcaoValor.valorFloat2 != null ? parseFloat(opcaoValor.valorFloat2) : null,
+            _tipo: opcaoExtra.tipo,
+          };
+
+          opcoesPrimeiraPassagem.push(obj);
         }
 
-        const opcoesNaoPercentuaisParaBase = opcoesPrimeiraPassagem
-          .filter(o => !o.isNaoSelection && (o.tipo === 'STRINGFLOAT' || o.tipo === 'FLOATFLOAT'))
-          .map(o => ({ _tipo: o.tipo, valorFloat1: o.dados.valorFloat1, valorFloat2: o.dados.valorFloat2 }));
+        const opcoesNaoPercentuais = opcoesPrimeiraPassagem.filter(o =>
+          o._tipo === 'STRINGFLOAT' || o._tipo === 'FLOATFLOAT'
+        );
 
-        const totalBase = this.calcularTotalBase(materiaisValidados, despesasValidadas, opcoesNaoPercentuaisParaBase);
+        const baseParaPercentuais = this.calcularTotalBase(materiaisValidados, despesasValidadas, opcoesNaoPercentuais);
 
         for (const opcao of opcoesPrimeiraPassagem) {
-          if (opcao.isNaoSelection) {
-            opcoesExtrasValidadas.push(opcao.dados);
-            continue;
+          const { _tipo, ...opcaoSemTipo } = opcao;
+
+          if (_tipo === 'STRINGFLOAT') {
+            if (!opcaoSemTipo.valorString || opcaoSemTipo.valorString.trim() === '') {
+              throw new Error(`Opção extra ${opcao.produtoOpcaoId} requer uma string`);
+            }
+            if (opcaoSemTipo.valorFloat1 == null || opcaoSemTipo.valorFloat1 < 0) {
+              throw new Error(`Opção extra ${opcao.produtoOpcaoId} requer um valor numérico positivo`);
+            }
+          } else if (_tipo === 'FLOATFLOAT') {
+            if (opcaoSemTipo.valorFloat1 == null || opcaoSemTipo.valorFloat1 < 0) {
+              throw new Error(`Opção extra ${opcao.produtoOpcaoId} requer dois valores numéricos positivos (float1)`);
+            }
+            if (opcaoSemTipo.valorFloat2 == null || opcaoSemTipo.valorFloat2 < 0) {
+              throw new Error(`Opção extra ${opcao.produtoOpcaoId} requer dois valores numéricos positivos (float2)`);
+            }
+          } else if (_tipo === 'PERCENTFLOAT') {
+            if (opcaoSemTipo.valorFloat1 == null || opcaoSemTipo.valorFloat1 < 0 || opcaoSemTipo.valorFloat1 > 100) {
+              throw new Error(`Opção extra ${opcao.produtoOpcaoId} requer um percentual entre 0 e 100`);
+            }
+            opcaoSemTipo.valorFloat2 = baseParaPercentuais;
           }
 
-          if (opcao.tipo !== 'PERCENTFLOAT') {
-            opcoesExtrasValidadas.push(opcao.dados);
-          } else {
-            opcoesExtrasValidadas.push({
-              produtoOpcaoId: opcao.produtoOpcaoId,
-              valorString: null,
-              valorFloat1: opcao.percentual,
-              valorFloat2: totalBase
-            });
-          }
+          opcoesExtrasValidadas.push(opcaoSemTipo);
         }
       }
 
-      const createData = {
-        cliente,
-        numero: numeroInt,
-        status: 'Pendente',
-        produtoId,
-        formaPagamento: formaPagamento.trim(),
-        condicoesPagamento: condicoesPagamento.trim(),
-        prazoEntrega: prazoEntrega.trim(),
-      };
-
-      if (materiaisValidados.length > 0) {
-        createData.materiais = {
-          create: materiaisValidados
-        };
-      }
-
-      if (despesasValidadas.length > 0) {
-        createData.despesasAdicionais = {
-          create: despesasValidadas
-        };
-      }
-
-      if (opcoesExtrasValidadas.length > 0) {
-        createData.opcoesExtras = {
-          create: opcoesExtrasValidadas
-        };
-      }
-
-      const orcamento = await prisma.orcamento.create({
-        data: createData,
-        include: {
-          produto: true,
-          materiais: {
-            include: {
-              material: true
-            }
+      const orcamento = await prisma.$transaction(async (tx) => {
+        const orc = await tx.orcamento.create({
+          data: {
+            cliente: cliente.trim(),
+            numero: numeroInt,
+            status: 'Pendente',
+            produtoId,
+            formaPagamento: formaPagamento.trim(),
+            condicoesPagamento: condicoesPagamento.trim(),
+            prazoEntrega: prazoEntrega.trim(),
+            materiais: materiaisValidados.length > 0 ? {
+              create: materiaisValidados
+            } : undefined,
+            despesasAdicionais: despesasValidadas.length > 0 ? {
+              create: despesasValidadas
+            } : undefined,
+            opcoesExtras: opcoesExtrasValidadas.length > 0 ? {
+              create: opcoesExtrasValidadas
+            } : undefined,
           },
-          despesasAdicionais: true,
-          opcoesExtras: {
-            include: {
-              produtoOpcao: true
-            }
+          include: {
+            produto: true,
+            materiais: {
+              include: {
+                material: true
+              }
+            },
+            despesasAdicionais: true,
+            opcoesExtras: {
+              include: {
+                produtoOpcao: true
+              }
+            },
+            informacoesAdicionais: true
           }
-        }
-      });
+        });
 
-      await logService.registrar({
-        usuarioId: user?.id || 1,
-        usuarioNome: user?.nome || 'Sistema',
-        acao: 'CRIAR',
-        entidade: 'ORCAMENTO',
-        entidadeId: orcamento.id,
-        descricao: `Criou o orçamento "#${orcamento.numero}"`,
-        detalhes: orcamento,
+        await logService.registrar({
+          usuarioId: user?.id || 1,
+          usuarioNome: user?.nome || 'Sistema',
+          acao: 'CRIAR',
+          entidade: 'ORCAMENTO',
+          entidadeId: orc.id,
+          descricao: `Criou o orçamento "#${orc.numero}" para o cliente "${orc.cliente}"`,
+          detalhes: orc,
+        });
+
+        return orc;
       });
 
       return orcamento;
@@ -411,32 +388,14 @@ class OrcamentoService {
 
   async atualizar(id, data, user) {
     try {
-      const { materiais, despesasAdicionais, opcoesExtras } = data;
-
       const orcamentoAtual = await prisma.orcamento.findUnique({
         where: { id },
         include: {
-          produto: {
-            include: {
-              materiais: {
-                include: {
-                  material: true
-                }
-              },
-              opcoesExtras: true
-            }
-          },
-          materiais: {
-            include: {
-              material: true
-            }
-          },
+          produto: true,
+          materiais: true,
           despesasAdicionais: true,
-          opcoesExtras: {
-            include: {
-              produtoOpcao: true
-            }
-          }
+          opcoesExtras: true,
+          informacoesAdicionais: true
         }
       });
 
@@ -444,7 +403,68 @@ class OrcamentoService {
         throw new Error('Orçamento não encontrado');
       }
 
-      const produto = orcamentoAtual.produto;
+      const { 
+        cliente, 
+        numero, 
+        produtoId, 
+        materiais,
+        despesasAdicionais,
+        opcoesExtras,
+        formaPagamento,
+        condicoesPagamento,
+        prazoEntrega,
+        informacoesAdicionais
+      } = data;
+
+      if (!cliente || !numero || !produtoId) {
+        throw new Error('Cliente, número e produto são obrigatórios');
+      }
+
+      const numeroInt = parseInt(numero);
+      if (isNaN(numeroInt) || numeroInt <= 0) {
+        throw new Error('Número do orçamento deve ser um valor inteiro positivo');
+      }
+
+      if (!formaPagamento || formaPagamento.trim() === '') {
+        throw new Error('Forma de pagamento é obrigatória');
+      }
+
+      if (!condicoesPagamento || condicoesPagamento.trim() === '') {
+        throw new Error('Condições de pagamento são obrigatórias');
+      }
+
+      if (!prazoEntrega || prazoEntrega.trim() === '') {
+        throw new Error('Prazo de entrega é obrigatório');
+      }
+
+      if (numeroInt !== orcamentoAtual.numero) {
+        const orcamentoExistente = await prisma.orcamento.findFirst({
+          where: { 
+            numero: numeroInt,
+            id: { not: id }
+          }
+        });
+
+        if (orcamentoExistente) {
+          throw new Error(`Já existe um orçamento com o número ${numeroInt}`);
+        }
+      }
+
+      const produto = await prisma.produto.findUnique({
+        where: { id: produtoId },
+        include: {
+          materiais: {
+            include: {
+              material: true
+            }
+          },
+          opcoesExtras: true
+        }
+      });
+
+      if (!produto) {
+        throw new Error('Produto não encontrado');
+      }
 
       const despesasValidadas = [];
       if (despesasAdicionais && Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
@@ -511,132 +531,125 @@ class OrcamentoService {
             (opcaoValor.valorFloat2 === null || opcaoValor.valorFloat2 === undefined);
 
           if (isNaoSelection) {
-            opcoesPrimeiraPassagem.push({
-              tipo: opcaoExtra.tipo,
-              isNaoSelection: true,
-              dados: { produtoOpcaoId: opcaoValor.produtoOpcaoId, valorString: null, valorFloat1: null, valorFloat2: null }
-            });
             continue;
           }
 
-          if (opcaoExtra.tipo === 'STRINGFLOAT') {
-            if (!opcaoValor.valorString || opcaoValor.valorString.trim() === '') {
-              throw new Error(`Valor texto é obrigatório para a opção "${opcaoExtra.nome}"`);
-            }
-            const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
-            if (isNaN(valorFloat1) || valorFloat1 < 0) {
-              throw new Error(`Valor numérico inválido para a opção "${opcaoExtra.nome}"`);
-            }
-            opcoesPrimeiraPassagem.push({
-              tipo: 'STRINGFLOAT', isNaoSelection: false,
-              dados: { produtoOpcaoId: opcaoValor.produtoOpcaoId, valorString: opcaoValor.valorString.trim(), valorFloat1: valorFloat1, valorFloat2: null }
-            });
-          } else if (opcaoExtra.tipo === 'FLOATFLOAT') {
-            const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
-            const valorFloat2 = parseFloat(opcaoValor.valorFloat2);
-            if (isNaN(valorFloat1) || valorFloat1 < 0) {
-              throw new Error(`Primeiro valor numérico inválido para a opção "${opcaoExtra.nome}"`);
-            }
-            if (isNaN(valorFloat2) || valorFloat2 < 0) {
-              throw new Error(`Segundo valor numérico inválido para a opção "${opcaoExtra.nome}"`);
-            }
-            opcoesPrimeiraPassagem.push({
-              tipo: 'FLOATFLOAT', isNaoSelection: false,
-              dados: { produtoOpcaoId: opcaoValor.produtoOpcaoId, valorString: null, valorFloat1: valorFloat1, valorFloat2: valorFloat2 }
-            });
-          } else if (opcaoExtra.tipo === 'PERCENTFLOAT') {
-            const valorFloat1 = parseFloat(opcaoValor.valorFloat1);
-            if (isNaN(valorFloat1) || valorFloat1 < 0 || valorFloat1 > 100) {
-              throw new Error(`Percentual inválido para a opção "${opcaoExtra.nome}" (deve estar entre 0 e 100)`);
-            }
-            opcoesPrimeiraPassagem.push({
-              tipo: 'PERCENTFLOAT', isNaoSelection: false,
-              percentual: valorFloat1,
-              produtoOpcaoId: opcaoValor.produtoOpcaoId
-            });
-          }
+          const obj = {
+            produtoOpcaoId: opcaoValor.produtoOpcaoId,
+            valorString: opcaoValor.valorString || null,
+            valorFloat1: opcaoValor.valorFloat1 != null ? parseFloat(opcaoValor.valorFloat1) : null,
+            valorFloat2: opcaoValor.valorFloat2 != null ? parseFloat(opcaoValor.valorFloat2) : null,
+            _tipo: opcaoExtra.tipo,
+          };
+
+          opcoesPrimeiraPassagem.push(obj);
         }
 
-        const opcoesNaoPercentuaisParaBase = opcoesPrimeiraPassagem
-          .filter(o => !o.isNaoSelection && (o.tipo === 'STRINGFLOAT' || o.tipo === 'FLOATFLOAT'))
-          .map(o => ({ _tipo: o.tipo, valorFloat1: o.dados.valorFloat1, valorFloat2: o.dados.valorFloat2 }));
+        const opcoesNaoPercentuais = opcoesPrimeiraPassagem.filter(o =>
+          o._tipo === 'STRINGFLOAT' || o._tipo === 'FLOATFLOAT'
+        );
 
-        const totalBase = this.calcularTotalBase(materiaisValidados, despesasValidadas, opcoesNaoPercentuaisParaBase);
+        const baseParaPercentuais = this.calcularTotalBase(materiaisValidados, despesasValidadas, opcoesNaoPercentuais);
 
         for (const opcao of opcoesPrimeiraPassagem) {
-          if (opcao.isNaoSelection) {
-            opcoesExtrasValidadas.push(opcao.dados);
-            continue;
-          }
+          const { _tipo, ...opcaoSemTipo } = opcao;
 
-          if (opcao.tipo !== 'PERCENTFLOAT') {
-            opcoesExtrasValidadas.push(opcao.dados);
-          } else {
-            opcoesExtrasValidadas.push({
-              produtoOpcaoId: opcao.produtoOpcaoId,
-              valorString: null,
-              valorFloat1: opcao.percentual,
-              valorFloat2: totalBase
-            });
-          }
-        }
-      }
-
-      const updateData = {};
-
-      if (materiaisValidados.length > 0 || materiais === null) {
-        await prisma.orcamentoMaterial.deleteMany({
-          where: { orcamentoId: id }
-        });
-        
-        if (materiaisValidados.length > 0) {
-          updateData.materiais = {
-            create: materiaisValidados
-          };
-        }
-      }
-
-      if (despesasValidadas.length > 0 || despesasAdicionais === null) {
-        await prisma.despesaAdicional.deleteMany({
-          where: { orcamentoId: id }
-        });
-        
-        if (despesasValidadas.length > 0) {
-          updateData.despesasAdicionais = {
-            create: despesasValidadas
-          };
-        }
-      }
-
-      if (opcoesExtrasValidadas.length > 0 || opcoesExtras === null) {
-        await prisma.orcamentoOpcaoExtra.deleteMany({
-          where: { orcamentoId: id }
-        });
-        
-        if (opcoesExtrasValidadas.length > 0) {
-          updateData.opcoesExtras = {
-            create: opcoesExtrasValidadas
-          };
-        }
-      }
-
-      const orcamentoAtualizado = await prisma.orcamento.update({
-        where: { id },
-        data: updateData,
-        include: {
-          produto: true,
-          materiais: {
-            include: {
-              material: true
+          if (_tipo === 'STRINGFLOAT') {
+            if (!opcaoSemTipo.valorString || opcaoSemTipo.valorString.trim() === '') {
+              throw new Error(`Opção extra ${opcao.produtoOpcaoId} requer uma string`);
             }
+            if (opcaoSemTipo.valorFloat1 == null || opcaoSemTipo.valorFloat1 < 0) {
+              throw new Error(`Opção extra ${opcao.produtoOpcaoId} requer um valor numérico positivo`);
+            }
+          } else if (_tipo === 'FLOATFLOAT') {
+            if (opcaoSemTipo.valorFloat1 == null || opcaoSemTipo.valorFloat1 < 0) {
+              throw new Error(`Opção extra ${opcao.produtoOpcaoId} requer dois valores numéricos positivos (float1)`);
+            }
+            if (opcaoSemTipo.valorFloat2 == null || opcaoSemTipo.valorFloat2 < 0) {
+              throw new Error(`Opção extra ${opcao.produtoOpcaoId} requer dois valores numéricos positivos (float2)`);
+            }
+          } else if (_tipo === 'PERCENTFLOAT') {
+            if (opcaoSemTipo.valorFloat1 == null || opcaoSemTipo.valorFloat1 < 0 || opcaoSemTipo.valorFloat1 > 100) {
+              throw new Error(`Opção extra ${opcao.produtoOpcaoId} requer um percentual entre 0 e 100`);
+            }
+            opcaoSemTipo.valorFloat2 = baseParaPercentuais;
+          }
+
+          opcoesExtrasValidadas.push(opcaoSemTipo);
+        }
+      }
+
+      const informacoesValidadas = [];
+      if (informacoesAdicionais && Array.isArray(informacoesAdicionais) && informacoesAdicionais.length > 0) {
+        for (const info of informacoesAdicionais) {
+          if (!info.data || !info.descricao || info.descricao.trim() === '') {
+            throw new Error('Data e descrição são obrigatórias para informações adicionais');
+          }
+          informacoesValidadas.push({
+            data: new Date(info.data),
+            descricao: info.descricao.trim()
+          });
+        }
+      }
+
+      const orcamentoAtualizado = await prisma.$transaction(async (tx) => {
+        await tx.orcamentoMaterial.deleteMany({
+          where: { orcamentoId: id }
+        });
+        await tx.despesaAdicional.deleteMany({
+          where: { orcamentoId: id }
+        });
+        await tx.orcamentoOpcaoExtra.deleteMany({
+          where: { orcamentoId: id }
+        });
+        await tx.orcamentoInformacaoAdicional.deleteMany({
+          where: { orcamentoId: id }
+        });
+
+        const orc = await tx.orcamento.update({
+          where: { id },
+          data: {
+            cliente: cliente.trim(),
+            numero: numeroInt,
+            produtoId,
+            formaPagamento: formaPagamento.trim(),
+            condicoesPagamento: condicoesPagamento.trim(),
+            prazoEntrega: prazoEntrega.trim(),
+            materiais: materiaisValidados.length > 0 ? {
+              create: materiaisValidados
+            } : undefined,
+            despesasAdicionais: despesasValidadas.length > 0 ? {
+              create: despesasValidadas
+            } : undefined,
+            opcoesExtras: opcoesExtrasValidadas.length > 0 ? {
+              create: opcoesExtrasValidadas
+            } : undefined,
+            informacoesAdicionais: informacoesValidadas.length > 0 ? {
+              create: informacoesValidadas
+            } : undefined,
           },
-          despesasAdicionais: true,
-          opcoesExtras: {
-            include: {
-              produtoOpcao: true
+          include: {
+            produto: true,
+            materiais: {
+              include: {
+                material: true
+              }
+            },
+            despesasAdicionais: true,
+            opcoesExtras: {
+              include: {
+                produtoOpcao: true
+              }
+            },
+            informacoesAdicionais: {
+              orderBy: {
+                data: 'desc'
+              }
             }
           }
-        }
+        });
+
+        return orc;
       });
 
       await logService.registrar({
@@ -678,6 +691,11 @@ class OrcamentoService {
           opcoesExtras: {
             include: {
               produtoOpcao: true
+            }
+          },
+          informacoesAdicionais: {
+            orderBy: {
+              data: 'desc'
             }
           },
           pedido: true
@@ -734,6 +752,15 @@ class OrcamentoService {
           };
         }
 
+        if (orcamento.informacoesAdicionais && orcamento.informacoesAdicionais.length > 0) {
+          pedidoData.informacoesAdicionais = {
+            create: orcamento.informacoesAdicionais.map(i => ({
+              data: i.data,
+              descricao: i.descricao
+            }))
+          };
+        }
+
         return await prisma.$transaction(async (tx) => {
           const pedidoCriado = await tx.pedido.create({
             data: pedidoData,
@@ -747,6 +774,11 @@ class OrcamentoService {
               opcoesExtras: {
                 include: {
                   produtoOpcao: true
+                }
+              },
+              informacoesAdicionais: {
+                orderBy: {
+                  data: 'desc'
                 }
               }
             }
@@ -767,6 +799,11 @@ class OrcamentoService {
                 include: {
                   produtoOpcao: true
                 }
+              },
+              informacoesAdicionais: {
+                orderBy: {
+                  data: 'desc'
+                }
               }
             }
           });
@@ -782,7 +819,8 @@ class OrcamentoService {
               statusAnterior: orcamento.status,
               statusNovo: status,
               pedidoCriado: pedidoCriado.id,
-              opcoesExtrasTransferidas: pedidoCriado.opcoesExtras?.length || 0
+              opcoesExtrasTransferidas: pedidoCriado.opcoesExtras?.length || 0,
+              informacoesAdicionaisTransferidas: pedidoCriado.informacoesAdicionais?.length || 0
             },
           });
 
@@ -805,6 +843,11 @@ class OrcamentoService {
           opcoesExtras: {
             include: {
               produtoOpcao: true
+            }
+          },
+          informacoesAdicionais: {
+            orderBy: {
+              data: 'desc'
             }
           }
         }
@@ -838,7 +881,8 @@ class OrcamentoService {
           produto: true,
           materiais: { include: { material: true } },
           despesasAdicionais: true,
-          opcoesExtras: { include: { produtoOpcao: true } }
+          opcoesExtras: { include: { produtoOpcao: true } },
+          informacoesAdicionais: true
         }
       });
 
@@ -855,6 +899,10 @@ class OrcamentoService {
       });
 
       await prisma.orcamentoOpcaoExtra.deleteMany({
+        where: { orcamentoId: id }
+      });
+
+      await prisma.orcamentoInformacaoAdicional.deleteMany({
         where: { orcamentoId: id }
       });
 

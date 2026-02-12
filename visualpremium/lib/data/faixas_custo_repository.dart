@@ -18,7 +18,7 @@ class FaixasCustoRepository {
 
   Future<List<Map<String, dynamic>>> listar() async {
     try {
-      final url = Uri.parse('$baseUrl/faixas-custo-markup');
+      final url = Uri.parse('$baseUrl/faixas-custo-margem');
       final headers = await _getHeaders();
       final response = await http.get(url, headers: headers);
       
@@ -39,7 +39,7 @@ class FaixasCustoRepository {
 
   Future<Map<String, dynamic>> criar(Map<String, dynamic> data) async {
     try {
-      final url = Uri.parse('$baseUrl/faixas-custo-markup');
+      final url = Uri.parse('$baseUrl/faixas-custo-margem');
       final headers = await _getHeaders();
       
       final response = await http.post(
@@ -68,7 +68,7 @@ class FaixasCustoRepository {
     Map<String, dynamic> data,
   ) async {
     try {
-      final url = Uri.parse('$baseUrl/faixas-custo-markup/$id');
+      final url = Uri.parse('$baseUrl/faixas-custo-margem/$id');
       final headers = await _getHeaders();
       
       final response = await http.put(
@@ -94,7 +94,7 @@ class FaixasCustoRepository {
 
   Future<void> deletar(int id) async {
     try {
-      final url = Uri.parse('$baseUrl/faixas-custo-markup/$id');
+      final url = Uri.parse('$baseUrl/faixas-custo-margem/$id');
       final headers = await _getHeaders();
       
       final response = await http.delete(url, headers: headers);
@@ -122,7 +122,7 @@ class FaixasCustoRepository {
 
   Future<Map<String, dynamic>?> calcularValorSugerido(double custoTotal) async {
     try {
-      final url = Uri.parse('$baseUrl/faixas-custo-markup/calcular');
+      final url = Uri.parse('$baseUrl/faixas-custo-margem/calcular');
       final headers = await _getHeaders();
       
       final response = await http.post(

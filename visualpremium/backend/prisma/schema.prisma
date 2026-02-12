@@ -79,24 +79,35 @@ model ProdutoOpcaoExtra {
 }
 
 model Orcamento {
-  id                 Int                   @id @default(autoincrement())
-  cliente            String
-  numero             Int                   @unique
-  status             String
-  produtoId          Int
-  formaPagamento     String
-  condicoesPagamento String
-  prazoEntrega       String
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
-  almoxarifado       Almoxarifado?
-  despesasAdicionais DespesaAdicional[]
-  materiais          OrcamentoMaterial[]
-  opcoesExtras       OrcamentoOpcaoExtra[]
-  produto            Produto               @relation(fields: [produtoId], references: [id])
-  pedido             Pedido?
+  id                      Int                           @id @default(autoincrement())
+  cliente                 String
+  numero                  Int                           @unique
+  status                  String
+  produtoId               Int
+  formaPagamento          String
+  condicoesPagamento      String
+  prazoEntrega            String
+  createdAt               DateTime                      @default(now())
+  updatedAt               DateTime                      @updatedAt
+  despesasAdicionais      DespesaAdicional[]
+  informacoesAdicionais   OrcamentoInformacaoAdicional[]
+  materiais               OrcamentoMaterial[]
+  opcoesExtras            OrcamentoOpcaoExtra[]
+  produto                 Produto                       @relation(fields: [produtoId], references: [id])
+  pedido                  Pedido?
 
   @@map("orcamentos")
+}
+
+model OrcamentoInformacaoAdicional {
+  id          Int       @id @default(autoincrement())
+  orcamentoId Int
+  data        DateTime
+  descricao   String
+  createdAt   DateTime  @default(now())
+  orcamento   Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
+
+  @@map("orcamento_informacoes_adicionais")
 }
 
 model OrcamentoOpcaoExtra {
@@ -115,24 +126,37 @@ model OrcamentoOpcaoExtra {
 }
 
 model Pedido {
-  id                 Int                      @id @default(autoincrement())
-  cliente            String
-  numero             Int?                     @unique
-  status             String
-  produtoId          Int
-  formaPagamento     String
-  condicoesPagamento String
-  prazoEntrega       String
-  orcamentoId        Int?                     @unique
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
-  materiais          PedidoMaterial[]
-  opcoesExtras       PedidoOpcaoExtra[]
-  orcamento          Orcamento?               @relation(fields: [orcamentoId], references: [id])
-  produto            Produto                  @relation(fields: [produtoId], references: [id])
-  despesasAdicionais PedidoDespesaAdicional[]
+  id                      Int                           @id @default(autoincrement())
+  cliente                 String
+  numero                  Int?                          @unique
+  status                  String
+  produtoId               Int
+  formaPagamento          String
+  condicoesPagamento      String
+  prazoEntrega            String
+  orcamentoId             Int?                          @unique
+  createdAt               DateTime                      @default(now())
+  updatedAt               DateTime                      @updatedAt
+  almoxarifado            Almoxarifado?
+  materiais               PedidoMaterial[]
+  opcoesExtras            PedidoOpcaoExtra[]
+  orcamento               Orcamento?                    @relation(fields: [orcamentoId], references: [id])
+  produto                 Produto                       @relation(fields: [produtoId], references: [id])
+  despesasAdicionais      PedidoDespesaAdicional[]
+  informacoesAdicionais   PedidoInformacaoAdicional[]
 
   @@map("pedidos")
+}
+
+model PedidoInformacaoAdicional {
+  id        Int      @id @default(autoincrement())
+  pedidoId  Int
+  data      DateTime
+  descricao String
+  createdAt DateTime @default(now())
+  pedido    Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+
+  @@map("pedido_informacoes_adicionais")
 }
 
 model PedidoOpcaoExtra {
@@ -226,7 +250,7 @@ model PedidoMaterial {
 
 model Almoxarifado {
   id                   Int                      @id @default(autoincrement())
-  orcamentoId          Int                      @unique
+  pedidoId             Int                      @unique
   status               String                   @default("Não Realizado")
   observacoes          String?
   finalizadoEm         DateTime?
@@ -236,7 +260,7 @@ model Almoxarifado {
   despesasAdicionais   AlmoxarifadoDespesa[]
   materiais            AlmoxarifadoMaterial[]
   opcoesExtras         AlmoxarifadoOpcaoExtra[]
-  orcamento            Orcamento                @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
+  pedido               Pedido                   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
   relatorioComparativo RelatorioComparativo?
 
   @@map("almoxarifados")
@@ -307,15 +331,16 @@ model RelatorioComparativo {
   @@map("relatorios_comparativos")
 }
 
-model FaixaCustoMarkup {
-  id        Int      @id @default(autoincrement())
-  custoAte  Float?
-  markup    Float
-  ordem     Int
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model FaixaCustoMargem {
+  id          Int      @id @default(autoincrement())
+  custoInicio Float
+  custoFim    Float?
+  margem      Float
+  ordem       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  @@map("faixas_custo_markup")
+  @@map("faixas_custo_margem")
 }
 
 enum TipoOpcaoExtra {

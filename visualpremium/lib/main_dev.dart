@@ -57,13 +57,20 @@ class _MyAppState extends State<MyApp> {
             Provider.of<AuthProvider>(context, listen: false),
           );
           return MaterialApp.router(
-            title: 'Visual Premium',
-            debugShowCheckedModeBanner: false,
-            theme: lightTheme,
-            darkTheme: darkTheme,
-            themeMode: themeProvider.themeMode,
-            routerConfig: _router!,
-          );
+          title: 'Visual Premium',
+          debugShowCheckedModeBanner: false,
+          theme: lightTheme,
+          darkTheme: darkTheme,
+          themeMode: themeProvider.themeMode,
+          routerConfig: _router!,
+
+          builder: (context, child) {
+            return MouseRegion(
+              cursor: SystemMouseCursors.basic, // cursor padrão global
+              child: child!,
+            );
+          },
+        );
         },
       ),
     );

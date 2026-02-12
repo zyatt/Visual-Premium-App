@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:visualpremium/providers/auth_provider.dart';
+import 'package:visualpremium/theme.dart';
 import '../../../data/usuarios_repository.dart';
 import '../../models/usuario_item.dart';
 
@@ -57,34 +58,78 @@ class _UsuariosPageState extends State<UsuariosPage> {
   }
 
   Future<void> _deleteUsuario(UsuarioItem usuario) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirmar exclusão'),
-        content: Text('Deseja realmente excluir o usuário "${usuario.nome}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (context) {
+      final theme = Theme.of(context);
+      return AlertDialog(
+        contentPadding: EdgeInsets.zero,
+        content: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Confirmar exclusão',
+                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Deseja realmente excluir o usuário "${usuario.nome}"?',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                          ),
+                          side: BorderSide(
+                            color: theme.dividerColor.withValues(alpha: 0.18),
+                          ),
+                          foregroundColor: theme.colorScheme.onSurface,
+                        ),
+                        child: const Text('Cancelar'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.colorScheme.error,
+                          foregroundColor: theme.colorScheme.onError,
+                        ),
+                        child: const Text('Excluir'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            child: const Text('Excluir'),
           ),
-        ],
-      ),
-    );
-
+        ),
+      );
+    },
+  );
+  
     if (confirm != true) return;
 
     try {
       await _repository.deleteUsuario(usuario.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Usuário excluído com sucesso')),
+          const SnackBar(content: Text('Usuário excluído')),
         );
         _loadUsuarios();
       }
@@ -143,6 +188,10 @@ class _UsuariosPageState extends State<UsuariosPage> {
                     onPressed: () => _showUsuarioDialog(),
                     icon: const Icon(Icons.add),
                     label: const Text('Novo Usuário'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.colorScheme.primary,
+                      foregroundColor: theme.colorScheme.onPrimary,
+                    ),
                   ),
                 ),
               ],
@@ -245,7 +294,7 @@ class _UsuarioCard extends StatelessWidget {
       child: ListTile(
         onTap: onEdit,
         splashColor: Colors.transparent,
-        hoverColor: Colors.transparent,
+        hoverColor: theme.colorScheme.primary.withValues(alpha: 0.05),
         focusColor: Colors.transparent,
         contentPadding: const EdgeInsets.all(16),
         leading: CircleAvatar(
@@ -356,20 +405,17 @@ class _UsuarioCard extends StatelessWidget {
             ),
           ),
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              tooltip: isCurrentUser 
-                  ? '' 
-                  : 'Excluir usuário',
-              color: isCurrentUser 
-                  ? theme.colorScheme.onSurface.withValues(alpha: 0.3)
-                  : theme.colorScheme.error,
-              onPressed: isCurrentUser ? null : onDelete,
-            ),
-          ],
+        trailing: ExcludeFocus(
+          child: IconButton(
+            icon: const Icon(Icons.delete_outline),
+            tooltip: isCurrentUser 
+                ? 'Não permitido' 
+                : 'Excluir usuário',
+            color: isCurrentUser 
+                ? theme.colorScheme.onSurface.withValues(alpha: 0.3)
+                : theme.colorScheme.error,
+            onPressed: isCurrentUser ? null : onDelete,
+          ),
         ),
       ),
     );
@@ -447,8 +493,8 @@ class _UsuarioDialogState extends State<_UsuarioDialog> {
           SnackBar(
             content: Text(
               widget.usuario == null
-                  ? 'Usuário criado com sucesso'
-                  : 'Usuário atualizado com sucesso',
+                  ? 'Usuário criado'
+                  : 'Usuário atualizado',
             ),
           ),
         );
@@ -611,6 +657,10 @@ class _UsuarioDialogState extends State<_UsuarioDialog> {
                     ),
                     const SizedBox(width: 12),
                     ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: theme.colorScheme.primary,
+                        foregroundColor: theme.colorScheme.onPrimary,
+                      ),
                       onPressed: _isLoading ? null : _handleSave,
                       child: _isLoading
                           ? const SizedBox(

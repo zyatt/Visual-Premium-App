@@ -205,6 +205,10 @@ class ProductAvisosSection extends StatelessWidget {
               label: const Text('Adicionar'),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                backgroundColor: theme.colorScheme.primary,
+                foregroundColor: theme.colorScheme.onPrimary,
+                disabledBackgroundColor: theme.colorScheme.primary.withValues(alpha: 0.3),
+                disabledForegroundColor: theme.colorScheme.onPrimary.withValues(alpha: 0.5),
               ),
             ),
           ],

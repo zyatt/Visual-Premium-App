@@ -1,14 +1,13 @@
 const pdfRelatorioService = require('../services/pdfRelatorio.service');
 
 class PdfRelatorioController {
-  // Método original - busca por ID do relatório
   async gerarRelatorioPdf(req, res) {
     try {
       const { id } = req.params;
-      const { pdfStream, numeroOrcamento } = await pdfRelatorioService.gerarRelatorioPdf(+id);
+      const { pdfStream, numeroPedido } = await pdfRelatorioService.gerarRelatorioPdf(+id);
       
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename=relatorio-${numeroOrcamento}.pdf`);
+      res.setHeader('Content-Disposition', `attachment; filename=relatorio-${numeroPedido}.pdf`);
       
       pdfStream.on('error', (error) => {
         console.error('Erro ao gerar PDF:', error);
@@ -31,16 +30,15 @@ class PdfRelatorioController {
     }
   }
 
-  // NOVO MÉTODO - busca por ID do almoxarifado (RECOMENDADO)
   async gerarRelatorioPorAlmoxarifado(req, res) {
     try {
       const { almoxarifadoId } = req.params;
       console.log('📄 Gerando PDF para almoxarifado ID:', almoxarifadoId);
       
-      const { pdfStream, numeroOrcamento } = await pdfRelatorioService.gerarRelatorioPdfPorAlmoxarifado(+almoxarifadoId);
+      const { pdfStream, numeroPedido } = await pdfRelatorioService.gerarRelatorioPdfPorAlmoxarifado(+almoxarifadoId);
       
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename=relatorio-${numeroOrcamento}.pdf`);
+      res.setHeader('Content-Disposition', `attachment; filename=relatorio-${numeroPedido}.pdf`);
       
       pdfStream.on('error', (error) => {
         console.error('Erro ao gerar PDF:', error);

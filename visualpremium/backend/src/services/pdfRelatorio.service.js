@@ -2,7 +2,6 @@ const almoxarifadoService = require('./almoxarifado.service');
 const pdfRelatorioLayout = require('../pdf/pdfRelatorio.layout');
 
 class PdfRelatorioService {
-  // Método original - busca por ID do relatório
   async gerarRelatorioPdf(id) {
     const relatorio = await almoxarifadoService.buscarRelatorioPorId(id);
     
@@ -10,7 +9,7 @@ class PdfRelatorioService {
       throw new Error('Relatório não encontrado');
     }
     
-    if (!relatorio.almoxarifado || !relatorio.almoxarifado.orcamento) {
+    if (!relatorio.almoxarifado || !relatorio.almoxarifado.pedido) {
       throw new Error('Dados do relatório incompletos');
     }
     
@@ -21,14 +20,13 @@ class PdfRelatorioService {
       
       return {
         pdfStream,
-        numeroOrcamento: relatorio.almoxarifado?.orcamento?.numero || 'S/N'
+        numeroPedido: relatorio.almoxarifado?.pedido?.numero || 'S/N'
       };
     } catch (error) {
       throw new Error('Falha ao gerar documento PDF');
     }
   }
 
-  // NOVO MÉTODO - busca por ID do almoxarifado (RECOMENDADO)
   async gerarRelatorioPdfPorAlmoxarifado(almoxarifadoId) {
     const relatorio = await almoxarifadoService.buscarRelatorioPorAlmoxarifadoId(almoxarifadoId);
     
@@ -36,7 +34,7 @@ class PdfRelatorioService {
       throw new Error('Relatório não encontrado para este almoxarifado');
     }
     
-    if (!relatorio.almoxarifado || !relatorio.almoxarifado.orcamento) {
+    if (!relatorio.almoxarifado || !relatorio.almoxarifado.pedido) {
       throw new Error('Dados do relatório incompletos');
     }
     
@@ -47,7 +45,7 @@ class PdfRelatorioService {
       
       return {
         pdfStream,
-        numeroOrcamento: relatorio.almoxarifado?.orcamento?.numero || 'S/N'
+        numeroPedido: relatorio.almoxarifado?.pedido?.numero || 'S/N'
       };
     } catch (error) {
       throw new Error('Falha ao gerar documento PDF');
@@ -56,13 +54,13 @@ class PdfRelatorioService {
   
   _prepararDadosRelatorio(relatorio) {
     const almoxarifado = relatorio.almoxarifado;
-    const orcamento = almoxarifado?.orcamento;
+    const pedido = almoxarifado?.pedido;
     const analise = relatorio.analiseDetalhada || {};
     
     return {
-      numeroOrcamento: orcamento?.numero || 'S/N',
-      cliente: orcamento?.cliente || 'N/A',
-      produtoNome: orcamento?.produto?.nome || 'N/A',
+      numeroPedido: pedido?.numero || 'S/N',
+      cliente: pedido?.cliente || 'N/A',
+      produtoNome: pedido?.produto?.nome || 'N/A',
       totalOrcado: relatorio.totalOrcado || 0,
       totalRealizado: relatorio.totalRealizado || 0,
       diferencaTotal: relatorio.diferencaTotal || 0,

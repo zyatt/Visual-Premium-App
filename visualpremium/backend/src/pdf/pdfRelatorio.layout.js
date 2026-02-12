@@ -8,7 +8,7 @@ class PdfRelatorioLayout {
 
     const logoPath = path.join(__dirname, '../../../assets/images/logo preta.png');
     
-    let currentY = this._desenharHeader(doc, logoPath, data.numeroOrcamento);
+    let currentY = this._desenharHeader(doc, logoPath, data.numeroPedido);
     currentY = this._desenharInfoPrincipal(doc, data, currentY);
     currentY = this._desenharResumo(doc, data, currentY);
     currentY = this._desenharTabelaMateriais(doc, data.materiais, currentY);
@@ -27,7 +27,7 @@ class PdfRelatorioLayout {
     return doc;
   }
 
-  _desenharHeader(doc, logoPath, numeroOrcamento) {
+  _desenharHeader(doc, logoPath, numeroPedido) {
     const margin = doc.page.margins.left;
     const pageWidth = doc.page.width;
     let y = 35;
@@ -40,7 +40,7 @@ class PdfRelatorioLayout {
       }
     }
     
-    const numeroStr = numeroOrcamento || 'S/N';
+    const numeroStr = numeroPedido || 'S/N';
     
     const now = new Date();
     const dataFormatada = now.toLocaleDateString('pt-BR');
@@ -115,9 +115,19 @@ class PdfRelatorioLayout {
     const contentWidth = pageWidth - 2 * margin;
     let y = startY;
     
-    const isEconomia = data.diferencaTotal < 0;
-    const statusColor = isEconomia ? '#10b981' : '#ef4444';
-    const statusText = isEconomia ? 'Economia' : 'Excedeu';
+    let statusColor;
+    let statusText;
+    
+    if (data.diferencaTotal < 0) {
+      statusColor = '#10b981'; // Verde - Economia
+      statusText = 'Economia';
+    } else if (data.diferencaTotal > 0) {
+      statusColor = '#ef4444'; // Vermelho - Excedeu
+      statusText = 'Excedeu';
+    } else {
+      statusColor = '#6b7280'; // Cinza - Conforme
+      statusText = 'Conforme';
+    }
     
     doc.fontSize(7)
        .font('Helvetica-Bold')
@@ -128,23 +138,25 @@ class PdfRelatorioLayout {
     
     const boxHeight = 70;
     
-    // Fundo branco com borda cinza igual às outras tabelas
     doc.roundedRect(margin, y, contentWidth, boxHeight, 4)
        .fillAndStroke('#ffffff', '#d1d5db');
     
     const padding = 12;
     const colWidth = (contentWidth - 3 * padding) / 3;
     
+    // Centralizar verticalmente: (boxHeight - altura_conteudo) / 2
+    const verticalCenter = (boxHeight - 30) / 2; // 30 = altura aproximada do conteúdo (label + value)
+    
     let x = margin + padding;
-    this._desenharColuna(doc, 'ORÇADO', this._formatarMoeda(data.totalOrcado), x, y + padding, colWidth);
+    this._desenharColuna(doc, 'ORÇADO', this._formatarMoeda(data.totalOrcado), x, y + verticalCenter, colWidth);
     
     x += colWidth + padding;
-    this._desenharColuna(doc, 'REALIZADO', this._formatarMoeda(data.totalRealizado), x, y + padding, colWidth);
+    this._desenharColuna(doc, 'REALIZADO', this._formatarMoeda(data.totalRealizado), x, y + verticalCenter, colWidth);
     
     x += colWidth + padding;
     const valorEconomia = this._formatarMoeda(Math.abs(data.diferencaTotal));
     const percentualText = `${Math.abs(data.percentualTotal).toFixed(1)}%`;
-    this._desenharColunaEconomia(doc, statusText.toUpperCase(), valorEconomia, percentualText, x, y + padding, colWidth, statusColor);
+    this._desenharColunaEconomia(doc, statusText.toUpperCase(), valorEconomia, percentualText, x, y + verticalCenter, colWidth, statusColor);
     
     y += boxHeight + 8;
     
@@ -169,7 +181,6 @@ class PdfRelatorioLayout {
        .fillColor('#6b7280')
        .text(label, x, y, { width, align: 'center' });
     
-    // Formato: R$ 80,00 (50%)
     const textoCompleto = `${valorEconomia} (${percentual})`;
     
     doc.fontSize(14)

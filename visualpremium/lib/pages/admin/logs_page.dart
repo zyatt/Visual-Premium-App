@@ -87,7 +87,7 @@ class _LogsPageState extends State<LogsPage> {
                   IconButton(
                     onPressed: () => context.go('/admin'),
                     icon: const Icon(Icons.arrow_back),
-                    tooltip: 'Voltar para Admin',
+                    tooltip: 'Voltar',
                   ),
                   const SizedBox(width: 8),
                   Icon(

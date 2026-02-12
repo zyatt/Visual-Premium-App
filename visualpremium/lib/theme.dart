@@ -156,17 +156,48 @@ ThemeData get lightTheme => ThemeData(
   ),
   textTheme: _buildTextTheme(Brightness.light),
   elevatedButtonTheme: ElevatedButtonThemeData(
-    style: ElevatedButton.styleFrom(
-      backgroundColor: LightModeColors.primary,
-      foregroundColor: LightModeColors.onPrimary,
-      elevation: 0,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.md),
+    style: ButtonStyle(
+      backgroundColor: WidgetStateProperty.all(LightModeColors.primary),
+      foregroundColor: WidgetStateProperty.all(LightModeColors.onPrimary),
+      elevation: WidgetStateProperty.all(0),
+      mouseCursor: WidgetStateProperty.all(SystemMouseCursors.click),
+      padding: WidgetStateProperty.all(
+        const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       ),
-      textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
+      shape: WidgetStateProperty.all(
+        RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+      ),
+      textStyle: WidgetStateProperty.all(
+        GoogleFonts.inter(fontWeight: FontWeight.w600),
+      ),
     ),
   ),
+  textButtonTheme: TextButtonThemeData(
+    style: ButtonStyle(
+      mouseCursor: WidgetStateProperty.all(SystemMouseCursors.click),
+    ),
+  ),
+
+  outlinedButtonTheme: OutlinedButtonThemeData(
+    style: ButtonStyle(
+      mouseCursor: WidgetStateProperty.all(SystemMouseCursors.click),
+    ),
+  ),
+
+  iconButtonTheme: IconButtonThemeData(
+    style: ButtonStyle(
+      mouseCursor: WidgetStateProperty.all(SystemMouseCursors.click),
+    ),
+  ),
+
+  listTileTheme: ListTileThemeData(
+    mouseCursor: WidgetStateProperty.all(SystemMouseCursors.click),
+  ),
+  floatingActionButtonTheme: FloatingActionButtonThemeData(
+  mouseCursor: WidgetStateProperty.all(SystemMouseCursors.click),
+),
   inputDecorationTheme: InputDecorationTheme(
     filled: true,
     fillColor: const Color(0xFFFAFAFA),
@@ -225,16 +256,47 @@ ThemeData get darkTheme => ThemeData(
   ),
   textTheme: _buildTextTheme(Brightness.dark),
   elevatedButtonTheme: ElevatedButtonThemeData(
-    style: ElevatedButton.styleFrom(
-      backgroundColor: DarkModeColors.primary,
-      foregroundColor: DarkModeColors.onPrimary,
-      elevation: 0,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.md),
+    style: ButtonStyle(
+      backgroundColor: WidgetStateProperty.all(LightModeColors.primary),
+      foregroundColor: WidgetStateProperty.all(LightModeColors.onPrimary),
+      elevation: WidgetStateProperty.all(0),
+      mouseCursor: WidgetStateProperty.all(SystemMouseCursors.click),
+      padding: WidgetStateProperty.all(
+        const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       ),
-      textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600),
+      shape: WidgetStateProperty.all(
+        RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+      ),
+      textStyle: WidgetStateProperty.all(
+        GoogleFonts.inter(fontWeight: FontWeight.w600),
+      ),
     ),
+  ),
+  textButtonTheme: TextButtonThemeData(
+    style: ButtonStyle(
+      mouseCursor: WidgetStateProperty.all(SystemMouseCursors.click),
+    ),
+  ),
+
+  outlinedButtonTheme: OutlinedButtonThemeData(
+    style: ButtonStyle(
+      mouseCursor: WidgetStateProperty.all(SystemMouseCursors.click),
+    ),
+  ),
+
+  iconButtonTheme: IconButtonThemeData(
+    style: ButtonStyle(
+      mouseCursor: WidgetStateProperty.all(SystemMouseCursors.click),
+    ),
+  ),
+
+  listTileTheme: ListTileThemeData(
+    mouseCursor: WidgetStateProperty.all(SystemMouseCursors.click),
+  ),
+  floatingActionButtonTheme: FloatingActionButtonThemeData(
+    mouseCursor: WidgetStateProperty.all(SystemMouseCursors.click),
   ),
   inputDecorationTheme: InputDecorationTheme(
     filled: true,

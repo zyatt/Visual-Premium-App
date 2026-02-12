@@ -97,7 +97,7 @@ class AlmoxarifadoDespesaItem {
 
 class AlmoxarifadoItem {
   final int id;
-  final int orcamentoId;
+  final int pedidoId;
   final String status;
   final String? observacoes;
   final DateTime? finalizadoEm;
@@ -107,7 +107,7 @@ class AlmoxarifadoItem {
 
   const AlmoxarifadoItem({
     required this.id,
-    required this.orcamentoId,
+    required this.pedidoId,
     required this.status,
     this.observacoes,
     this.finalizadoEm,
@@ -119,7 +119,7 @@ class AlmoxarifadoItem {
   bool get isRealizado => status == 'Realizado';
 
   Map<String, Object?> toMap() => {
-    'orcamentoId': orcamentoId,
+    'pedidoId': pedidoId,
     'materiais': materiais.map((m) => m.toMap()).toList(),
     'despesasAdicionais': despesas.map((d) => d.toMap()).toList(),
     'observacoes': observacoes,
@@ -128,7 +128,7 @@ class AlmoxarifadoItem {
   static AlmoxarifadoItem? tryFromMap(Map<String, Object?> map) {
     try {
       final id = map['id'];
-      final orcamentoId = map['orcamentoId'];
+      final pedidoId = map['pedidoId'];
       final status = map['status'];
       final observacoes = map['observacoes'] as String?;
       final finalizadoEm = map['finalizadoEm'];
@@ -136,7 +136,7 @@ class AlmoxarifadoItem {
       final materiaisData = map['materiais'];
       final despesasData = map['despesasAdicionais'];
 
-      if (id == null || orcamentoId == null || status is! String) {
+      if (id == null || pedidoId == null || status is! String) {
         return null;
       }
 
@@ -166,7 +166,7 @@ class AlmoxarifadoItem {
 
       return AlmoxarifadoItem(
         id: int.parse(id.toString()),
-        orcamentoId: int.parse(orcamentoId.toString()),
+        pedidoId: int.parse(pedidoId.toString()),
         status: status,
         observacoes: observacoes,
         finalizadoEm: finalizadoEm != null ? DateTime.parse(finalizadoEm.toString()) : null,
@@ -225,9 +225,9 @@ class RelatorioComparativoItem {
   // Análise detalhada
   final Map<String, dynamic> analiseDetalhada;
   
-  // Informações do orçamento (via join)
+  // Informações do pedido (via join)
   final String? clienteNome;
-  final int? numeroOrcamento;
+  final int? numeroPedido;
   final String? produtoNome;
   final DateTime? finalizadoEm;
 
@@ -252,7 +252,7 @@ class RelatorioComparativoItem {
     required this.percentualTotal,
     required this.analiseDetalhada,
     this.clienteNome,
-    this.numeroOrcamento,
+    this.numeroPedido,
     this.produtoNome,
     this.finalizadoEm,
   });
@@ -276,9 +276,9 @@ class RelatorioComparativoItem {
         return null;
       }
 
-      // Extrair informações do orçamento
+      // Extrair informações do pedido
       String? clienteNome;
-      int? numeroOrcamento;
+      int? numeroPedido;
       String? produtoNome;
       DateTime? finalizadoEm;
 
@@ -288,13 +288,13 @@ class RelatorioComparativoItem {
           ? DateTime.parse(almoxMap['finalizadoEm'].toString())
           : null;
         
-        final orcamento = almoxMap['orcamento'];
-        if (orcamento is Map) {
-          final orcMap = orcamento as Map<String, dynamic>;
-          clienteNome = orcMap['cliente'] as String?;
-          numeroOrcamento = orcMap['numero'] as int?;
+        final pedido = almoxMap['pedido'];
+        if (pedido is Map) {
+          final pedidoMap = pedido as Map<String, dynamic>;
+          clienteNome = pedidoMap['cliente'] as String?;
+          numeroPedido = pedidoMap['numero'] as int?;
           
-          final produto = orcMap['produto'];
+          final produto = pedidoMap['produto'];
           if (produto is Map) {
             final prodMap = produto as Map<String, dynamic>;
             produtoNome = prodMap['nome'] as String?;
@@ -323,7 +323,7 @@ class RelatorioComparativoItem {
         percentualTotal: _parseDouble(map['percentualTotal']),
         analiseDetalhada: map['analiseDetalhada'] as Map<String, dynamic>? ?? {},
         clienteNome: clienteNome,
-        numeroOrcamento: numeroOrcamento,
+        numeroPedido: numeroPedido,
         produtoNome: produtoNome,
         finalizadoEm: finalizadoEm,
       );
