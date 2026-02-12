@@ -3130,12 +3130,15 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     );
 
     if (resultado == true) {
+      final now = DateTime.now();
       setState(() {
         _informacoesAdicionais.add(
           InformacaoAdicionalItem(
             id: DateTime.now().millisecondsSinceEpoch,
-            data: DateTime.now(),
+            data: now,
             descricao: descricaoController.text.trim(),
+            createdAt: now,
+            updatedAt: now,
           ),
         );
       });
@@ -3254,66 +3257,86 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
               else
                 ...List.generate(_informacoesAdicionais.length, (index) {
                   final info = _informacoesAdicionais[index];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 6),
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Icon(
-                            Icons.event_note,
-                            size: 16,
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _formatarData(info.data),
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 11,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                info.descricao,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontSize: 11,
-                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (_isAprovado) ...[
-                          const SizedBox(width: 6),
-                          ExcludeFocus(
-                            child: IconButton(
-                              onPressed: () => _removerInformacaoAdicional(index),
-                              icon: const Icon(Icons.delete_outline, size: 16),
-                              color: theme.colorScheme.error,
-                              tooltip: 'Remover',
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
+                  return ClickableInk(
+                    onTap: _isAprovado ? () => _editarInformacaoAdicional(index) : null,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Icon(
+                              Icons.event_note,
+                              size: 16,
+                              color: theme.colorScheme.primary,
                             ),
                           ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 4),
+                                Text(
+                                  info.descricao,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    fontSize: 11,
+                                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                                  ),
+                                ),
+                                if (info.createdAt != null || info.updatedAt != null) ...[
+                                  const SizedBox(height: 6),
+                                  if (info.createdAt != null)
+                                    Text(
+                                      'Criado em ${_formatarData(info.createdAt!)}',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        fontSize: 10,
+                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  if (info.updatedAt != null && 
+                                      info.createdAt != null &&
+                                      info.updatedAt!.difference(info.createdAt!).inSeconds > 1)
+                                    Text(
+                                      'Atualizado em ${_formatarData(info.updatedAt!)}',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        fontSize: 10,
+                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          if (_isAprovado) ...[
+                            const SizedBox(width: 6),
+                            ExcludeFocus(
+                              child: IconButton(
+                                onPressed: () => _removerInformacaoAdicional(index),
+                                icon: const Icon(Icons.delete_outline, size: 16),
+                                color: theme.colorScheme.error,
+                                tooltip: 'Remover',
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   );
                 }),
@@ -3322,6 +3345,71 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         ),
       ],
     );
+  }
+
+  Future<void> _editarInformacaoAdicional(int index) async {
+    final info = _informacoesAdicionais[index];
+    final descricaoController = TextEditingController(text: info.descricao);
+    final theme = Theme.of(context);
+
+    final resultado = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Editar Informação Adicional'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 300),
+          child: TextField(
+            controller: descricaoController,
+            decoration: const InputDecoration(
+              labelText: 'Descrição',
+              border: OutlineInputBorder(),
+              alignLabelWithHint: true,
+            ),
+            maxLines: 4,
+            textCapitalization: TextCapitalization.sentences,
+            autofocus: true,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: theme.colorScheme.onPrimary,
+            ),
+            onPressed: () {
+              if (descricaoController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Digite uma descrição'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(context, true);
+            },
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+
+    if (resultado == true) {
+      final now = DateTime.now();
+      setState(() {
+        _informacoesAdicionais[index] = InformacaoAdicionalItem(
+          id: info.id,
+          data: info.data,
+          descricao: descricaoController.text.trim(),
+          createdAt: info.createdAt ?? info.data,
+          updatedAt: now,
+        );
+      });
+    }
   }
 
   String? _validateNumeroOrcamento(String? value) {
@@ -3398,10 +3486,8 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
 
   void _save() {
   if (_isAprovado) {
-    final now = DateTime.now();
     final item = widget.initial!.copyWith(
       informacoesAdicionais: _informacoesAdicionais,
-      updatedAt: now,
     );
     
     Navigator.of(context).pop(item);

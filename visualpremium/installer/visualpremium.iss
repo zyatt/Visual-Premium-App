@@ -4,7 +4,7 @@
 ; Suporta instalação inicial e atualizações automáticas
 
 #define MyAppName "Visual Premium"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.0.0"
 #define MyAppPublisher "Matheus Vinícius"
 #define MyAppExeName "visualpremium.exe"
 #define MyAppId "{{7B8E0F9A-2C4D-4B1E-9A0A-3C8E2F5A1234}"

@@ -105,6 +105,7 @@ model OrcamentoInformacaoAdicional {
   data        DateTime
   descricao   String
   createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   orcamento   Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
 
   @@map("orcamento_informacoes_adicionais")
@@ -154,6 +155,7 @@ model PedidoInformacaoAdicional {
   data      DateTime
   descricao String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   pedido    Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 
   @@map("pedido_informacoes_adicionais")

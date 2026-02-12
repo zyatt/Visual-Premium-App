@@ -2372,13 +2372,6 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                _formatarData(info.data),
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 11,
-                                ),
-                              ),
                               const SizedBox(height: 4),
                               Text(
                                 info.descricao,
@@ -2387,6 +2380,29 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                   color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                                 ),
                               ),
+                              if (info.createdAt != null || info.updatedAt != null) ...[
+                                const SizedBox(height: 6),
+                                if (info.createdAt != null)
+                                  Text(
+                                    'Criado em ${_formatarData(info.createdAt!)}',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      fontSize: 10,
+                                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                if (info.updatedAt != null && 
+                                    info.createdAt != null &&
+                                    info.updatedAt!.difference(info.createdAt!).inSeconds > 1)
+                                  Text(
+                                    'Atualizado em ${_formatarData(info.updatedAt!)}',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      fontSize: 10,
+                                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                              ],
                             ],
                           ),
                         ),

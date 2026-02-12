@@ -81,6 +81,18 @@ CREATE TABLE "orcamentos" (
 );
 
 -- CreateTable
+CREATE TABLE "orcamento_informacoes_adicionais" (
+    "id" SERIAL NOT NULL,
+    "orcamentoId" INTEGER NOT NULL,
+    "data" TIMESTAMP(3) NOT NULL,
+    "descricao" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "orcamento_informacoes_adicionais_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "orcamento_opcoes_extras" (
     "id" SERIAL NOT NULL,
     "orcamentoId" INTEGER NOT NULL,
@@ -108,6 +120,18 @@ CREATE TABLE "pedidos" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "pedidos_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "pedido_informacoes_adicionais" (
+    "id" SERIAL NOT NULL,
+    "pedidoId" INTEGER NOT NULL,
+    "data" TIMESTAMP(3) NOT NULL,
+    "descricao" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "pedido_informacoes_adicionais_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -192,7 +216,7 @@ CREATE TABLE "pedido_materiais" (
 -- CreateTable
 CREATE TABLE "almoxarifados" (
     "id" SERIAL NOT NULL,
-    "orcamentoId" INTEGER NOT NULL,
+    "pedidoId" INTEGER NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'Não Realizado',
     "observacoes" TEXT,
     "finalizadoEm" TIMESTAMP(3),
@@ -303,7 +327,7 @@ CREATE UNIQUE INDEX "pedido_opcoes_extras_pedidoId_produtoOpcaoId_key" ON "pedid
 CREATE UNIQUE INDEX "produto_materiais_produtoId_materialId_key" ON "produto_materiais"("produtoId", "materialId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "almoxarifados_orcamentoId_key" ON "almoxarifados"("orcamentoId");
+CREATE UNIQUE INDEX "almoxarifados_pedidoId_key" ON "almoxarifados"("pedidoId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "almoxarifado_opcoes_extras_almoxarifadoId_produtoOpcaoId_key" ON "almoxarifado_opcoes_extras"("almoxarifadoId", "produtoOpcaoId");
@@ -327,6 +351,9 @@ ALTER TABLE "produto_opcoes_extras" ADD CONSTRAINT "produto_opcoes_extras_produt
 ALTER TABLE "orcamentos" ADD CONSTRAINT "orcamentos_produtoId_fkey" FOREIGN KEY ("produtoId") REFERENCES "produtos"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "orcamento_informacoes_adicionais" ADD CONSTRAINT "orcamento_informacoes_adicionais_orcamentoId_fkey" FOREIGN KEY ("orcamentoId") REFERENCES "orcamentos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "orcamento_opcoes_extras" ADD CONSTRAINT "orcamento_opcoes_extras_orcamentoId_fkey" FOREIGN KEY ("orcamentoId") REFERENCES "orcamentos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -337,6 +364,9 @@ ALTER TABLE "pedidos" ADD CONSTRAINT "pedidos_orcamentoId_fkey" FOREIGN KEY ("or
 
 -- AddForeignKey
 ALTER TABLE "pedidos" ADD CONSTRAINT "pedidos_produtoId_fkey" FOREIGN KEY ("produtoId") REFERENCES "produtos"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "pedido_informacoes_adicionais" ADD CONSTRAINT "pedido_informacoes_adicionais_pedidoId_fkey" FOREIGN KEY ("pedidoId") REFERENCES "pedidos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "pedido_opcoes_extras" ADD CONSTRAINT "pedido_opcoes_extras_pedidoId_fkey" FOREIGN KEY ("pedidoId") REFERENCES "pedidos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -369,7 +399,7 @@ ALTER TABLE "pedido_materiais" ADD CONSTRAINT "pedido_materiais_materialId_fkey"
 ALTER TABLE "pedido_materiais" ADD CONSTRAINT "pedido_materiais_pedidoId_fkey" FOREIGN KEY ("pedidoId") REFERENCES "pedidos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "almoxarifados" ADD CONSTRAINT "almoxarifados_orcamentoId_fkey" FOREIGN KEY ("orcamentoId") REFERENCES "orcamentos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "almoxarifados" ADD CONSTRAINT "almoxarifados_pedidoId_fkey" FOREIGN KEY ("pedidoId") REFERENCES "pedidos"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "almoxarifado_materiais" ADD CONSTRAINT "almoxarifado_materiais_almoxarifadoId_fkey" FOREIGN KEY ("almoxarifadoId") REFERENCES "almoxarifados"("id") ON DELETE CASCADE ON UPDATE CASCADE;

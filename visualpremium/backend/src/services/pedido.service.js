@@ -606,119 +606,165 @@ class PedidoService {
       }
     }
 
-    let informacoesValidadas;
-    if (informacoesAdicionais !== undefined) {
-      informacoesValidadas = [];
-      if (Array.isArray(informacoesAdicionais) && informacoesAdicionais.length > 0) {
+    
+
+   const pedidoAtualizado = await prisma.$transaction(async (tx) => {
+      // Deletar materiais, despesas e opções extras
+      if (materiaisValidados !== undefined) {
+        await tx.pedidoMaterial.deleteMany({
+          where: { pedidoId: id }
+        });
+      }
+
+      if (despesasValidadas !== undefined) {
+        await tx.pedidoDespesaAdicional.deleteMany({
+          where: { pedidoId: id }
+        });
+      }
+
+      if (opcoesExtrasValidadas !== undefined) {
+        await tx.pedidoOpcaoExtra.deleteMany({
+          where: { pedidoId: id }
+        });
+      }
+
+      // ✅ PROCESSAR INFORMAÇÕES ADICIONAIS DE FORMA INTELIGENTE
+      if (informacoesAdicionais !== undefined && Array.isArray(informacoesAdicionais)) {
+        const informacoesExistentes = pedidoAntigo.informacoesAdicionais;
+        const idsRecebidos = informacoesAdicionais
+          .filter(info => info.id)
+          .map(info => info.id);
+
+        // Deletar informações que não estão mais na lista
+        const idsParaDeletar = informacoesExistentes
+          .filter(info => !idsRecebidos.includes(info.id))
+          .map(info => info.id);
+
+        if (idsParaDeletar.length > 0) {
+          await tx.pedidoInformacaoAdicional.deleteMany({
+            where: {
+              id: { in: idsParaDeletar }
+            }
+          });
+        }
+
+        // Atualizar ou criar cada informação
         for (const info of informacoesAdicionais) {
           if (!info.data || !info.descricao || info.descricao.trim() === '') {
             throw new Error('Data e descrição são obrigatórias para informações adicionais');
           }
-          informacoesValidadas.push({
+
+          const infoData = {
             data: new Date(info.data),
             descricao: info.descricao.trim()
-          });
-        }
-      }
-    }
+          };
 
-    if (materiaisValidados !== undefined) {
-      await prisma.pedidoMaterial.deleteMany({
-        where: { pedidoId: id }
-      });
-    }
+          if (info.id) {
+            // Atualizar existente
+            const infoExistente = await tx.pedidoInformacaoAdicional.findUnique({
+              where: { id: info.id }
+            });
 
-    if (despesasValidadas !== undefined) {
-      await prisma.pedidoDespesaAdicional.deleteMany({
-        where: { pedidoId: id }
-      });
-    }
+            if (infoExistente) {
+              // Atualizar preservando o createdAt original ✅
+              await tx.pedidoInformacaoAdicional.update({
+                where: { id: info.id },
+                data: {
+                  ...infoData,
+                  createdAt: infoExistente.createdAt
+                }
+              });
+            }
+          } else {
+            // Criar novo
+            const createData = {
+              ...infoData,
+              pedidoId: id
+            };
 
-    if (opcoesExtrasValidadas !== undefined) {
-      await prisma.pedidoOpcaoExtra.deleteMany({
-        where: { pedidoId: id }
-      });
-    }
+            // Se o frontend enviou um createdAt, use-o ✅
+            if (info.createdAt) {
+              createData.createdAt = new Date(info.createdAt);
+            }
 
-    if (informacoesValidadas !== undefined) {
-      await prisma.pedidoInformacaoAdicional.deleteMany({
-        where: { pedidoId: id }
-      });
-    }
-
-    const updateData = {};
-    
-    if (cliente !== undefined) updateData.cliente = cliente.trim();
-    if (status !== undefined) updateData.status = status;
-    if (produtoId !== undefined) updateData.produtoId = produtoId;
-    if (numero !== undefined) updateData.numero = numero;
-   
-    if (formaPagamento !== undefined) updateData.formaPagamento = formaPagamento.trim();
-    if (condicoesPagamento !== undefined) updateData.condicoesPagamento = condicoesPagamento.trim();
-    if (prazoEntrega !== undefined) updateData.prazoEntrega = prazoEntrega.trim();
-
-    if (materiaisValidados !== undefined && materiaisValidados.length > 0) {
-      updateData.materiais = {
-        create: materiaisValidados
-      };
-    }
-
-    if (despesasValidadas !== undefined && despesasValidadas.length > 0) {
-      updateData.despesasAdicionais = {
-        create: despesasValidadas
-      };
-    }
-
-    if (opcoesExtrasValidadas !== undefined && opcoesExtrasValidadas.length > 0) {
-      updateData.opcoesExtras = {
-        create: opcoesExtrasValidadas
-      };
-    }
-
-    if (informacoesValidadas !== undefined && informacoesValidadas.length > 0) {
-      updateData.informacoesAdicionais = {
-        create: informacoesValidadas
-      };
-    }
-
-    const pedidoAtualizado = await prisma.pedido.update({
-      where: { id },
-      data: updateData,
-      include: {
-        produto: {
-          include: {
-            materiais: {
-              include: {
-                material: true
-              }
-            },
-            opcoesExtras: true
-          }
-        },
-        materiais: {
-          include: {
-            material: true
-          }
-        },
-        despesasAdicionais: true,
-        opcoesExtras: {
-          include: {
-            produtoOpcao: true
-          }
-        },
-        informacoesAdicionais: {
-          orderBy: {
-            data: 'desc'
-          }
-        },
-        orcamento: {
-          select: {
-            id: true,
-            numero: true
+            await tx.pedidoInformacaoAdicional.create({
+              data: createData
+            });
           }
         }
       }
-    });
+
+      // Montar dados de atualização
+      const updateData = {};
+      
+      if (cliente !== undefined) updateData.cliente = cliente.trim();
+      if (status !== undefined) updateData.status = status;
+      if (produtoId !== undefined) updateData.produtoId = produtoId;
+      if (numero !== undefined) updateData.numero = numero;
+     
+      if (formaPagamento !== undefined) updateData.formaPagamento = formaPagamento.trim();
+      if (condicoesPagamento !== undefined) updateData.condicoesPagamento = condicoesPagamento.trim();
+      if (prazoEntrega !== undefined) updateData.prazoEntrega = prazoEntrega.trim();
+
+      if (materiaisValidados !== undefined && materiaisValidados.length > 0) {
+        updateData.materiais = {
+          create: materiaisValidados
+        };
+      }
+
+      if (despesasValidadas !== undefined && despesasValidadas.length > 0) {
+        updateData.despesasAdicionais = {
+          create: despesasValidadas
+        };
+      }
+
+      if (opcoesExtrasValidadas !== undefined && opcoesExtrasValidadas.length > 0) {
+        updateData.opcoesExtras = {
+          create: opcoesExtrasValidadas
+        };
+      }
+
+      // Não incluir informacoesAdicionais no updateData pois já foram processadas acima
+
+      return await tx.pedido.update({
+        where: { id },
+        data: updateData,
+        include: {
+          produto: {
+            include: {
+              materiais: {
+                include: {
+                  material: true
+                }
+              },
+              opcoesExtras: true
+            }
+          },
+          materiais: {
+            include: {
+              material: true
+            }
+          },
+          despesasAdicionais: true,
+          opcoesExtras: {
+            include: {
+              produtoOpcao: true
+            }
+          },
+          informacoesAdicionais: {
+            orderBy: {
+              data: 'desc'
+            }
+          },
+          orcamento: {
+            select: {
+              id: true,
+              numero: true
+            }
+          }
+        }
+      });
+    }); 
 
     await logService.registrar({
       usuarioId: user?.id || 1,

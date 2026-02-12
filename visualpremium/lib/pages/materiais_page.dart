@@ -1494,7 +1494,12 @@ class _EmptyMaterialsState extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 16),
-            ElevatedButton.icon(onPressed: onCreate, icon: const Icon(Icons.add), label: const Text('Cadastrar')),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: theme.colorScheme.onPrimary,
+                ),
+              onPressed: onCreate, icon: const Icon(Icons.add), label: const Text('Cadastrar')),
           ],
         ),
       ),

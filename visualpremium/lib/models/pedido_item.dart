@@ -10,27 +10,37 @@ class InformacaoAdicionalPedidoItem {
   final int id;
   final DateTime data;
   final String descricao;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   const InformacaoAdicionalPedidoItem({
     required this.id,
     required this.data,
     required this.descricao,
+    this.createdAt,
+    this.updatedAt,
   });
 
   InformacaoAdicionalPedidoItem copyWith({
     int? id,
     DateTime? data,
     String? descricao,
+    DateTime? createdAt,
+    DateTime? updatedAt,
   }) =>
       InformacaoAdicionalPedidoItem(
         id: id ?? this.id,
         data: data ?? this.data,
         descricao: descricao ?? this.descricao,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
       );
 
   Map<String, Object?> toMap() => {
         'data': data.toIso8601String(),
         'descricao': descricao,
+        if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
+        if (updatedAt != null) 'updatedAt': updatedAt!.toIso8601String(),
       };
 
   static InformacaoAdicionalPedidoItem? tryFromMap(Map<String, Object?> map) {
@@ -38,6 +48,8 @@ class InformacaoAdicionalPedidoItem {
       final id = map['id'];
       final data = map['data'];
       final descricao = map['descricao'];
+      final createdAt = map['createdAt'];
+      final updatedAt = map['updatedAt'];
 
       if (id == null || data == null || descricao is! String) {
         return null;
@@ -47,6 +59,8 @@ class InformacaoAdicionalPedidoItem {
         id: int.parse(id.toString()),
         data: DateTime.parse(data.toString()).toLocal(),
         descricao: descricao.trim(),
+        createdAt: createdAt != null ? DateTime.parse(createdAt.toString()).toLocal() : null,
+        updatedAt: updatedAt != null ? DateTime.parse(updatedAt.toString()).toLocal() : null,
       );
     } catch (e) {
       return null;

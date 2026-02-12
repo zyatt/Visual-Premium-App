@@ -395,7 +395,8 @@ class OrcamentoService {
           materiais: true,
           despesasAdicionais: true,
           opcoesExtras: true,
-          informacoesAdicionais: true
+          informacoesAdicionais: true,
+          pedido: true
         }
       });
 
@@ -579,19 +580,6 @@ class OrcamentoService {
         }
       }
 
-      const informacoesValidadas = [];
-      if (informacoesAdicionais && Array.isArray(informacoesAdicionais) && informacoesAdicionais.length > 0) {
-        for (const info of informacoesAdicionais) {
-          if (!info.data || !info.descricao || info.descricao.trim() === '') {
-            throw new Error('Data e descrição são obrigatórias para informações adicionais');
-          }
-          informacoesValidadas.push({
-            data: new Date(info.data),
-            descricao: info.descricao.trim()
-          });
-        }
-      }
-
       const orcamentoAtualizado = await prisma.$transaction(async (tx) => {
         await tx.orcamentoMaterial.deleteMany({
           where: { orcamentoId: id }
@@ -602,9 +590,80 @@ class OrcamentoService {
         await tx.orcamentoOpcaoExtra.deleteMany({
           where: { orcamentoId: id }
         });
-        await tx.orcamentoInformacaoAdicional.deleteMany({
-          where: { orcamentoId: id }
-        });
+
+        // Processar informações adicionais de forma inteligente
+        if (informacoesAdicionais && Array.isArray(informacoesAdicionais)) {
+          const informacoesExistentes = orcamentoAtual.informacoesAdicionais;
+          const idsRecebidos = informacoesAdicionais
+            .filter(info => info.id)
+            .map(info => info.id);
+
+          // Deletar informações que não estão mais na lista
+          const idsParaDeletar = informacoesExistentes
+            .filter(info => !idsRecebidos.includes(info.id))
+            .map(info => info.id);
+
+          if (idsParaDeletar.length > 0) {
+            await tx.orcamentoInformacaoAdicional.deleteMany({
+              where: {
+                id: { in: idsParaDeletar }
+              }
+            });
+          }
+
+          // Atualizar ou criar cada informação
+          for (const info of informacoesAdicionais) {
+            if (!info.data || !info.descricao || info.descricao.trim() === '') {
+              throw new Error('Data e descrição são obrigatórias para informações adicionais');
+            }
+
+            const infoData = {
+              data: new Date(info.data),
+              descricao: info.descricao.trim()
+            };
+
+            if (info.id) {
+              // Atualizar existente
+              // Buscar a informação existente para preservar o createdAt
+              const infoExistente = await tx.orcamentoInformacaoAdicional.findUnique({
+                where: { id: info.id }
+              });
+
+              if (infoExistente) {
+                // Atualizar preservando o createdAt original
+                await tx.orcamentoInformacaoAdicional.update({
+                  where: { id: info.id },
+                  data: {
+                    ...infoData,
+                    // Preservar o createdAt original
+                    createdAt: infoExistente.createdAt
+                  }
+                });
+              }
+            } else {
+              // Criar novo
+              // Se o frontend enviar createdAt, use-o; caso contrário, deixe o Prisma definir
+              const createData = {
+                ...infoData,
+                orcamentoId: id
+              };
+
+              // Se o frontend enviou um createdAt, use-o (para casos de edição onde queremos manter a data original)
+              if (info.createdAt) {
+                createData.createdAt = new Date(info.createdAt);
+              }
+
+              await tx.orcamentoInformacaoAdicional.create({
+                data: createData
+              });
+            }
+          }
+        } else {
+          // Se não há informações adicionais, deletar todas
+          await tx.orcamentoInformacaoAdicional.deleteMany({
+            where: { orcamentoId: id }
+          });
+        }
 
         const orc = await tx.orcamento.update({
           where: { id },
@@ -623,9 +682,6 @@ class OrcamentoService {
             } : undefined,
             opcoesExtras: opcoesExtrasValidadas.length > 0 ? {
               create: opcoesExtrasValidadas
-            } : undefined,
-            informacoesAdicionais: informacoesValidadas.length > 0 ? {
-              create: informacoesValidadas
             } : undefined,
           },
           include: {
@@ -649,6 +705,61 @@ class OrcamentoService {
           }
         });
 
+        // Se o orçamento está aprovado e tem um pedido associado, sincronizar informações adicionais
+        if (orcamentoAtual.status === 'Aprovado' && orcamentoAtual.pedido) {
+          const pedidoInfosExistentes = await tx.pedidoInformacaoAdicional.findMany({
+            where: { pedidoId: orcamentoAtual.pedido.id }
+          });
+
+          const idsRecebidos = orc.informacoesAdicionais.map(info => info.id);
+          const idsParaDeletar = pedidoInfosExistentes
+            .filter(info => !idsRecebidos.includes(info.id))
+            .map(info => info.id);
+
+          if (idsParaDeletar.length > 0) {
+            await tx.pedidoInformacaoAdicional.deleteMany({
+              where: {
+                id: { in: idsParaDeletar }
+              }
+            });
+          }
+
+          for (const info of orc.informacoesAdicionais) {
+            const pedidoInfoExistente = pedidoInfosExistentes.find(pi => pi.id === info.id);
+
+            const infoData = {
+              data: info.data,
+              descricao: info.descricao
+            };
+
+            if (pedidoInfoExistente) {
+              // Atualizar preservando o createdAt original
+              await tx.pedidoInformacaoAdicional.update({
+                where: { id: pedidoInfoExistente.id },
+                data: {
+                  ...infoData,
+                  createdAt: pedidoInfoExistente.createdAt
+                }
+              });
+            } else {
+              // Criar nova informação no pedido, preservando o createdAt do orçamento
+              const createData = {
+                ...infoData,
+                pedidoId: orcamentoAtual.pedido.id
+              };
+
+              // Preservar o createdAt original do orçamento
+              if (info.createdAt) {
+                createData.createdAt = info.createdAt;
+              }
+
+              await tx.pedidoInformacaoAdicional.create({
+                data: createData
+              });
+            }
+          }
+        }
+
         return orc;
       });
 
@@ -658,7 +769,7 @@ class OrcamentoService {
         acao: 'EDITAR',
         entidade: 'ORCAMENTO',
         entidadeId: id,
-        descricao: `Editou o orçamento "#${orcamentoAtualizado.numero}"`,
+        descricao: `Editou o orçamento "#${orcamentoAtualizado.numero}"${orcamentoAtual.pedido ? ' e o pedido foi atualizado' : ''}`,
         detalhes: {
           antes: orcamentoAtual,
           depois: orcamentoAtualizado
@@ -756,7 +867,8 @@ class OrcamentoService {
           pedidoData.informacoesAdicionais = {
             create: orcamento.informacoesAdicionais.map(i => ({
               data: i.data,
-              descricao: i.descricao
+              descricao: i.descricao,
+              createdAt: i.createdAt
             }))
           };
         }
