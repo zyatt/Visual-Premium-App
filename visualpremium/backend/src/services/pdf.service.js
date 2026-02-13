@@ -103,13 +103,20 @@ class PdfService {
   
   _calcularTotalDespesas(despesas) {
     if (!despesas || despesas.length === 0) return 0;
-    return despesas.reduce((sum, despesa) => sum + despesa.valor, 0);
+    return despesas
+      .filter(d => d.descricao !== '__NAO_SELECIONADO__')
+      .reduce((sum, despesa) => sum + despesa.valor, 0);
   }
   
   _calcularTotalOpcoes(opcoes) {
     if (!opcoes || opcoes.length === 0) return 0;
     
     return opcoes.reduce((sum, opcao) => {
+      // Ignorar opções marcadas como "NÃO"
+      if (opcao.valorString === '__NAO_SELECIONADO__') {
+        return sum;
+      }
+      
       let valorOpcao = 0;
       
       // ✅ CORRIGIDO: Acessar opcao.produtoOpcao.tipo em vez de opcao.tipo
@@ -143,17 +150,19 @@ class PdfService {
   _formatarDespesas(despesas) {
     if (!despesas || despesas.length === 0) return [];
     
-    return despesas.map(d => ({
-      descricao: d.descricao,
-      valor: d.valor
-    }));
+    return despesas
+      .filter(d => d.descricao !== '__NAO_SELECIONADO__')
+      .map(d => ({
+        descricao: d.descricao,
+        valor: d.valor
+      }));
   }
   
   _formatarOpcoes(opcoes) {
     if (!opcoes || opcoes.length === 0) return [];
     
     return opcoes
-      .filter(o => o.valorString != null || o.valorFloat1 != null || o.valorFloat2 != null)
+      .filter(o => o.valorString !== '__NAO_SELECIONADO__')
       .map(o => ({
         nome: o.produtoOpcao.nome,
         tipo: o.produtoOpcao.tipo,

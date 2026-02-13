@@ -446,12 +446,8 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
     for (var i = 0; i < widget.pedido.opcoesExtras.length; i++) {
       final opcao = widget.pedido.opcoesExtras[i];
       
-      // Pular opções extras que foram marcadas como "Não" (todos os valores são null)
-      final isNaoSelection = opcao.valorString == null && 
-                             opcao.valorFloat1 == null && 
-                             opcao.valorFloat2 == null;
-      
-      if (isNaoSelection) {
+      // Pular opções extras que foram marcadas como "Não"
+      if (opcao.valorString == '__NAO_SELECIONADO__') {
         continue;
       }
       
@@ -659,11 +655,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
       final opcao = widget.pedido.opcoesExtras[i];
       
       // Pular opções extras que foram marcadas como "Não"
-      final isNaoSelection = opcao.valorString == null && 
-                             opcao.valorFloat1 == null && 
-                             opcao.valorFloat2 == null;
-      
-      if (isNaoSelection) {
+      if (opcao.valorString == '__NAO_SELECIONADO__') {
         continue;
       }
       
@@ -746,11 +738,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
         final opcao = widget.pedido.opcoesExtras[i];
         
         // Pular opções extras que foram marcadas como "Não"
-        final isNaoSelection = opcao.valorString == null && 
-                               opcao.valorFloat1 == null && 
-                               opcao.valorFloat2 == null;
-        
-        if (isNaoSelection) {
+        if (opcao.valorString == '__NAO_SELECIONADO__') {
           continue;
         }
         
@@ -871,11 +859,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
         final opcao = widget.pedido.opcoesExtras[i];
         
         // Pular opções extras que foram marcadas como "Não"
-        final isNaoSelection = opcao.valorString == null && 
-                               opcao.valorFloat1 == null && 
-                               opcao.valorFloat2 == null;
-        
-        if (isNaoSelection) {
+        if (opcao.valorString == '__NAO_SELECIONADO__') {
           continue;
         }
         
@@ -1279,7 +1263,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                         if (widget.pedido.opcoesExtras.isNotEmpty) ...[
 
                         if (widget.pedido.opcoesExtras.any((o) => 
-                            o.valorString != null || o.valorFloat1 != null || o.valorFloat2 != null)) ...[
+                            o.valorString != '__NAO_SELECIONADO__')) ...[
                           const SizedBox(height: 24),
                           Text(
                             'Outros',
@@ -1292,11 +1276,8 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                           ...List.generate(widget.pedido.opcoesExtras.length, (index) {
                             final opcao = widget.pedido.opcoesExtras[index];
                             
-                            final isNaoSelection = opcao.valorString == null && 
-                                                   opcao.valorFloat1 == null && 
-                                                   opcao.valorFloat2 == null;
-                            
-                            if (isNaoSelection) {
+                            // Pular opções extras que foram marcadas como "Não"
+                            if (opcao.valorString == '__NAO_SELECIONADO__') {
                               return const SizedBox();
                             }
                             

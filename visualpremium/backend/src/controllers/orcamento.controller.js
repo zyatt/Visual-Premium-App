@@ -67,21 +67,40 @@ class OrcamentoController {
       const orcamento = await orcamentoService.atualizar(parseInt(id), req.body, req.user);
       return res.status(200).json(orcamento);
     } catch (error) {
-      console.error('Erro ao atualizar orçamento:', error);
+      // Verificar erros de permissão ANTES de logar
+      const isPermissionError = 
+        error.message === 'Orçamentos aprovados só podem ser editados por administradores' ||
+        error.message.includes('permissão');
+
+      const isNotFoundError = error.message === 'Orçamento não encontrado';
       
-      if (error.message === 'Orçamento não encontrado') {
+      const isValidationError = 
+        error.message.includes('obrigatório') ||
+        error.message.includes('inválid') ||
+        error.message.includes('não encontrado') ||
+        error.message.includes('não pertence');
+
+      // Logar apenas erros que não são de permissão, validação ou não encontrado
+      if (!isPermissionError && !isValidationError && !isNotFoundError) {
+        console.error('Erro ao atualizar orçamento:', error);
+      }
+
+      // Retornar resposta apropriada
+      if (isPermissionError) {
+        return res.status(403).json({ 
+          error: error.message,
+          message: error.message 
+        });
+      }
+      
+      if (isNotFoundError) {
         return res.status(404).json({ 
           error: 'Orçamento não encontrado',
           message: error.message 
         });
       }
       
-      if (
-        error.message.includes('obrigatório') ||
-        error.message.includes('inválid') ||
-        error.message.includes('não encontrado') ||
-        error.message.includes('não pertence')
-      ) {
+      if (isValidationError) {
         return res.status(400).json({ 
           error: error.message,
           message: error.message 
@@ -115,16 +134,35 @@ class OrcamentoController {
       
       return res.status(200).json(orcamento);
     } catch (error) {
-      console.error('Erro ao atualizar status:', error);
+      // Verificar erros de permissão ANTES de logar
+      const isPermissionError = 
+        error.message === 'Apenas administradores podem alterar o status de orçamentos aprovados' ||
+        error.message.includes('permissão');
+
+      const isNotFoundError = error.message === 'Orçamento não encontrado';
+      const isInvalidError = error.message.includes('inválid');
+
+      // Logar apenas erros que não são de permissão, não encontrado ou inválidos
+      if (!isPermissionError && !isNotFoundError && !isInvalidError) {
+        console.error('Erro ao atualizar status:', error);
+      }
+
+      // Retornar resposta apropriada
+      if (isPermissionError) {
+        return res.status(403).json({ 
+          error: error.message,
+          message: error.message 
+        });
+      }
       
-      if (error.message === 'Orçamento não encontrado') {
+      if (isNotFoundError) {
         return res.status(404).json({ 
           error: 'Orçamento não encontrado',
           message: error.message 
         });
       }
       
-      if (error.message.includes('inválid')) {
+      if (isInvalidError) {
         return res.status(400).json({ 
           error: error.message,
           message: error.message 
@@ -146,9 +184,28 @@ class OrcamentoController {
         message: 'Orçamento excluído com sucesso' 
       });
     } catch (error) {
-      console.error('Erro ao deletar orçamento:', error);
+      // Verificar erros de permissão ANTES de logar
+      const isPermissionError = 
+        error.message === 'Apenas administradores podem excluir orçamentos' ||
+        error.message === 'Orçamentos aprovados não podem ser excluídos' ||
+        error.message.includes('permissão');
+
+      const isNotFoundError = error.message === 'Orçamento não encontrado';
+
+      // Logar apenas erros que não são de permissão ou não encontrado
+      if (!isPermissionError && !isNotFoundError) {
+        console.error('Erro ao deletar orçamento:', error);
+      }
+
+      // Retornar resposta apropriada
+      if (isPermissionError) {
+        return res.status(403).json({ 
+          error: error.message,
+          message: error.message 
+        });
+      }
       
-      if (error.message === 'Orçamento não encontrado') {
+      if (isNotFoundError) {
         return res.status(404).json({ 
           error: 'Orçamento não encontrado',
           message: error.message 

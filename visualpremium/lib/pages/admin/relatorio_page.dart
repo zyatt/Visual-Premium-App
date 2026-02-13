@@ -171,115 +171,134 @@ class _RelatoriosPageState extends State<RelatorioPage> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: RefreshIndicator(
-        onRefresh: _loadRelatorios,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: Stack(
+        children: [
+          RefreshIndicator(
+            onRefresh: _loadRelatorios,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(32.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
+                      Row(
+                        children: [
+                          ExcludeFocus(
+                            child: IconButton(
+                              onPressed: () => context.go('/admin'),
+                              icon: const Icon(Icons.arrow_back),
+                              tooltip: 'Voltar',
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.analytics,
+                            size: 32,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Relatórios Comparativos',
+                            style: theme.textTheme.headlineMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
                       ExcludeFocus(
                         child: IconButton(
-                          onPressed: () => context.go('/admin'),
-                          icon: const Icon(Icons.arrow_back),
-                          tooltip: 'Voltar',
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(
-                        Icons.analytics,
-                        size: 32,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Relatórios Comparativos',
-                        style: theme.textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
+                          onPressed: _loading ? null : _loadRelatorios,
+                          icon: const Icon(Icons.refresh),
+                          tooltip: 'Atualizar',
                         ),
                       ),
                     ],
                   ),
-                  ExcludeFocus(
-                    child: IconButton(
-                      onPressed: _loadRelatorios,
-                      icon: const Icon(Icons.refresh),
-                      tooltip: 'Atualizar',
+                  const SizedBox(height: 8),
+                  Text(
+                    'Análise comparativa entre valores orçados e realizados',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Análise comparativa entre valores orçados e realizados',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-              ),
-              const SizedBox(height: 32),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: theme.cardTheme.color,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-                ),
-                child: TextField(
-                  onChanged: (value) => setState(() => _searchQuery = value),
-                  decoration: InputDecoration(
-                    hintText: 'Buscar relatórios',
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    icon: Icon(Icons.search, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              if (_loading)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 48),
-                  child: Center(
-                    child: SizedBox(
-                      width: 28,
-                      height: 28,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: theme.colorScheme.primary,
+                  const SizedBox(height: 32),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: theme.cardTheme.color,
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                    ),
+                    child: TextField(
+                      onChanged: (value) => setState(() => _searchQuery = value),
+                      decoration: InputDecoration(
+                        hintText: 'Buscar relatórios',
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        icon: Icon(Icons.search, color: theme.colorScheme.onSurface.withValues(alpha: 0.4)),
                       ),
                     ),
                   ),
-                )
-              else if (filteredRelatorios.isEmpty)
-                _EmptyState(hasSearch: _searchQuery.isNotEmpty)
-              else
-                ExcludeFocus(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: filteredRelatorios.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final relatorio = filteredRelatorios[index];
-                      return _RelatorioCard(
-                        relatorio: relatorio,
-                        currency: currency,
-                        onTap: () => _abrirRelatorio(relatorio),
-                        onDownloadPdf: () => _downloadPdf(relatorio),
-                        isDownloading: _downloadingId == relatorio['id'],
-                      );
-                    },
+                  const SizedBox(height: 24),
+                  if (_loading)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 48),
+                      child: Center(
+                        child: SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                    )
+                  else if (filteredRelatorios.isEmpty)
+                    _EmptyState(hasSearch: _searchQuery.isNotEmpty)
+                  else
+                    ExcludeFocus(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: filteredRelatorios.length,
+                        separatorBuilder: (context, index) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final relatorio = filteredRelatorios[index];
+                          return _RelatorioCard(
+                            relatorio: relatorio,
+                            currency: currency,
+                            onTap: () => _abrirRelatorio(relatorio),
+                            onDownloadPdf: () => _downloadPdf(relatorio),
+                            isDownloading: _downloadingId == relatorio['id'],
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (_loading)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SizedBox(
+                height: 3,
+                child: LinearProgressIndicator(
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    theme.colorScheme.primary,
                   ),
                 ),
-            ],
-          ),
-        ),
+              ),
+            ),
+        ],
       ),
     );
   }

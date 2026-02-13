@@ -2496,7 +2496,6 @@
                       focusNode: _nomeFocusNode,
                       decoration: const InputDecoration(
                         labelText: 'Nome da opção',
-                        hintText: 'Ex: Frete, Cor',
                       ),
                       validator: _validateNome,
                     ),

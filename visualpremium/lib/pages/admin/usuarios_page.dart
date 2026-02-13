@@ -155,117 +155,144 @@ class _UsuariosPageState extends State<UsuariosPage> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(32.0),
-            child: Row(
-              children: [
-                ExcludeFocus(
-                  child: IconButton(
-                    onPressed: () => context.go('/admin'),
-                    icon: const Icon(Icons.arrow_back),
-                    tooltip: 'Voltar para Admin',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.people,
-                  size: 32,
-                  color: theme.colorScheme.primary,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Gerenciar Usuários',
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const Spacer(),
-                ExcludeFocus(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _showUsuarioDialog(),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Novo Usuário'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: theme.colorScheme.primary,
-                      foregroundColor: theme.colorScheme.onPrimary,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Row(
+                  children: [
+                    ExcludeFocus(
+                      child: IconButton(
+                        onPressed: () => context.go('/admin'),
+                        icon: const Icon(Icons.arrow_back),
+                        tooltip: 'Voltar',
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.people,
+                      size: 32,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Gerenciar Usuários',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    ExcludeFocus(
+                      child: IconButton(
+                        onPressed: _isLoading ? null : _loadUsuarios,
+                        icon: const Icon(Icons.refresh),
+                        tooltip: 'Atualizar',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ExcludeFocus(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _showUsuarioDialog(),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Novo Usuário'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: theme.colorScheme.onPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ExcludeFocus(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _error != null
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.error_outline,
-                                size: 64,
-                                color: theme.colorScheme.error,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Erro ao carregar usuários',
-                                style: theme.textTheme.titleLarge,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                _error!,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.onSurface
-                                      .withValues(alpha: 0.6),
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-                              ElevatedButton.icon(
-                                onPressed: _loadUsuarios,
-                                icon: const Icon(Icons.refresh),
-                                label: const Text('Tentar novamente'),
-                              ),
-                            ],
-                          ),
-                        )
-                      : _usuarios.isEmpty
+              ),
+              Expanded(
+                child: ExcludeFocus(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _error != null
                           ? Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(
-                                    Icons.people_outline,
+                                    Icons.error_outline,
                                     size: 64,
-                                    color: theme.colorScheme.onSurface
-                                        .withValues(alpha: 0.3),
+                                    color: theme.colorScheme.error,
                                   ),
                                   const SizedBox(height: 16),
                                   Text(
-                                    'Nenhum usuário cadastrado',
+                                    'Erro ao carregar usuários',
                                     style: theme.textTheme.titleLarge,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _error!,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: theme.colorScheme.onSurface
+                                          .withValues(alpha: 0.6),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  ElevatedButton.icon(
+                                    onPressed: _loadUsuarios,
+                                    icon: const Icon(Icons.refresh),
+                                    label: const Text('Tentar novamente'),
                                   ),
                                 ],
                               ),
                             )
-                          : ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 32),
-                              itemCount: _usuarios.length,
-                              itemBuilder: (context, index) {
-                                final usuario = _usuarios[index];
-                                return _UsuarioCard(
-                                  usuario: usuario,
-                                  onEdit: () => _showUsuarioDialog(usuario: usuario),
-                                  onDelete: () => _deleteUsuario(usuario),
-                                );
-                              },
-                            ),
-            ),
+                          : _usuarios.isEmpty
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.people_outline,
+                                        size: 64,
+                                        color: theme.colorScheme.onSurface
+                                            .withValues(alpha: 0.3),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'Nenhum usuário cadastrado',
+                                        style: theme.textTheme.titleLarge,
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : ListView.builder(
+                                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                                  itemCount: _usuarios.length,
+                                  itemBuilder: (context, index) {
+                                    final usuario = _usuarios[index];
+                                    return _UsuarioCard(
+                                      usuario: usuario,
+                                      onEdit: () => _showUsuarioDialog(usuario: usuario),
+                                      onDelete: () => _deleteUsuario(usuario),
+                                    );
+                                  },
+                                ),
+                ),
+              ),
+            ],
           ),
+          if (_isLoading)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SizedBox(
+                height: 3,
+                child: LinearProgressIndicator(
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

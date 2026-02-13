@@ -176,7 +176,7 @@ class _HomePageContent extends StatelessWidget {
 
   int get _totalPedidos => pedidos.length;
   int get _pedidosEmAndamento =>
-      pedidos.where((p) => p.status == 'Em Andamento').length;
+      pedidos.where((p) => p.status == 'Pendente').length;
   int get _pedidosConcluidos =>
       pedidos.where((p) => p.status == 'Concluído').length;
   int get _pedidosCancelados =>
@@ -479,7 +479,7 @@ class _HomePageContent extends StatelessWidget {
           Expanded(
             child: RepaintBoundary(
               child: _StatCard(
-                title: 'Em Andamento',
+                title: 'Pendente',
                 value: _pedidosEmAndamento.toString(),
                 icon: Icons.play_circle_outline,
                 color: Colors.blue,

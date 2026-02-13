@@ -37,6 +37,9 @@ class InformacaoAdicionalPedidoItem {
       );
 
   Map<String, Object?> toMap() => {
+        // ✅ Só envia o ID se for um ID real do banco (< 1 bilhão)
+        // IDs temporários são timestamps enormes (> 1 trilhão) e não devem ser enviados
+        if (id != 0 && id < 1000000000) 'id': id,
         'data': data.toIso8601String(),
         'descricao': descricao,
         if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),

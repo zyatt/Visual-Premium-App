@@ -77,78 +77,103 @@ class _LogsPageState extends State<LogsPage> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Column(
+      body: Stack(
         children: [
-          ExcludeFocus(
-            child: Container(
-              padding: const EdgeInsets.all(32.0),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => context.go('/admin'),
-                    icon: const Icon(Icons.arrow_back),
-                    tooltip: 'Voltar',
+          Column(
+            children: [
+              ExcludeFocus(
+                child: Container(
+                  padding: const EdgeInsets.all(32.0),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        onPressed: () => context.go('/admin'),
+                        icon: const Icon(Icons.arrow_back),
+                        tooltip: 'Voltar',
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.history_outlined,
+                        size: 32,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Logs do Sistema',
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: _isLoading ? null : _carregarLogs,
+                        icon: const Icon(Icons.refresh),
+                        tooltip: 'Atualizar',
+                      ),
+                      const SizedBox(width: 12),
+                      _buildFiltroDropdown(
+                        label: 'Entidade',
+                        value: _filtroEntidade,
+                        items: const ['MATERIAL', 'PRODUTO', 'ORCAMENTO', 'PEDIDO', 'USUARIO'],
+                        onChanged: (value) {
+                          setState(() => _filtroEntidade = value);
+                          _aplicarFiltros();
+                        },
+                      ),
+                      const SizedBox(width: 12),
+                      _buildFiltroDropdown(
+                        label: 'Ação',
+                        value: _filtroAcao,
+                        items: const ['CRIAR', 'EDITAR', 'DELETAR'],
+                        onChanged: (value) {
+                          setState(() => _filtroAcao = value);
+                          _aplicarFiltros();
+                        },
+                      ),
+                      const SizedBox(width: 12),
+                      if (_filtroEntidade != null || _filtroAcao != null)
+                        TextButton.icon(
+                          onPressed: _limparFiltros,
+                          icon: const Icon(Icons.clear),
+                          label: const Text('Limpar'),
+                        ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.history_outlined,
-                    size: 32,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Logs do Sistema',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Spacer(),
-                  _buildFiltroDropdown(
-                    label: 'Entidade',
-                    value: _filtroEntidade,
-                    items: const ['MATERIAL', 'PRODUTO', 'ORCAMENTO', 'PEDIDO', 'USUARIO'],
-                    onChanged: (value) {
-                      setState(() => _filtroEntidade = value);
-                      _aplicarFiltros();
-                    },
-                  ),
-                  const SizedBox(width: 12),
-                  _buildFiltroDropdown(
-                    label: 'Ação',
-                    value: _filtroAcao,
-                    items: const ['CRIAR', 'EDITAR', 'DELETAR'],
-                    onChanged: (value) {
-                      setState(() => _filtroAcao = value);
-                      _aplicarFiltros();
-                    },
-                  ),
-                  const SizedBox(width: 12),
-                  if (_filtroEntidade != null || _filtroAcao != null)
-                    TextButton.icon(
-                      onPressed: _limparFiltros,
-                      icon: const Icon(Icons.clear),
-                      label: const Text('Limpar'),
-                    ),
-                ],
+                ),
               ),
-            ),
-          ),
 
-          Expanded(
-            child: ExcludeFocus(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _error != null
-                      ? Center(child: Text('Erro: $_error'))
-                      : _logs.isEmpty
-                          ? const Center(child: Text('Nenhum log encontrado'))
-                          : _buildLogsList(theme),
-            ),
-          ),
+              Expanded(
+                child: ExcludeFocus(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _error != null
+                          ? Center(child: Text('Erro: $_error'))
+                          : _logs.isEmpty
+                              ? const Center(child: Text('Nenhum log encontrado'))
+                              : _buildLogsList(theme),
+                ),
+              ),
 
-          if (!_isLoading && _logs.isNotEmpty)
-            ExcludeFocus(
-              child: _buildPaginacao(theme),
+              if (!_isLoading && _logs.isNotEmpty)
+                ExcludeFocus(
+                  child: _buildPaginacao(theme),
+                ),
+            ],
+          ),
+          if (_isLoading)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SizedBox(
+                height: 3,
+                child: LinearProgressIndicator(
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    theme.colorScheme.primary,
+                  ),
+                ),
+              ),
             ),
         ],
       ),

@@ -37,6 +37,9 @@ class InformacaoAdicionalItem {
       );
 
   Map<String, Object?> toMap() => {
+        // ✅ Só envia o ID se for um ID real do banco (< 1 bilhão)
+        // IDs temporários são timestamps enormes (> 1 trilhão) e não devem ser enviados
+        if (id != 0 && id < 1000000000) 'id': id,
         'data': data.toIso8601String(),
         'descricao': descricao,
         if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
@@ -463,7 +466,7 @@ class ProdutoItem {
     required this.id,
     required this.nome,
     required this.materiais,
-    this.opcoesExtras = const [],
+    required this.opcoesExtras,
     this.avisos = const [],
   });
 
@@ -536,6 +539,7 @@ class OrcamentoItem {
   final String formaPagamento;
   final String condicoesPagamento;
   final String prazoEntrega;
+  final bool rascunho;
   final DateTime createdAt;
   final DateTime updatedAt;
   final Map<String, dynamic>? valorSugerido;
@@ -554,6 +558,7 @@ class OrcamentoItem {
     required this.formaPagamento,
     required this.condicoesPagamento,
     required this.prazoEntrega,
+    this.rascunho = false,
     required this.createdAt,
     required this.updatedAt,
     this.valorSugerido,
@@ -621,6 +626,7 @@ class OrcamentoItem {
     String? formaPagamento,
     String? condicoesPagamento,
     String? prazoEntrega,
+    bool? rascunho,
     DateTime? createdAt,
     DateTime? updatedAt,
     Map<String, dynamic>? valorSugerido,
@@ -639,13 +645,14 @@ class OrcamentoItem {
       formaPagamento: formaPagamento ?? this.formaPagamento,
       condicoesPagamento: condicoesPagamento ?? this.condicoesPagamento,
       prazoEntrega: prazoEntrega ?? this.prazoEntrega,
+      rascunho: rascunho ?? this.rascunho,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       valorSugerido: valorSugerido ?? this.valorSugerido,
     );
   }
 
-  Map<String, Object?> toMap() => {
+  Map<String, Object?> toMap({bool finalizar = false}) => {
         'cliente': cliente,
         'numero': numero,
         'status': status,
@@ -657,6 +664,7 @@ class OrcamentoItem {
         'formaPagamento': formaPagamento,
         'condicoesPagamento': condicoesPagamento,
         'prazoEntrega': prazoEntrega,
+        'rascunho': rascunho, // ✅ ENVIAR O CAMPO RASCUNHO
       };
 
   static OrcamentoItem? tryFromMap(Map<String, Object?> map) {
@@ -676,6 +684,7 @@ class OrcamentoItem {
       final formaPagamento = map['formaPagamento'];
       final condicoesPagamento = map['condicoesPagamento'];
       final prazoEntrega = map['prazoEntrega'];
+      final rascunho = map['rascunho'];
       final valorSugeridoData = map['valorSugerido'];
 
       if (id == null || cliente is! String || numero == null || status is! String || 
@@ -748,6 +757,7 @@ class OrcamentoItem {
         formaPagamento: formaPagamento.trim(),
         condicoesPagamento: condicoesPagamento.trim(),
         prazoEntrega: prazoEntrega.trim(),
+        rascunho: rascunho == true,
         createdAt: createdAt != null ? DateTime.parse(createdAt.toString()) : DateTime.now(),
         updatedAt: updatedAt != null ? DateTime.parse(updatedAt.toString()) : DateTime.now(),
         valorSugerido: valorSugerido,

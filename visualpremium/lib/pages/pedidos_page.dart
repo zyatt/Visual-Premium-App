@@ -124,6 +124,14 @@ class _PedidosPageState extends State<PedidosPage> {
     );
   }
 
+  String _cleanErrorMessage(dynamic error) {
+    String errorMessage = error.toString();
+    if (errorMessage.startsWith('Exception: ')) {
+      errorMessage = errorMessage.substring('Exception: '.length);
+    }
+    return errorMessage;
+  }
+
   Future<void> _loadProdutos() async {
     try {
       final produtos = await _api.fetchProdutos();
@@ -225,12 +233,26 @@ class _PedidosPageState extends State<PedidosPage> {
         _items = next;
         _loading = false;
       });
+      
+      // Mensagem simples
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Pedido "${item.numero != null ? "#${item.numero}" : ""}" excluído'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao deletar pedido: $e')),
+          SnackBar(
+            content: Text(_cleanErrorMessage(e)),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       });
     }
@@ -700,7 +722,7 @@ class _PedidosPageState extends State<PedidosPage> {
                                     orElse: () => ProdutoItem(
                                       id: produtoId,
                                       nome: 'Produto #$produtoId',
-                                      materiais: [],
+                                      materiais: [], opcoesExtras: [],
                                     ),
                                   );
                                   return _FilterChip(
@@ -945,7 +967,7 @@ class _FilterDialogState extends State<_FilterDialog> {
   }
 
   List<String> get _availableStatus {
-    return ['Em Andamento', 'Concluído', 'Cancelado'];
+    return ['Pendente', 'Concluído', 'Cancelado'];
   }
 
   List<MapEntry<int, String>> get _filteredProdutos {
@@ -2165,8 +2187,8 @@ class _PedidoCard extends StatelessWidget {
                     onStatusChange('Concluído');
                   } else if (value == 'cancelar') {
                     onStatusChange('Cancelado');
-                  } else if (value == 'andamento') {
-                    onStatusChange('Em Andamento');
+                  } else if (value == 'pendente') {
+                    onStatusChange('Pendente');
                   }
                 },
                 tooltip: 'Opções',
@@ -2831,14 +2853,14 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                         }),
                                       ],
                                       
-                                      if (widget.initial.opcoesExtras.isNotEmpty) ...[
+                                      if (widget.initial.opcoesExtras.where((o) => o.valorString != '__NAO_SELECIONADO__').isNotEmpty) ...[
                                         const SizedBox(height: 16),
                                         Text(
                                           'Outros',
                                           style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
                                         ),
                                         const SizedBox(height: 8),
-                                        ...widget.initial.opcoesExtras.map((opcao) {
+                                        ...widget.initial.opcoesExtras.where((o) => o.valorString != '__NAO_SELECIONADO__').map((opcao) {
                                           return Container(
                                             margin: const EdgeInsets.only(bottom: 6),
                                             padding: const EdgeInsets.all(10),

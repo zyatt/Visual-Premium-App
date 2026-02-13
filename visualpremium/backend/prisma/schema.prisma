@@ -87,6 +87,7 @@ model Orcamento {
   formaPagamento          String
   condicoesPagamento      String
   prazoEntrega            String
+  rascunho                Boolean                       @default(false)
   createdAt               DateTime                      @default(now())
   updatedAt               DateTime                      @updatedAt
   despesasAdicionais      DespesaAdicional[]

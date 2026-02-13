@@ -178,211 +178,238 @@ class _FaixasCustoPageState extends State<FaixasCustoPage> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      body: Stack(
+        children: [
+          RefreshIndicator(
+            onRefresh: _load,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ExcludeFocus(
-                    child: IconButton(
-                      onPressed: () => context.go('/admin'),
-                      icon: const Icon(Icons.arrow_back),
-                      tooltip: 'Voltar',
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    Icons.percent,
-                    size: 32,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Faixas de Custo e Margem',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Spacer(),
-                  ElevatedButton.icon(
-                    onPressed: () => _showEditor(),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Nova Faixa'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: theme.colorScheme.primary,
-                      foregroundColor: theme.colorScheme.onPrimary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  border: Border.all(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.2),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: theme.colorScheme.primary,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Configure as faixas de custo para aplicar margens diferentes automaticamente. ',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                  Row(
+                    children: [
+                      ExcludeFocus(
+                        child: IconButton(
+                          onPressed: () => context.go('/admin'),
+                          icon: const Icon(Icons.arrow_back),
+                          tooltip: 'Voltar',
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-              if (_loading)
-                const Center(child: CircularProgressIndicator())
-              else if (_faixas.isEmpty)
-                Container(
-                  padding: const EdgeInsets.all(48),
-                  alignment: Alignment.center,
-                  child: Column(
-                    children: [
+                      const SizedBox(width: 8),
                       Icon(
                         Icons.percent,
-                        size: 64,
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+                        size: 32,
+                        color: theme.colorScheme.primary,
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(width: 12),
                       Text(
-                        'Nenhuma faixa configurada',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                        'Faixas de Custo e Margem',
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Clique em "Nova Faixa" para começar',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                      const Spacer(),
+                      ExcludeFocus(
+                        child: IconButton(
+                          onPressed: _loading ? null : _load,
+                          icon: const Icon(Icons.refresh),
+                          tooltip: 'Atualizar',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: () => _showEditor(),
+                        icon: const Icon(Icons.add),
+                        label: const Text('Nova Faixa'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: theme.colorScheme.onPrimary,
                         ),
                       ),
                     ],
                   ),
-                )
-              else
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _faixas.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final faixa = _faixas[index];
-                    final margem = faixa['margem'] as num;
-                    
-                    return InkWell(
-                      onTap: () => _showEditor(faixa: faixa),
-                      mouseCursor: SystemMouseCursors.click,
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(AppRadius.md),
-                      splashColor: Colors.transparent,
-                      hoverColor: theme.colorScheme.primary.withValues(alpha: 0.05),
-                      focusColor: Colors.transparent,
-                      child: Ink(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: theme.cardTheme.color,
-                          borderRadius: BorderRadius.circular(AppRadius.md),
-                          border: Border.all(
-                            color: theme.dividerColor.withValues(alpha: 0.1),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+                      border: Border.all(
+                        color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          color: theme.colorScheme.primary,
+                          size: 20,
                         ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.primary.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  '${index + 1}',
-                                  style: TextStyle(
-                                    color: theme.colorScheme.primary,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                              ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Configure as faixas de custo para aplicar margens diferentes automaticamente. ',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
                             ),
-                            const SizedBox(width: 20),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _formatarFaixa(faixa),
-                                    style: theme.textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  if (_loading)
+                    const Center(child: CircularProgressIndicator())
+                  else if (_faixas.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(48),
+                      alignment: Alignment.center,
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.percent,
+                            size: 64,
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Nenhuma faixa configurada',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Clique em "Nova Faixa" para começar',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _faixas.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final faixa = _faixas[index];
+                        final margem = faixa['margem'] as num;
+                        
+                        return InkWell(
+                          onTap: () => _showEditor(faixa: faixa),
+                          mouseCursor: SystemMouseCursors.click,
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          splashColor: Colors.transparent,
+                          hoverColor: theme.colorScheme.primary.withValues(alpha: 0.05),
+                          focusColor: Colors.transparent,
+                          child: Ink(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: theme.cardTheme.color,
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                              border: Border.all(
+                                color: theme.dividerColor.withValues(alpha: 0.1),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.03),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                  const SizedBox(height: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.5),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
+                                  child: Center(
                                     child: Text(
-                                      'Margem: ${margem.toStringAsFixed(1)}%',
-                                      style: theme.textTheme.bodyMedium?.copyWith(
-                                        color: theme.colorScheme.onSecondaryContainer,
-                                        fontWeight: FontWeight.w500,
+                                      '${index + 1}',
+                                      style: TextStyle(
+                                        color: theme.colorScheme.primary,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 18,
                                       ),
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                            ExcludeFocus(
-                              child: IconButton(
-                                onPressed: () => _deletar(faixa),
-                                icon: Icon(
-                                  Icons.delete_outline,
-                                  color: theme.colorScheme.error,
                                 ),
-                                tooltip: 'Excluir faixa',
-                              ),
+                                const SizedBox(width: 20),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _formatarFaixa(faixa),
+                                        style: theme.textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          'Margem: ${margem.toStringAsFixed(1)}%',
+                                          style: theme.textTheme.bodyMedium?.copyWith(
+                                            color: theme.colorScheme.onSecondaryContainer,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                ExcludeFocus(
+                                  child: IconButton(
+                                    onPressed: () => _deletar(faixa),
+                                    icon: Icon(
+                                      Icons.delete_outline,
+                                      color: theme.colorScheme.error,
+                                    ),
+                                    tooltip: 'Excluir faixa',
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-            ],
+                          ),
+                        );
+                      },
+                    ),
+                ],
+              ),
+            ),
           ),
-        ),
+          if (_loading)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SizedBox(
+                height: 3,
+                child: LinearProgressIndicator(
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

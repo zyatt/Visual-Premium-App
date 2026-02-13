@@ -196,12 +196,22 @@ class AlmoxarifadoService {
         const opcoesExtrasValidadas = [];
         if (opcoesExtras && opcoesExtras.length > 0) {
           for (const o of opcoesExtras) {
+            // Ignorar opções marcadas como "NÃO"
+            if (o.valorString === '__NAO_SELECIONADO__') {
+              continue;
+            }
+            
             const opcaoPedido = pedido.opcoesExtras.find(
               po => po.produtoOpcaoId === o.produtoOpcaoId
             );
 
             if (!opcaoPedido) {
               throw new Error(`Opção extra ${o.produtoOpcaoId} não pertence ao pedido`);
+            }
+            
+            // Verificar se a opção no pedido também não está marcada como "NÃO"
+            if (opcaoPedido.valorString === '__NAO_SELECIONADO__') {
+              continue;
             }
 
             const opcaoData = {
@@ -536,6 +546,11 @@ class AlmoxarifadoService {
   // Calcular total de opções extras orçadas
   _calcularTotalOpcoesExtras(opcoesExtras) {
     return opcoesExtras.reduce((total, opcao) => {
+      // Ignorar opções marcadas como "NÃO"
+      if (opcao.valorString === '__NAO_SELECIONADO__') {
+        return total;
+      }
+      
       if (opcao.produtoOpcao.tipo === 'STRINGFLOAT') {
         return total + (opcao.valorFloat1 || 0);
       } else if (opcao.produtoOpcao.tipo === 'FLOATFLOAT') {
@@ -560,6 +575,11 @@ class AlmoxarifadoService {
   // Calcular total de opções extras realizadas
   _calcularTotalOpcoesExtrasRealizadas(opcoesExtras) {
     return opcoesExtras.reduce((total, opcao) => {
+      // Ignorar opções marcadas como "NÃO"
+      if (opcao.valorString === '__NAO_SELECIONADO__') {
+        return total;
+      }
+      
       if (opcao.produtoOpcao.tipo === 'STRINGFLOAT') {
         return total + (opcao.valorFloat1 || 0);
       } else if (opcao.produtoOpcao.tipo === 'FLOATFLOAT') {
@@ -627,6 +647,11 @@ class AlmoxarifadoService {
 
     // Análise de opções extras
     for (const opcaoPed of pedido.opcoesExtras) {
+      // Ignorar opções marcadas como "NÃO"
+      if (opcaoPed.valorString === '__NAO_SELECIONADO__') {
+        continue;
+      }
+      
       const opcaoAlm = almoxarifado.opcoesExtras.find(
         o => o.produtoOpcaoId === opcaoPed.produtoOpcaoId
       );

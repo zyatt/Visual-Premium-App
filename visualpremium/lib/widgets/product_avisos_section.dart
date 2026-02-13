@@ -675,7 +675,6 @@ class _AvisoEditorDialogState extends State<_AvisoEditorDialog> {
                   maxLines: 4,
                   decoration: const InputDecoration(
                     labelText: 'Mensagem do aviso *',
-                    hintText: 'Ex: Este material requer prazo adicional de 48h para produção',
                     alignLabelWithHint: true,
                   ),
                   validator: _validateMensagem,

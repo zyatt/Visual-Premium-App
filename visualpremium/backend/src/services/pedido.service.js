@@ -174,6 +174,11 @@ class PedidoService {
     const despesasValidadas = [];
     if (despesasAdicionais && Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
       for (const despesa of despesasAdicionais) {
+        // Ignorar despesas marcadas como "Não"
+        if (despesa.descricao === '__NAO_SELECIONADO__') {
+          continue;
+        }
+        
         if (!despesa.descricao || despesa.descricao.trim() === '') {
           throw new Error('Descrição da despesa adicional é obrigatória');
         }
@@ -231,14 +236,17 @@ class PedidoService {
         }
 
         const isNaoSelection = 
-          (opcaoValor.valorString === null || opcaoValor.valorString === undefined) &&
-          (opcaoValor.valorFloat1 === null || opcaoValor.valorFloat1 === undefined) &&
-          (opcaoValor.valorFloat2 === null || opcaoValor.valorFloat2 === undefined);
+          opcaoValor.valorString === '__NAO_SELECIONADO__' ||
+          (
+            (opcaoValor.valorString === null || opcaoValor.valorString === undefined) &&
+            (opcaoValor.valorFloat1 === null || opcaoValor.valorFloat1 === undefined) &&
+            (opcaoValor.valorFloat2 === null || opcaoValor.valorFloat2 === undefined)
+          );
 
         if (isNaoSelection) {
           opcoesExtrasValidadas.push({
             produtoOpcaoId: opcaoValor.produtoOpcaoId,
-            valorString: null,
+            valorString: '__NAO_SELECIONADO__',
             valorFloat1: null,
             valorFloat2: null
           });
@@ -308,7 +316,7 @@ class PedidoService {
 
     const createData = {
       cliente: cliente.trim(),
-      status: 'Em Andamento',
+      status: 'Pendente',
       produtoId: produtoId,
       formaPagamento: formaPagamento.trim(),
       condicoesPagamento: condicoesPagamento.trim(),
@@ -480,6 +488,11 @@ class PedidoService {
       despesasValidadas = [];
       if (Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
         for (const despesa of despesasAdicionais) {
+          // Ignorar despesas marcadas como "Não"
+          if (despesa.descricao === '__NAO_SELECIONADO__') {
+            continue;
+          }
+          
           if (!despesa.descricao || despesa.descricao.trim() === '') {
             throw new Error('Descrição da despesa adicional é obrigatória');
           }
@@ -543,14 +556,17 @@ class PedidoService {
           }
 
           const isNaoSelection = 
-            (opcaoValor.valorString === null || opcaoValor.valorString === undefined) &&
-            (opcaoValor.valorFloat1 === null || opcaoValor.valorFloat1 === undefined) &&
-            (opcaoValor.valorFloat2 === null || opcaoValor.valorFloat2 === undefined);
+            opcaoValor.valorString === '__NAO_SELECIONADO__' ||
+            (
+              (opcaoValor.valorString === null || opcaoValor.valorString === undefined) &&
+              (opcaoValor.valorFloat1 === null || opcaoValor.valorFloat1 === undefined) &&
+              (opcaoValor.valorFloat2 === null || opcaoValor.valorFloat2 === undefined)
+            );
 
           if (isNaoSelection) {
             opcoesExtrasValidadas.push({
               produtoOpcaoId: opcaoValor.produtoOpcaoId,
-              valorString: null,
+              valorString: '__NAO_SELECIONADO__',
               valorFloat1: null,
               valorFloat2: null
             });
@@ -660,20 +676,36 @@ class PedidoService {
           };
 
           if (info.id) {
-            // Atualizar existente
+            // Buscar a informação existente
             const infoExistente = await tx.pedidoInformacaoAdicional.findUnique({
               where: { id: info.id }
             });
 
             if (infoExistente) {
-              // Atualizar preservando o createdAt original ✅
-              await tx.pedidoInformacaoAdicional.update({
-                where: { id: info.id },
-                data: {
-                  ...infoData,
-                  createdAt: infoExistente.createdAt
-                }
-              });
+              // Normalizar datas para comparação (remover milissegundos e segundos)
+              const dataExistenteNormalizada = new Date(infoExistente.data);
+              dataExistenteNormalizada.setMilliseconds(0);
+              dataExistenteNormalizada.setSeconds(0);
+              const dataNovaNormalizada = new Date(infoData.data);
+              dataNovaNormalizada.setMilliseconds(0);
+              dataNovaNormalizada.setSeconds(0);
+              
+              // Verificar se houve mudança nos dados
+              const dataChanged = dataExistenteNormalizada.getTime() !== dataNovaNormalizada.getTime();
+              const descricaoChanged = infoExistente.descricao.trim() !== infoData.descricao.trim();
+              
+              // Só atualizar se algo mudou
+              if (dataChanged || descricaoChanged) {
+                await tx.pedidoInformacaoAdicional.update({
+                  where: { id: info.id },
+                  data: {
+                    ...infoData,
+                    createdAt: infoExistente.createdAt,
+                    updatedAt: new Date()
+                  }
+                });
+              }
+              // Se nada mudou, não faz nada (mantém updatedAt original)
             }
           } else {
             // Criar novo
@@ -682,7 +714,6 @@ class PedidoService {
               pedidoId: id
             };
 
-            // Se o frontend enviou um createdAt, use-o ✅
             if (info.createdAt) {
               createData.createdAt = new Date(info.createdAt);
             }
@@ -772,7 +803,7 @@ class PedidoService {
       acao: 'EDITAR',
       entidade: 'PEDIDO',
       entidadeId: id,
-      descricao: `Editou o pedido "${pedidoAtualizado.numero ? `#${pedidoAtualizado.numero}"` : `(ID: ${id})`}`,
+      descricao: `Concluiu o pedido "${pedidoAtualizado.numero ? `#${pedidoAtualizado.numero}"` : `(ID: ${id}) `}`,
       detalhes: {
         antes: pedidoAntigo,
         depois: pedidoAtualizado,
@@ -795,7 +826,7 @@ class PedidoService {
       throw new Error('Pedido não encontrado');
     }
 
-    if (!['Em Andamento', 'Concluído', 'Cancelado'].includes(status)) {
+    if (!['Pendente', 'Concluído', 'Cancelado'].includes(status)) {
       throw new Error('Status inválido');
     }
 
@@ -952,6 +983,11 @@ class PedidoService {
 
     if (!pedido) {
       throw new Error('Pedido não encontrado');
+    }
+
+    // ✅ VALIDAÇÃO: Apenas admin pode deletar pedidos
+    if (user.role !== 'admin') {
+      throw new Error('Apenas administradores podem excluir pedidos');
     }
 
     await prisma.pedidoMaterial.deleteMany({

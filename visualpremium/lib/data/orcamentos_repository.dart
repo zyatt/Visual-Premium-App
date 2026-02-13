@@ -162,15 +162,24 @@ class OrcamentosApiRepository {
         
         return updated;
       } else {
+        // Tentar extrair mensagem de erro do corpo da resposta
         try {
           final errorJson = jsonDecode(response.body);
-          if (errorJson is Map && errorJson.containsKey('error')) {
-            throw Exception(errorJson['error']);
-          } else if (errorJson is Map && errorJson.containsKey('message')) {
-            throw Exception(errorJson['message']);
+          if (errorJson is Map) {
+            // Priorizar 'message', depois 'error'
+            final errorMessage = errorJson['message'] ?? errorJson['error'];
+            if (errorMessage != null && errorMessage is String) {
+              throw Exception(errorMessage);
+            }
           }
-        } catch (_) {}
-        throw Exception('Erro ao atualizar status: ${response.statusCode} - ${response.body}');
+        } catch (e) {
+          // Se for uma Exception que já lançamos acima, re-lançar
+          if (e is Exception) {
+            rethrow;
+          }
+          // Se falhou ao parsear JSON, usar mensagem genérica
+        }
+        throw Exception('Erro ao atualizar status: ${response.statusCode}');
       }
     } catch (e) {
       rethrow;
@@ -315,6 +324,23 @@ class OrcamentosApiRepository {
     if (response.statusCode == 200) {
       return;
     } else {
+      // ✅ Tentar extrair mensagem de erro do corpo da resposta
+      try {
+        final errorJson = jsonDecode(response.body);
+        if (errorJson is Map) {
+          // Priorizar 'message', depois 'error'
+          final errorMessage = errorJson['message'] ?? errorJson['error'];
+          if (errorMessage != null && errorMessage is String) {
+            throw Exception(errorMessage);
+          }
+        }
+      } catch (e) {
+        // Se for uma Exception que já lançamos acima, re-lançar
+        if (e is Exception) {
+          rethrow;
+        }
+        // Se falhou ao parsear JSON, usar mensagem genérica
+      }
       throw Exception('Erro ao deletar pedido: ${response.statusCode}');
     }
   }
