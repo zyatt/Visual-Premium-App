@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../config/config.dart';
+import 'chat_provider.dart';
 
 enum UserRole {
   admin,
@@ -156,5 +157,9 @@ class AuthProvider extends ChangeNotifier {
       _shouldShowWelcome = false;
       notifyListeners();
     }
+  }
+  
+  void setChatProvider(ChatProvider? chatProvider) {
+    // Used to clear chat on logout
   }
 }

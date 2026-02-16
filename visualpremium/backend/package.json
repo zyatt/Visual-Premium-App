@@ -8,7 +8,8 @@
     "dev": "cross-env NODE_ENV=dev nodemon src/server.js",
     "prod": "cross-env NODE_ENV=prod node src/server.js",
 
-    "prisma:generate": "prisma generate",
+    "generate:dev": "cross-env DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_dev prisma generate",
+    "generate:prod": "cross-env DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_prod prisma generate",
 
     "migrate:dev": "cross-env NODE_ENV=dev DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_dev prisma migrate dev",
     "migrate:prod": "cross-env NODE_ENV=prod DATABASE_URL=postgresql://postgres:1234@localhost:5432/visualpremium_prod prisma migrate deploy",

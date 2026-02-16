@@ -219,6 +219,8 @@ class PedidoMaterialItem {
   final String materialUnidade;
   final double materialCusto;
   final double quantidade;
+  final double? altura;      // NOVO CAMPO
+  final double? largura;     // NOVO CAMPO
 
   const PedidoMaterialItem({
     required this.id,
@@ -227,6 +229,8 @@ class PedidoMaterialItem {
     required this.materialUnidade,
     required this.materialCusto,
     required this.quantidade,
+    this.altura,               // NOVO CAMPO
+    this.largura,              // NOVO CAMPO
   });
 
   double get total {
@@ -240,6 +244,8 @@ class PedidoMaterialItem {
     String? materialUnidade,
     double? materialCusto,
     double? quantidade,
+    double? altura,
+    double? largura,
   }) =>
       PedidoMaterialItem(
         id: id ?? this.id,
@@ -248,6 +254,8 @@ class PedidoMaterialItem {
         materialUnidade: materialUnidade ?? this.materialUnidade,
         materialCusto: materialCusto ?? this.materialCusto,
         quantidade: quantidade ?? this.quantidade,
+        altura: altura ?? this.altura,
+        largura: largura ?? this.largura,
       );
 
   Map<String, Object?> toMap() => {
@@ -280,6 +288,29 @@ class PedidoMaterialItem {
       final custoDouble = (custoRaw is int) ? custoRaw.toDouble() : (custoRaw is double ? custoRaw : 0.0);
       final quantidadeDouble = (quantidade is int) ? quantidade.toDouble() : (quantidade is double ? quantidade : 0.0);
 
+      // Parse altura e largura
+      double? altura;
+      double? largura;
+      
+      final alturaRaw = materialMap['altura'];
+      final larguraRaw = materialMap['largura'];
+      
+      if (alturaRaw != null) {
+        if (alturaRaw is num) {
+          altura = alturaRaw.toDouble();
+        } else if (alturaRaw is String) {
+          altura = double.tryParse(alturaRaw);
+        }
+      }
+      
+      if (larguraRaw != null) {
+        if (larguraRaw is num) {
+          largura = larguraRaw.toDouble();
+        } else if (larguraRaw is String) {
+          largura = double.tryParse(larguraRaw);
+        }
+      }
+
       return PedidoMaterialItem(
         id: int.parse(id.toString()),
         materialId: int.parse(materialId.toString()),
@@ -287,6 +318,8 @@ class PedidoMaterialItem {
         materialUnidade: unidade.trim(),
         materialCusto: custoDouble,
         quantidade: quantidadeDouble,
+        altura: altura,
+        largura: largura,
       );
     } catch (e) {
       return null;

@@ -1,6 +1,7 @@
 const prisma = require('../config/prisma');
 const logService = require('./log.service');
 const faixaCustoMargemService = require('./faixaCustoMargem.service');
+const impostoSobraService = require('./impostoSobra.service');
 
 class OrcamentoService {
   // Método auxiliar para verificar se o orçamento está completo
@@ -128,14 +129,15 @@ class OrcamentoService {
 
     const orcamentosComValorSugerido = await Promise.all(
       orcamentos.map(async (orcamento) => {
-        let total = 0;
+        // Calcular total BASE (sem sobras)
+        let totalBase = 0;
         
         for (const mat of orcamento.materiais) {
-          total += mat.custo * mat.quantidade;
+          totalBase += mat.custo * mat.quantidade;
         }
         
         for (const desp of orcamento.despesasAdicionais) {
-          total += desp.valor;
+          totalBase += desp.valor;
         }
         
         for (const opcao of orcamento.opcoesExtras) {
@@ -144,19 +146,32 @@ class OrcamentoService {
           });
           
           if (produtoOpcao.tipo === 'STRINGFLOAT') {
-            total += opcao.valorFloat1 || 0;
+            totalBase += opcao.valorFloat1 || 0;
           } else if (produtoOpcao.tipo === 'FLOATFLOAT') {
-            total += (opcao.valorFloat1 || 0) * (opcao.valorFloat2 || 0);
+            totalBase += (opcao.valorFloat1 || 0) * (opcao.valorFloat2 || 0);
           } else if (produtoOpcao.tipo === 'PERCENTFLOAT') {
-            total += ((opcao.valorFloat1 || 0) / 100) * (opcao.valorFloat2 || 0);
+            totalBase += ((opcao.valorFloat1 || 0) / 100) * (opcao.valorFloat2 || 0);
           }
         }
 
-        const sugestao = await faixaCustoMargemService.calcularValorSugerido(total);
+        // Calcular valor sugerido APENAS sobre o total base (sem sobras)
+        const valorSugeridoBase = await faixaCustoMargemService.calcularValorSugerido(totalBase);
+
+        // Calcular total de SOBRAS com imposto aplicado
+        let totalSobrasComImposto = 0;
+        for (const mat of orcamento.materiais) {
+          if (mat.valorSobra && mat.valorSobra > 0) {
+            const valorSobraComImposto = await impostoSobraService.calcularValorSobraComImposto(mat.valorSobra);
+            totalSobrasComImposto += valorSobraComImposto;
+          }
+        }
+
+        // Valor sugerido final = valor com margem + sobras com imposto
+        const valorSugeridoFinal = valorSugeridoBase + totalSobrasComImposto;
 
         return {
           ...orcamento,
-          valorSugerido: sugestao
+          valorSugerido: valorSugeridoFinal
         };
       })
     );
@@ -192,14 +207,15 @@ class OrcamentoService {
       throw new Error('Orçamento não encontrado');
     }
 
-    let total = 0;
+    // Calcular total BASE (sem sobras)
+    let totalBase = 0;
     
     for (const mat of orcamento.materiais) {
-      total += mat.custo * mat.quantidade;
+      totalBase += mat.custo * mat.quantidade;
     }
     
     for (const desp of orcamento.despesasAdicionais) {
-      total += desp.valor;
+      totalBase += desp.valor;
     }
     
     for (const opcao of orcamento.opcoesExtras) {
@@ -208,19 +224,32 @@ class OrcamentoService {
       });
       
       if (produtoOpcao.tipo === 'STRINGFLOAT') {
-        total += opcao.valorFloat1 || 0;
+        totalBase += opcao.valorFloat1 || 0;
       } else if (produtoOpcao.tipo === 'FLOATFLOAT') {
-        total += (opcao.valorFloat1 || 0) * (opcao.valorFloat2 || 0);
+        totalBase += (opcao.valorFloat1 || 0) * (opcao.valorFloat2 || 0);
       } else if (produtoOpcao.tipo === 'PERCENTFLOAT') {
-        total += ((opcao.valorFloat1 || 0) / 100) * (opcao.valorFloat2 || 0);
+        totalBase += ((opcao.valorFloat1 || 0) / 100) * (opcao.valorFloat2 || 0);
       }
     }
 
-    const sugestao = await faixaCustoMargemService.calcularValorSugerido(total);
+    // Calcular valor sugerido APENAS sobre o total base (sem sobras)
+    const valorSugeridoBase = await faixaCustoMargemService.calcularValorSugerido(totalBase);
+
+    // Calcular total de SOBRAS com imposto aplicado
+    let totalSobrasComImposto = 0;
+    for (const mat of orcamento.materiais) {
+      if (mat.valorSobra && mat.valorSobra > 0) {
+        const valorSobraComImposto = await impostoSobraService.calcularValorSobraComImposto(mat.valorSobra);
+        totalSobrasComImposto += valorSobraComImposto;
+      }
+    }
+
+    // Valor sugerido final = valor com margem + sobras com imposto
+    const valorSugeridoFinal = valorSugeridoBase + totalSobrasComImposto;
 
     return {
       ...orcamento,
-      valorSugerido: sugestao
+      valorSugerido: valorSugeridoFinal
     };
   }
 
@@ -372,11 +401,27 @@ class OrcamentoService {
             quantidadeNum = qty;
           }
 
-          materiaisValidados.push({
+          const materialValidado = {
             materialId: m.materialId,
             quantidade: quantidadeNum,
             custo: material.material.custo,
-          });
+          };
+          
+          // NOVO: Adicionar campos de sobra se existirem
+          if (m.alturaSobra !== undefined && m.alturaSobra !== null) {
+            materialValidado.alturaSobra = parseFloat(m.alturaSobra);
+          }
+          if (m.larguraSobra !== undefined && m.larguraSobra !== null) {
+            materialValidado.larguraSobra = parseFloat(m.larguraSobra);
+          }
+          if (m.quantidadeSobra !== undefined && m.quantidadeSobra !== null) {
+            materialValidado.quantidadeSobra = parseFloat(m.quantidadeSobra);
+          }
+          if (m.valorSobra !== undefined && m.valorSobra !== null) {
+            materialValidado.valorSobra = parseFloat(m.valorSobra);
+          }
+
+          materiaisValidados.push(materialValidado);
         }
       }
 
@@ -686,11 +731,27 @@ class OrcamentoService {
             quantidadeNum = qty;
           }
 
-          materiaisValidados.push({
+          const materialValidado = {
             materialId: m.materialId,
             quantidade: quantidadeNum,
             custo: material.material.custo,
-          });
+          };
+          
+          // NOVO: Adicionar campos de sobra se existirem
+          if (m.alturaSobra !== undefined && m.alturaSobra !== null) {
+            materialValidado.alturaSobra = parseFloat(m.alturaSobra);
+          }
+          if (m.larguraSobra !== undefined && m.larguraSobra !== null) {
+            materialValidado.larguraSobra = parseFloat(m.larguraSobra);
+          }
+          if (m.quantidadeSobra !== undefined && m.quantidadeSobra !== null) {
+            materialValidado.quantidadeSobra = parseFloat(m.quantidadeSobra);
+          }
+          if (m.valorSobra !== undefined && m.valorSobra !== null) {
+            materialValidado.valorSobra = parseFloat(m.valorSobra);
+          }
+
+          materiaisValidados.push(materialValidado);
         }
       }
 

@@ -6,6 +6,9 @@ class MaterialItem {
   final String unit;
   final int costCents;
   final String quantity;
+  final double? altura;        // Para m² (mm)
+  final double? largura;       // Para m² (mm)
+  final double? comprimento;   // Para m/l (mm)
   final DateTime createdAt;
   final DateTime? updatedAt;
 
@@ -15,6 +18,9 @@ class MaterialItem {
     required this.unit,
     required this.costCents,
     required this.quantity,
+    this.altura,
+    this.largura,
+    this.comprimento,
     required this.createdAt,
     this.updatedAt,
   });
@@ -24,6 +30,9 @@ class MaterialItem {
     String? unit,
     int? costCents,
     String? quantity,
+    double? altura,
+    double? largura,
+    double? comprimento,
     DateTime? updatedAt,
   }) =>
       MaterialItem(
@@ -32,16 +41,27 @@ class MaterialItem {
         unit: unit ?? this.unit,
         costCents: costCents ?? this.costCents,
         quantity: quantity ?? this.quantity,
+        altura: altura ?? this.altura,
+        largura: largura ?? this.largura,
+        comprimento: comprimento ?? this.comprimento,
         createdAt: createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
       );
 
-  Map<String, Object?> toMap() => {
-        'nome': name,
-        'unidade': unit,
-        'custo': costCents / 100.0,
-        'quantidade': double.tryParse(quantity) ?? 0,
-      };
+  Map<String, Object?> toMap() {
+    final map = {
+      'nome': name,
+      'unidade': unit,
+      'custo': costCents / 100.0,
+      'quantidade': double.tryParse(quantity) ?? 0,
+    };
+    
+    if (altura != null) map['altura'] = altura!;
+    if (largura != null) map['largura'] = largura!;
+    if (comprimento != null) map['comprimento'] = comprimento!;
+    
+    return map;
+  }
 
   static MaterialItem? tryFromMap(Map<String, Object?> map) {
     try {
@@ -50,6 +70,9 @@ class MaterialItem {
       final unidade = map['unidade'];
       final custo = map['custo'];
       final quantidade = map['quantidade'];
+      final alturaRaw = map['altura'];
+      final larguraRaw = map['largura'];
+      final comprimentoRaw = map['comprimento'];
       
       final createdAtRaw = map['created_at'] ?? 
                           map['createdAt'] ?? 
@@ -87,6 +110,35 @@ class MaterialItem {
       if (cleanedName.isEmpty || cleanedUnit.isEmpty) return null;
       if (costCents < 0) return null;
 
+      // Parse altura, largura e comprimento
+      double? altura;
+      double? largura;
+      double? comprimento;
+      
+      if (alturaRaw != null) {
+        if (alturaRaw is num) {
+          altura = alturaRaw.toDouble();
+        } else if (alturaRaw is String) {
+          altura = double.tryParse(alturaRaw);
+        }
+      }
+      
+      if (larguraRaw != null) {
+        if (larguraRaw is num) {
+          largura = larguraRaw.toDouble();
+        } else if (larguraRaw is String) {
+          largura = double.tryParse(larguraRaw);
+        }
+      }
+
+      if (comprimentoRaw != null) {
+        if (comprimentoRaw is num) {
+          comprimento = comprimentoRaw.toDouble();
+        } else if (comprimentoRaw is String) {
+          comprimento = double.tryParse(comprimentoRaw);
+        }
+      }
+
       DateTime? createdAt;
       DateTime? updatedAt;
 
@@ -116,6 +168,9 @@ class MaterialItem {
         unit: cleanedUnit,
         costCents: costCents,
         quantity: quantidadeStr,
+        altura: altura,
+        largura: largura,
+        comprimento: comprimento,
         createdAt: createdAt ?? DateTime.now(),
         updatedAt: updatedAt,
       );
@@ -147,6 +202,6 @@ class MaterialItem {
 
   @override
   String toString() {
-    return 'MaterialItem(id: $id, name: $name, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'MaterialItem(id: $id, name: $name, unit: $unit, altura: $altura, largura: $largura, comprimento: $comprimento, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 }

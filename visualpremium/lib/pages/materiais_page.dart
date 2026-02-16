@@ -860,7 +860,7 @@ class _FilterDialogState extends State<_FilterDialog> {
   late TextEditingController _minQuantityCtrl;
   late TextEditingController _maxQuantityCtrl;
 
-  static const List<String> _unitOptions = ['Kg', 'm²', 'm/l', 'Unidade', 'Altura', 'Hora', '%', 'L'];
+  static const List<String> _unitOptions = ['m²', 'm/l', 'Unidade', 'L'];
 
   @override
   void initState() {
@@ -1526,13 +1526,22 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _quantityCtrl;
   late final TextEditingController _costCtrl;
+  // NOVOS CONTROLLERS
+  late final TextEditingController _alturaCtrl;
+  late final TextEditingController _larguraCtrl;
+  late final TextEditingController _comprimentoCtrl;  // NOVO
+  
   final FocusNode _dialogFocusNode = FocusNode();
   final FocusNode _nameFocusNode = FocusNode();
   final FocusNode _unitFocusNode = FocusNode();
   final FocusNode _quantityFocusNode = FocusNode();
   final FocusNode _costFocusNode = FocusNode();
+  // NOVOS FOCUS NODES
+  final FocusNode _alturaFocusNode = FocusNode();
+  final FocusNode _larguraFocusNode = FocusNode();
+  final FocusNode _comprimentoFocusNode = FocusNode();  // NOVO
 
-  static const List<String> _unitOptions = ['Kg', 'm²', 'm/l', 'Unidade', 'Altura', 'Hora', '%', 'L'];
+  static const List<String> _unitOptions = ['m²', 'm/l', 'Unidade', 'L'];
   String? _selectedUnit;
   bool _isShowingDiscardDialog = false;
   
@@ -1540,6 +1549,10 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
   late final String? _initialUnit;
   late final String _initialQuantity;
   late final String _initialCost;
+  // NOVOS INICIAIS
+  late final String _initialAltura;
+  late final String _initialLargura;
+  late final String _initialComprimento;  // NOVO
 
   @override
   void initState() {
@@ -1551,16 +1564,29 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
     _initialUnit = (initialUnit != null && _unitOptions.contains(initialUnit)) ? initialUnit : null;
     _initialQuantity = widget.initial?.quantity ?? '';
     _initialCost = widget.initial == null ? '' : currency.format(widget.initial!.costCents / 100.0);
+    // NOVOS INICIAIS
+    _initialAltura = widget.initial?.altura?.toString() ?? '';
+    _initialLargura = widget.initial?.largura?.toString() ?? '';
+    _initialComprimento = widget.initial?.comprimento?.toString() ?? '';  // NOVO
     
     _nameCtrl = TextEditingController(text: _initialName);
     _selectedUnit = _initialUnit;
     _quantityCtrl = TextEditingController(text: _initialQuantity);
     _costCtrl = TextEditingController(text: _initialCost);
+    // NOVOS CONTROLLERS
+    _alturaCtrl = TextEditingController(text: _initialAltura);
+    _larguraCtrl = TextEditingController(text: _initialLargura);
+    _comprimentoCtrl = TextEditingController(text: _initialComprimento);  // NOVO
     
     _nameFocusNode.addListener(_onFieldFocusChange);
     _unitFocusNode.addListener(_onUnitFocusChange);
     _quantityFocusNode.addListener(_onFieldFocusChange);
     _costFocusNode.addListener(_onFieldFocusChange);
+    // NOVOS LISTENERS
+    _alturaFocusNode.addListener(_onFieldFocusChange);
+    _larguraFocusNode.addListener(_onFieldFocusChange);
+    _comprimentoFocusNode.addListener(_onFieldFocusChange);  // NOVO
+    
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _dialogFocusNode.requestFocus();
     });
@@ -1574,7 +1600,13 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
   }
 
   void _onFieldFocusChange() {
-    if (!_nameFocusNode.hasFocus && !_unitFocusNode.hasFocus && !_quantityFocusNode.hasFocus && !_costFocusNode.hasFocus) {
+    if (!_nameFocusNode.hasFocus && 
+        !_unitFocusNode.hasFocus && 
+        !_quantityFocusNode.hasFocus && 
+        !_costFocusNode.hasFocus &&
+        !_alturaFocusNode.hasFocus &&
+        !_larguraFocusNode.hasFocus &&
+        !_comprimentoFocusNode.hasFocus) {  // NOVO
       Future.delayed(const Duration(milliseconds: 100), () {
         if (mounted && !_isShowingDiscardDialog) {
           _dialogFocusNode.requestFocus();
@@ -1587,7 +1619,10 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
     return _nameCtrl.text != _initialName ||
            _selectedUnit != _initialUnit ||
            _quantityCtrl.text != _initialQuantity ||
-           _costCtrl.text != _initialCost;
+           _costCtrl.text != _initialCost ||
+           _alturaCtrl.text != _initialAltura ||
+           _larguraCtrl.text != _initialLargura ||
+           _comprimentoCtrl.text != _initialComprimento;  // NOVO
   }
 
   @override
@@ -1595,11 +1630,17 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
     _nameCtrl.dispose();
     _quantityCtrl.dispose();
     _costCtrl.dispose();
+    _alturaCtrl.dispose();
+    _larguraCtrl.dispose();
+    _comprimentoCtrl.dispose();  // NOVO
     _dialogFocusNode.dispose();
     _nameFocusNode.dispose();
     _unitFocusNode.dispose();
     _quantityFocusNode.dispose();
     _costFocusNode.dispose();
+    _alturaFocusNode.dispose();
+    _larguraFocusNode.dispose();
+    _comprimentoFocusNode.dispose();  // NOVO
     super.dispose();
   }
 
@@ -1623,6 +1664,17 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
     return value.toString();
   }
 
+  // NOVA FUNÇÃO
+  double? _parseDimension(String input) {
+    var s = input.trim();
+    if (s.isEmpty) return null;
+    
+    s = s.replaceAll(',', '.');
+    final value = double.tryParse(s);
+    if (value == null || value.isNaN || value.isInfinite || value <= 0) return null;
+    return value;
+  }
+
   String? _validateMaterialName(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'Informe o nome';
@@ -1640,64 +1692,46 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
     return null;
   }
 
-  Future<bool> _onWillPop() async {
-    if (!_hasChanges) return true;
-    
-    if (_isShowingDiscardDialog) return false;
-    
-    _isShowingDiscardDialog = true;
-    
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (dialogContext) => Focus(
-        autofocus: true,
-        onKeyEvent: (node, event) {
-          if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
-            Navigator.of(dialogContext).pop(false);
-            return KeyEventResult.handled;
-          }
-          return KeyEventResult.ignored;
-        },
-        child: AlertDialog(
-          title: const Text('Descartar alterações?'),
-          content: const Text('Você tem alterações não salvas. Deseja descartá-las?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancelar'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Descartar'),
-            ),
-          ],
-        ),
-      ),
-    );
-    
-    _isShowingDiscardDialog = false;
-    
-    if (result == false || result == null) {
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (mounted) {
-          _dialogFocusNode.requestFocus();
-        }
-      });
-    }
-    
-    return result ?? false;
-  }
+  // ... (métodos _onWillPop permanecem iguais)
 
   void _handleSave() {
     if (!_formKey.currentState!.validate()) return;
+    
     final cents = _parseCostToCents(_costCtrl.text) ?? 0;
     final quantity = _parseQuantity(_quantityCtrl.text) ?? '0';
     final now = DateTime.now();
     final unit = (_selectedUnit ?? '').trim();
+    
+    // NOVA LÓGICA PARA ALTURA, LARGURA E COMPRIMENTO
+    double? altura;
+    double? largura;
+    double? comprimento;
+    
+    if (unit == 'm²') {
+      altura = _parseDimension(_alturaCtrl.text);
+      largura = _parseDimension(_larguraCtrl.text);
+    } else if (unit == 'm/l') {
+      comprimento = _parseDimension(_comprimentoCtrl.text);
+    }
+    
     final item = (widget.initial ??
-            MaterialItem(id: now.microsecondsSinceEpoch.toString(), name: '', unit: '', costCents: 0, quantity: '0', createdAt: now))
-        .copyWith(name: _nameCtrl.text.trim(), unit: unit, quantity: quantity, costCents: cents);
+            MaterialItem(
+              id: now.microsecondsSinceEpoch.toString(), 
+              name: '', 
+              unit: '', 
+              costCents: 0, 
+              quantity: '0', 
+              createdAt: now
+            ))
+        .copyWith(
+          name: _nameCtrl.text.trim(), 
+          unit: unit, 
+          quantity: quantity, 
+          costCents: cents,
+          altura: altura,
+          largura: largura,
+          comprimento: comprimento,  // NOVO
+        );
     context.pop(item);
   }
 
@@ -1705,8 +1739,6 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-
-
 
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -1806,6 +1838,14 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
                                     onChanged: (v) {
                                       setState(() {
                                         _selectedUnit = v;
+                                        // Limpa os campos baseado na unidade
+                                        if (v != 'm²') {
+                                          _alturaCtrl.clear();
+                                          _larguraCtrl.clear();
+                                        }
+                                        if (v != 'm/l') {
+                                          _comprimentoCtrl.clear();
+                                        }
                                       });
                                     },
                                     validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe a unidade' : null,
@@ -1823,11 +1863,122 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
                                     textInputAction: TextInputAction.next,
                                     decoration: const InputDecoration(labelText: 'Quantidade'),
                                     validator: (v) => _parseQuantity(v ?? '') == null ? 'Informe uma quantidade válida' : null,
-                                    onFieldSubmitted: (_) => _costFocusNode.requestFocus(),
+                                    onFieldSubmitted: (_) {
+                                      if (_selectedUnit == 'm²') {
+                                        _alturaFocusNode.requestFocus();
+                                      } else if (_selectedUnit == 'm/l') {
+                                        _comprimentoFocusNode.requestFocus();
+                                      } else {
+                                        _costFocusNode.requestFocus();
+                                      }
+                                    },
                                   ),
                                 ),
                               ],
                             ),
+                            
+                            // ====== CAMPOS CONDICIONAIS PARA m² ======
+                            if (_selectedUnit == 'm²') ...[
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _alturaCtrl,
+                                      focusNode: _alturaFocusNode,
+                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                      ],
+                                      textInputAction: TextInputAction.next,
+                                      decoration: InputDecoration(
+                                        labelText: 'Altura (mm)',
+                                        hintText: 'Ex: 2500',
+                                        prefixIcon: Icon(
+                                          Icons.height,
+                                          color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                                        ),
+                                      ),
+                                      validator: (v) {
+                                        if (_selectedUnit == 'm²') {
+                                          final value = _parseDimension(v ?? '');
+                                          if (value == null) {
+                                            return 'Altura obrigatória para m²';
+                                          }
+                                        }
+                                        return null;
+                                      },
+                                      onFieldSubmitted: (_) => _larguraFocusNode.requestFocus(),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _larguraCtrl,
+                                      focusNode: _larguraFocusNode,
+                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                      ],
+                                      textInputAction: TextInputAction.next,
+                                      decoration: InputDecoration(
+                                        labelText: 'Largura (mm)',
+                                        hintText: 'Ex: 1200',
+                                        prefixIcon: Icon(
+                                          Icons.straighten,
+                                          color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                                        ),
+                                      ),
+                                      validator: (v) {
+                                        if (_selectedUnit == 'm²') {
+                                          final value = _parseDimension(v ?? '');
+                                          if (value == null) {
+                                            return 'Largura obrigatória para m²';
+                                          }
+                                        }
+                                        return null;
+                                      },
+                                      onFieldSubmitted: (_) => _costFocusNode.requestFocus(),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                            // ====== FIM DOS CAMPOS CONDICIONAIS m² ======
+                            
+                            // ====== CAMPOS CONDICIONAIS PARA m/l ======
+                            if (_selectedUnit == 'm/l') ...[
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _comprimentoCtrl,
+                                focusNode: _comprimentoFocusNode,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                ],
+                                textInputAction: TextInputAction.next,
+                                decoration: InputDecoration(
+                                  labelText: 'Comprimento (mm)',
+                                  hintText: 'Ex: 3000',
+                                  prefixIcon: Icon(
+                                    Icons.straighten,
+                                    color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                                  ),
+                                ),
+                                validator: (v) {
+                                  if (_selectedUnit == 'm/l') {
+                                    final value = _parseDimension(v ?? '');
+                                    if (value == null) {
+                                      return 'Comprimento obrigatório para m/l';
+                                    }
+                                  }
+                                  return null;
+                                },
+                                onFieldSubmitted: (_) => _costFocusNode.requestFocus(),
+                              ),
+                            ],
+                            // ====== FIM DOS CAMPOS CONDICIONAIS ======
+                            
                             const SizedBox(height: 12),
                             TextFormField(
                               controller: _costCtrl,
@@ -1881,6 +2032,56 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
         ),
       ),
     );
+  }
+
+  // _onWillPop permanece o mesmo
+  Future<bool> _onWillPop() async {
+    if (!_hasChanges) return true;
+    
+    if (_isShowingDiscardDialog) return false;
+    
+    _isShowingDiscardDialog = true;
+    
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
+            Navigator.of(dialogContext).pop(false);
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: AlertDialog(
+          title: const Text('Descartar alterações?'),
+          content: const Text('Você tem alterações não salvas. Deseja descartá-las?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Descartar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    
+    _isShowingDiscardDialog = false;
+    
+    if (result == false || result == null) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) {
+          _dialogFocusNode.requestFocus();
+        }
+      });
+    }
+    
+    return result ?? false;
   }
 }
 

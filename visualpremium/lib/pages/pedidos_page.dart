@@ -2768,13 +2768,23 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                                       mat.materialNome,
                                                       style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 11),
                                                     ),
-                                                    Text(
-                                                      '${currency.format(mat.materialCusto)} / ${mat.materialUnidade}',
-                                                      style: theme.textTheme.bodySmall?.copyWith(
-                                                        fontSize: 10,
-                                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                                    // Se for m² e tiver altura e largura, mostra dimensões
+                                                    if (mat.materialUnidade == 'm²' && mat.altura != null && mat.largura != null)
+                                                      Text(
+                                                        '${currency.format(mat.materialCusto)} / ${mat.materialUnidade} • ${mat.altura}m × ${mat.largura}m',
+                                                        style: theme.textTheme.bodySmall?.copyWith(
+                                                          fontSize: 10,
+                                                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                                        ),
+                                                      )
+                                                    else
+                                                      Text(
+                                                        '${currency.format(mat.materialCusto)} / ${mat.materialUnidade}',
+                                                        style: theme.textTheme.bodySmall?.copyWith(
+                                                          fontSize: 10,
+                                                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                                        ),
                                                       ),
-                                                    ),
                                                   ],
                                                 ),
                                               ),
@@ -2811,47 +2821,56 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                         );
                                       }),
                                       
-                                      if (widget.initial.despesasAdicionais.isNotEmpty) ...[
-                                        const SizedBox(height: 16),
-                                        Text(
-                                          'Despesas Adicionais',
-                                          style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        ...widget.initial.despesasAdicionais.map((despesa) {
-                                          return Container(
-                                            margin: const EdgeInsets.only(bottom: 6),
-                                            padding: const EdgeInsets.all(8),
-                                            decoration: BoxDecoration(
-                                              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                                              borderRadius: BorderRadius.circular(8),
-                                              border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-                                            ),
-                                            child: Row(
-                                              children: [
-                                                Expanded(
-                                                  child: Text(
-                                                    despesa.descricao,
+                                      // Despesas Adicionais (filtrando __NAO_SELECIONADO__)
+                                      ...() {
+                                        final despesasValidas = widget.initial.despesasAdicionais
+                                            .where((d) => d.descricao != '__NAO_SELECIONADO__')
+                                            .toList();
+                                        
+                                        if (despesasValidas.isEmpty) return <Widget>[];
+                                        
+                                        return <Widget>[
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            'Despesas Adicionais',
+                                            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          ...despesasValidas.map((despesa) {
+                                            return Container(
+                                              margin: const EdgeInsets.only(bottom: 6),
+                                              padding: const EdgeInsets.all(8),
+                                              decoration: BoxDecoration(
+                                                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                                                borderRadius: BorderRadius.circular(8),
+                                                border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Text(
+                                                      despesa.descricao,
+                                                      style: theme.textTheme.bodySmall?.copyWith(
+                                                        fontWeight: FontWeight.w600,
+                                                        fontSize: 11,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Text(
+                                                    currency.format(despesa.valor),
                                                     style: theme.textTheme.bodySmall?.copyWith(
-                                                      fontWeight: FontWeight.w600,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: theme.colorScheme.primary,
                                                       fontSize: 11,
                                                     ),
                                                   ),
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Text(
-                                                  currency.format(despesa.valor),
-                                                  style: theme.textTheme.bodySmall?.copyWith(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: theme.colorScheme.primary,
-                                                    fontSize: 11,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        }),
-                                      ],
+                                                ],
+                                              ),
+                                            );
+                                          }),
+                                        ];
+                                      }(),
                                       
                                       if (widget.initial.opcoesExtras.where((o) => o.valorString != '__NAO_SELECIONADO__').isNotEmpty) ...[
                                         const SizedBox(height: 16),

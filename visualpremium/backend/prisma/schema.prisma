@@ -30,6 +30,9 @@ model Usuario {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  mensagensEnviadas   Mensagem[] @relation("MensagensEnviadas")
+  mensagensRecebidas  Mensagem[] @relation("MensagensRecebidas")
+
   @@map("usuarios")
 }
 
@@ -43,6 +46,7 @@ model Produto {
   avisos       ProdutoAviso[]
   materiais    ProdutoMaterial[]
   opcoesExtras ProdutoOpcaoExtra[]
+  tempoProdutivoMinutos Int @default(0)
 
   @@map("produtos")
 }
@@ -97,6 +101,17 @@ model Orcamento {
   produto                 Produto                       @relation(fields: [produtoId], references: [id])
   pedido                  Pedido?
 
+  custoMinutoProdutivo     Float?
+  custoMaoObraProducao     Float?
+  percentualCustoFixo      Float?
+  valorMateriaMinuto       Float?
+  valorBase                Float?
+  percentualSobreVenda     Float?   @default(19.00)
+  valorAntesMarkup         Float?
+  percentualMarkup         Float?
+  valorComMarkup           Float?
+  valorFinalVenda          Float?
+  
   @@map("orcamentos")
 }
 
@@ -205,6 +220,9 @@ model Material {
   custo                 Float
   unidade               String
   quantidade            Float
+  altura                Float?                 // Para m²
+  largura               Float?                 // Para m²
+  comprimento           Float?                 // Para m/l (metro linear) em mm
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   almoxarifadoMaterials AlmoxarifadoMaterial[]
@@ -233,6 +251,9 @@ model OrcamentoMaterial {
   materialId  Int
   quantidade  Float
   custo       Float
+  alturaSobra Float?    // Altura da sobra em mm (para m²)
+  larguraSobra Float?   // Largura da sobra em mm (para m²)
+  valorSobra  Float?    // Valor calculado da sobra
   material    Material  @relation(fields: [materialId], references: [id], onDelete: Cascade)
   orcamento   Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
 
@@ -245,6 +266,9 @@ model PedidoMaterial {
   materialId Int
   quantidade Float
   custo      Float
+  alturaSobra Float?    // Altura da sobra em mm (para m²)
+  larguraSobra Float?   // Largura da sobra em mm (para m²)
+  valorSobra  Float?    // Valor calculado da sobra
   material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
   pedido     Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 
@@ -350,4 +374,59 @@ enum TipoOpcaoExtra {
   STRINGFLOAT
   FLOATFLOAT
   PERCENTFLOAT
+}
+
+model Mensagem {
+  id            Int      @id @default(autoincrement())
+  remetenteId   Int
+  destinatarioId Int
+  conteudo      String
+  lida          Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  remetente     Usuario  @relation("MensagensEnviadas", fields: [remetenteId], references: [id], onDelete: Cascade)
+  destinatario  Usuario  @relation("MensagensRecebidas", fields: [destinatarioId], references: [id], onDelete: Cascade)
+
+  @@index([remetenteId])
+  @@index([destinatarioId])
+  @@index([createdAt])
+  @@map("mensagens")
+}
+
+model ConfiguracaoPreco {
+  id                   Int      @id @default(autoincrement())
+  faturamentoMedio     Float    @default(0)
+  custoOperacional     Float    @default(0)
+  custoProdutivo       Float?
+  percentualComissao   Float    @default(5.0)
+  percentualImpostos   Float    @default(12.0)
+  percentualJuros      Float    @default(2.0)
+  markupPadrao         Float    @default(40.0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("configuracao_preco")
+}
+
+model FolhaPagamento {
+  id                Int      @id @default(autoincrement())
+  profissao         String
+  salarioBase       Float
+  quantidade        Int
+  totalComEncargos  Float
+  ehProdutivo       Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("folha_pagamento")
+}
+
+model ConfiguracaoImpostoSobra {
+  id                    Int      @id @default(autoincrement())
+  percentualImposto     Float    @default(18.0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("configuracao_imposto_sobra")
 }

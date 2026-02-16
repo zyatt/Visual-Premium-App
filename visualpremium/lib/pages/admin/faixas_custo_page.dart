@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:visualpremium/data/faixas_custo_repository.dart';
 import '../../../theme.dart';
+import '../../../routes.dart';
 
 class FaixasCustoPage extends StatefulWidget {
   const FaixasCustoPage({super.key});
@@ -191,7 +192,7 @@ class _FaixasCustoPageState extends State<FaixasCustoPage> {
                     children: [
                       ExcludeFocus(
                         child: IconButton(
-                          onPressed: () => context.go('/admin'),
+                          onPressed: () => context.go(AppRoutes.configuracoesAvancadas),
                           icon: const Icon(Icons.arrow_back),
                           tooltip: 'Voltar',
                         ),
@@ -462,7 +463,6 @@ class _FaixaEditorState extends State<_FaixaEditor> {
     final faixaAtualId = widget.faixa?['id'];
     
     for (final faixa in widget.faixasExistentes) {
-      // Ignora a faixa atual se estiver editando
       if (faixaAtualId != null && faixa['id'] == faixaAtualId) {
         continue;
       }
@@ -474,18 +474,14 @@ class _FaixaEditorState extends State<_FaixaEditor> {
       
       final fimAtual = fim ?? double.infinity;
       
-      // Verifica se há sobreposição
-      // Caso 1: início está dentro de uma faixa existente (inclusive nos limites)
       if (inicio >= faixaInicio && inicio <= faixaFim) {
         return true;
       }
       
-      // Caso 2: fim está dentro de uma faixa existente (inclusive nos limites)
       if (fimAtual >= faixaInicio && fimAtual <= faixaFim) {
         return true;
       }
       
-      // Caso 3: a nova faixa engloba uma faixa existente
       if (inicio < faixaInicio && fimAtual > faixaFim) {
         return true;
       }
@@ -547,7 +543,6 @@ class _FaixaEditorState extends State<_FaixaEditor> {
               ),
               const SizedBox(height: 28),
               
-              // Informativo
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
@@ -580,7 +575,6 @@ class _FaixaEditorState extends State<_FaixaEditor> {
               
                const SizedBox(height: 20),
               
-              // Checkbox: Sem limite
               Container(
                 decoration: BoxDecoration(
                   color: _semLimite 
@@ -624,7 +618,6 @@ class _FaixaEditorState extends State<_FaixaEditor> {
               
               const SizedBox(height: 24),
               
-              // Campo: Custo Inicial (De)
               TextFormField(
                 controller: _custoInicioCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -651,7 +644,6 @@ class _FaixaEditorState extends State<_FaixaEditor> {
                     return 'Valor inválido';
                   }
                   
-                  // Validação de sobreposição
                   final fim = _semLimite 
                     ? null 
                     : double.tryParse(_custoFimCtrl.text.replaceAll(',', '.'));
@@ -666,7 +658,6 @@ class _FaixaEditorState extends State<_FaixaEditor> {
               
               const SizedBox(height: 20),
               
-              // Campo: Custo Final (Até) - apenas se não for "sem limite"
               if (!_semLimite)
                 TextFormField(
                   controller: _custoFimCtrl,
@@ -700,7 +691,6 @@ class _FaixaEditorState extends State<_FaixaEditor> {
                       return 'Deve ser maior que o valor inicial';
                     }
                     
-                    // Validação de sobreposição
                     if (valorInicio != null && _verificaSobreposicao(valorInicio, valorFim)) {
                       return 'Esta faixa sobrepõe uma faixa existente';
                     }
@@ -711,7 +701,6 @@ class _FaixaEditorState extends State<_FaixaEditor> {
               
               if (!_semLimite) const SizedBox(height: 20),
               
-             // Campo: Margem
               TextFormField(
                 controller: _margemCtrl,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -743,7 +732,6 @@ class _FaixaEditorState extends State<_FaixaEditor> {
               
               const SizedBox(height: 28),
               
-              // Botões
               Row(
                 children: [
                   Expanded(
@@ -761,7 +749,6 @@ class _FaixaEditorState extends State<_FaixaEditor> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      
                       onPressed: _save,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: theme.colorScheme.primary,

@@ -135,6 +135,15 @@ class AdminPage extends StatelessWidget {
                         },
                       ),
                       _AdminFeatureCard(
+                        icon: Icons.tune_outlined,
+                        title: 'Configurações Avançadas',
+                        description: 'Configurar faixas de custo, formação de preço e folha de pagamento',
+                        color: Colors.purple,
+                        onTap: () {
+                          context.go(AppRoutes.configuracoesAvancadas);
+                        },
+                      ),
+                      _AdminFeatureCard(
                         icon: Icons.backup_outlined,
                         title: 'Backup',
                         description: 'Fazer backup dos dados do sistema',
@@ -163,15 +172,6 @@ class AdminPage extends StatelessWidget {
                         color: Colors.teal,
                         onTap: () {
                           context.go(AppRoutes.logs);
-                        },
-                      ),
-                      _AdminFeatureCard(
-                        icon: Icons.settings_outlined,
-                        title: 'Configurações Avançadas',
-                        description: 'Configurar faixas de custo e margem',
-                        color: Colors.purple,
-                        onTap: () {
-                          context.go(AppRoutes.faixacusto);
                         },
                       ),
                     ],
@@ -210,7 +210,7 @@ class _AdminFeatureCard extends StatelessWidget {
       child: ClickableInk(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        hoverColor: color.withValues(alpha: 0.05),  // <-- Adicione esta linha
+        hoverColor: color.withValues(alpha: 0.05),
         child: Ink(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(

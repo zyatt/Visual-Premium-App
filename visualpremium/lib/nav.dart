@@ -17,6 +17,11 @@ import 'pages/login/login_page.dart';
 import 'pages/admin/logs_page.dart';
 import '../widgets/update_checker_widget.dart';
 import 'pages/admin/faixas_custo_page.dart';
+import 'pages/admin/configuracoes_avancadas_page.dart';
+import 'pages/admin/formacao_preco_page.dart';
+import 'pages/admin/folha_pagamento_page.dart';
+import 'pages/admin/imposto_sobra_page.dart';
+import 'pages/chat_page.dart';
 
 class AppRouter {
   static final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -38,6 +43,7 @@ class AppRouter {
         final isGoingToLogin = location == '/login';
         final isGoingToSplash = location == '/splash';
         final isGoingToAdminPanel = location.startsWith('/admin');
+        final isGoingToConfigAvancadas = location.startsWith('/configuracoes-avancadas');
         final isGoingToAlmoxarifado = location.startsWith('/almoxarifado');
 
         if (isGoingToSplash) return null;
@@ -51,6 +57,7 @@ class AppRouter {
         if (isGoingToLogin) return '/';
 
         if (isGoingToAdminPanel && !isAdmin) return '/';
+        if (isGoingToConfigAvancadas && !isAdmin) return '/';
         
         if (isGoingToAlmoxarifado && !hasAlmoxarifadoAccess) return '/';
 
@@ -149,11 +156,47 @@ class AppRouter {
                 child: const RelatorioPage(),
               ),
             ),
+            // Configurações Avançadas
+            GoRoute(
+              path: AppRoutes.configuracoesAvancadas,
+              name: 'configuracoesAvancadas',
+              pageBuilder: (context, state) => NoTransitionPage(
+                child: const ConfiguracoesAvancadasPage(),
+              ),
+            ),
             GoRoute(
               path: AppRoutes.faixacusto,
               name: 'faixacusto',
               pageBuilder: (context, state) => NoTransitionPage(
                 child: const FaixasCustoPage(),
+              ),
+            ),
+            GoRoute(
+              path: AppRoutes.formacaoPreco,
+              name: 'formacaoPreco',
+              pageBuilder: (context, state) => NoTransitionPage(
+                child: const FormacaoPrecoPage(),
+              ),
+            ),
+            GoRoute(
+              path: AppRoutes.folhaPagamento,
+              name: 'folhaPagamento',
+              pageBuilder: (context, state) => NoTransitionPage(
+                child: const FolhaPagamentoPage(),
+              ),
+            ),
+            GoRoute(
+              path: AppRoutes.impostoSobra,
+              name: 'impostoSobra',
+              pageBuilder: (context, state) => NoTransitionPage(
+                child: const ImpostoSobraPage(),
+              ),
+            ),
+            GoRoute(
+              path: AppRoutes.chat,
+              name: 'chat',
+              pageBuilder: (context, state) => NoTransitionPage(
+                child: const ChatPage(),
               ),
             ),
           ],

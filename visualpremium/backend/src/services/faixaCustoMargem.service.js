@@ -208,9 +208,9 @@ class FaixaCustoMargemService {
       return null;
     }
 
-    // Cálculo com MARKUP (margem sobre custo): preço = custo × (1 + margem/100)
-    // Exemplo: custo R$ 100, margem 400% → preço = 100 × (1 + 4) = 100 × 5 = R$ 500
-    const valorSugerido = custoTotal * (1 + faixaAplicavel.margem / 100);
+    // Cálculo com MARGEM SIMPLES: preço = custo × (margem/100)
+    // Exemplo: custo R$ 100, margem 300% → preço = 100 × 3 = R$ 300
+    const valorSugerido = custoTotal * (faixaAplicavel.margem / 100);
     
     return {
       custoTotal,

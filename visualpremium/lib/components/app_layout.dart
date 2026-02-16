@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:visualpremium/widgets/clickable_ink.dart';
 import '../config/settings_dialog.dart';
 import '../providers/auth_provider.dart';
+import 'package:visualpremium/widgets/chat_overlay.dart';
 
 class AppLayout extends StatelessWidget {
   final Widget child;
@@ -14,15 +15,20 @@ class AppLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Row(
+      body: Stack(
         children: [
-          const _Sidebar(),
-          Expanded(
-            child: Container(
-              color: Theme.of(context).scaffoldBackgroundColor,
-              child: child,
-            ),
+          Row(
+            children: [
+              const _Sidebar(),
+              Expanded(
+                child: Container(
+                  color: Theme.of(context).scaffoldBackgroundColor,
+                  child: child,
+                ),
+              ),
+            ],
           ),
+          const ChatOverlay(),
         ],
       ),
     );
@@ -110,7 +116,11 @@ class _Sidebar extends StatelessWidget {
                   label: 'Materiais',
                   route: '/materiais',
                 ),
-                
+                _NavItem(
+                  icon: Icons.chat,
+                  label: 'Chat',
+                  route: '/chat',
+                ),
                 if (authProvider.hasAlmoxarifadoAccess || authProvider.isAdmin) ...[
                   const SizedBox(height: 16),
                   Padding(

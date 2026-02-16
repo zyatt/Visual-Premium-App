@@ -219,6 +219,12 @@ class OrcamentoMaterialItem {
   final String materialUnidade;
   final double materialCusto;
   final double quantidade;
+  final double? altura;
+  final double? largura;
+  final double? alturaSobra;      // Para m²: altura em mm
+  final double? larguraSobra;     // Para m²: largura em mm
+  final double? quantidadeSobra;  // Para outras unidades: quantidade
+  final double? valorSobra;       // Valor calculado com impostos
 
   const OrcamentoMaterialItem({
     required this.id,
@@ -227,10 +233,31 @@ class OrcamentoMaterialItem {
     required this.materialUnidade,
     required this.materialCusto,
     required this.quantidade,
+    this.altura,
+    this.largura,
+    this.alturaSobra,
+    this.larguraSobra,
+    this.quantidadeSobra,
+    this.valorSobra,
   });
 
   double get total {
-    return materialCusto * quantidade;
+    double baseTotal = materialCusto * quantidade;
+    // Adiciona valor da sobra ao total
+    if (valorSobra != null) {
+      baseTotal += valorSobra!;
+    }
+    return baseTotal;
+  }
+  
+  // Indica se o material tem sobra configurada
+  bool get temSobra {
+    // m² usa altura e largura
+    if (materialUnidade.toLowerCase() == 'm²' || materialUnidade.toLowerCase() == 'm2') {
+      return alturaSobra != null && larguraSobra != null && valorSobra != null;
+    }
+    // Outras unidades usam quantidade
+    return quantidadeSobra != null && valorSobra != null;
   }
 
   OrcamentoMaterialItem copyWith({
@@ -240,6 +267,13 @@ class OrcamentoMaterialItem {
     String? materialUnidade,
     double? materialCusto,
     double? quantidade,
+    double? altura,
+    double? largura,
+    double? alturaSobra,
+    double? larguraSobra,
+    double? quantidadeSobra,
+    double? valorSobra,
+    bool clearSobra = false,
   }) =>
       OrcamentoMaterialItem(
         id: id ?? this.id,
@@ -248,12 +282,28 @@ class OrcamentoMaterialItem {
         materialUnidade: materialUnidade ?? this.materialUnidade,
         materialCusto: materialCusto ?? this.materialCusto,
         quantidade: quantidade ?? this.quantidade,
+        altura: altura ?? this.altura,
+        largura: largura ?? this.largura,
+        alturaSobra: clearSobra ? null : (alturaSobra ?? this.alturaSobra),
+        larguraSobra: clearSobra ? null : (larguraSobra ?? this.larguraSobra),
+        quantidadeSobra: clearSobra ? null : (quantidadeSobra ?? this.quantidadeSobra),
+        valorSobra: clearSobra ? null : (valorSobra ?? this.valorSobra),
       );
 
-  Map<String, Object?> toMap() => {
-        'materialId': materialId,
-        'quantidade': quantidade,
-      };
+  Map<String, Object?> toMap() {
+    final map = {
+      'materialId': materialId,
+      'quantidade': quantidade,
+    };
+    
+    // Adiciona campos de sobra se existirem
+    if (alturaSobra != null) map['alturaSobra'] = alturaSobra!;
+    if (larguraSobra != null) map['larguraSobra'] = larguraSobra!;
+    if (quantidadeSobra != null) map['quantidadeSobra'] = quantidadeSobra!;
+    if (valorSobra != null) map['valorSobra'] = valorSobra!;
+    
+    return map;
+  }
 
   static OrcamentoMaterialItem? tryFromMap(Map<String, Object?> map) {
     try {
@@ -280,6 +330,72 @@ class OrcamentoMaterialItem {
       final custoDouble = (custoRaw is int) ? custoRaw.toDouble() : (custoRaw is double ? custoRaw : 0.0);
       final quantidadeDouble = (quantidade is int) ? quantidade.toDouble() : (quantidade is double ? quantidade : 0.0);
 
+      // Parse altura e largura do material
+      double? altura;
+      double? largura;
+      
+      final alturaRaw = materialMap['altura'];
+      final larguraRaw = materialMap['largura'];
+      
+      if (alturaRaw != null) {
+        if (alturaRaw is num) {
+          altura = alturaRaw.toDouble();
+        } else if (alturaRaw is String) {
+          altura = double.tryParse(alturaRaw);
+        }
+      }
+      
+      if (larguraRaw != null) {
+        if (larguraRaw is num) {
+          largura = larguraRaw.toDouble();
+        } else if (larguraRaw is String) {
+          largura = double.tryParse(larguraRaw);
+        }
+      }
+
+      // Parse campos de sobra
+      double? alturaSobra;
+      double? larguraSobra;
+      double? quantidadeSobra;
+      double? valorSobra;
+      
+      final alturaSobraRaw = map['alturaSobra'];
+      final larguraSobraRaw = map['larguraSobra'];
+      final quantidadeSobraRaw = map['quantidadeSobra'];
+      final valorSobraRaw = map['valorSobra'];
+      
+      if (alturaSobraRaw != null) {
+        if (alturaSobraRaw is num) {
+          alturaSobra = alturaSobraRaw.toDouble();
+        } else if (alturaSobraRaw is String) {
+          alturaSobra = double.tryParse(alturaSobraRaw);
+        }
+      }
+      
+      if (larguraSobraRaw != null) {
+        if (larguraSobraRaw is num) {
+          larguraSobra = larguraSobraRaw.toDouble();
+        } else if (larguraSobraRaw is String) {
+          larguraSobra = double.tryParse(larguraSobraRaw);
+        }
+      }
+      
+      if (quantidadeSobraRaw != null) {
+        if (quantidadeSobraRaw is num) {
+          quantidadeSobra = quantidadeSobraRaw.toDouble();
+        } else if (quantidadeSobraRaw is String) {
+          quantidadeSobra = double.tryParse(quantidadeSobraRaw);
+        }
+      }
+      
+      if (valorSobraRaw != null) {
+        if (valorSobraRaw is num) {
+          valorSobra = valorSobraRaw.toDouble();
+        } else if (valorSobraRaw is String) {
+          valorSobra = double.tryParse(valorSobraRaw);
+        }
+      }
+
       return OrcamentoMaterialItem(
         id: int.parse(id.toString()),
         materialId: int.parse(materialId.toString()),
@@ -287,6 +403,12 @@ class OrcamentoMaterialItem {
         materialUnidade: unidade.trim(),
         materialCusto: custoDouble,
         quantidade: quantidadeDouble,
+        altura: altura,
+        largura: largura,
+        alturaSobra: alturaSobra,
+        larguraSobra: larguraSobra,
+        quantidadeSobra: quantidadeSobra,
+        valorSobra: valorSobra,
       );
     } catch (e) {
       return null;
@@ -418,12 +540,16 @@ class ProdutoMaterialItem {
   final String materialNome;
   final String materialUnidade;
   final double materialCusto;
+  final double? altura;      // NOVO CAMPO
+  final double? largura;     // NOVO CAMPO
 
   const ProdutoMaterialItem({
     required this.materialId,
     required this.materialNome,
     required this.materialUnidade,
     required this.materialCusto,
+    this.altura,               // NOVO CAMPO
+    this.largura,              // NOVO CAMPO
   });
 
   static ProdutoMaterialItem? tryFromMap(Map<String, Object?> map) {
@@ -443,11 +569,36 @@ class ProdutoMaterialItem {
 
       final custoDouble = (custo is int) ? custo.toDouble() : (custo is double ? custo : 0.0);
 
+      // Parse altura e largura
+      double? altura;
+      double? largura;
+      
+      final alturaRaw = materialMap['altura'];
+      final larguraRaw = materialMap['largura'];
+      
+      if (alturaRaw != null) {
+        if (alturaRaw is num) {
+          altura = alturaRaw.toDouble();
+        } else if (alturaRaw is String) {
+          altura = double.tryParse(alturaRaw);
+        }
+      }
+      
+      if (larguraRaw != null) {
+        if (larguraRaw is num) {
+          largura = larguraRaw.toDouble();
+        } else if (larguraRaw is String) {
+          largura = double.tryParse(larguraRaw);
+        }
+      }
+
       return ProdutoMaterialItem(
         materialId: int.parse(id.toString()),
         materialNome: nome.trim(),
         materialUnidade: unidade.trim(),
         materialCusto: custoDouble,
+        altura: altura,
+        largura: largura,
       );
     } catch (e) {
       return null;

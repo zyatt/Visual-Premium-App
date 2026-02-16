@@ -7,7 +7,10 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:visualpremium/data/orcamentos_repository.dart';
 import 'package:visualpremium/data/faixas_custo_repository.dart';
 import 'package:visualpremium/models/orcamento_item.dart';
+import 'package:visualpremium/models/material_item.dart';
 import 'package:visualpremium/widgets/clickable_ink.dart';
+import 'package:visualpremium/widgets/sobra_material_dialog.dart';
+
 import '../theme.dart';
 
 enum SortOption {
@@ -2525,7 +2528,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     ? (faixaAplicavel['margem'] as int).toDouble()
     : faixaAplicavel['margem'] as double;
 
-    final valorSugerido = custoTotal * (1 + margem / 100);
+    final valorSugerido = custoTotal * (margem / 100);
     _valorSugeridoLocal = {
       'custoTotal': custoTotal,
       'margem': margem,
@@ -2536,10 +2539,67 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     };
   }
   
+  // Método para configurar sobra de material
+  Future<void> _configurarSobraMaterial(ProdutoMaterialItem produtoMaterial) async {
+    if (_isAprovado) return;
+    
+    // Criar MaterialItem a partir do ProdutoMaterialItem
+    final material = MaterialItem(
+      id: produtoMaterial.materialId.toString(),
+      name: produtoMaterial.materialNome,
+      unit: produtoMaterial.materialUnidade,
+      costCents: (produtoMaterial.materialCusto * 100).round(),
+      quantity: '1',
+      altura: produtoMaterial.altura,
+      largura: produtoMaterial.largura,
+      createdAt: DateTime.now(),
+    );
+    
+    final resultado = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => SobraMaterialDialog(
+        material: material,
+        alturaSobraInicial: _materialSobrasAltura[produtoMaterial.materialId],
+        larguraSobraInicial: _materialSobrasLargura[produtoMaterial.materialId],
+        quantidadeSobraInicial: _materialSobrasQuantidade[produtoMaterial.materialId],
+      ),
+    );
+    
+    if (resultado != null) {
+      setState(() {
+        // Limpar sobras antigas primeiro
+        _materialSobrasAltura.remove(produtoMaterial.materialId);
+        _materialSobrasLargura.remove(produtoMaterial.materialId);
+        _materialSobrasQuantidade.remove(produtoMaterial.materialId);
+        _materialSobrasValor.remove(produtoMaterial.materialId);
+        
+        // Adicionar sobras novas se existirem
+        if (resultado['alturaSobra'] != null && resultado['larguraSobra'] != null) {
+          // m² usa altura e largura
+          _materialSobrasAltura[produtoMaterial.materialId] = resultado['alturaSobra'];
+          _materialSobrasLargura[produtoMaterial.materialId] = resultado['larguraSobra'];
+          _materialSobrasValor[produtoMaterial.materialId] = resultado['valorSobra'];
+        } else if (resultado['quantidadeSobra'] != null) {
+          // Outras unidades usam quantidade
+          _materialSobrasQuantidade[produtoMaterial.materialId] = resultado['quantidadeSobra'];
+          _materialSobrasValor[produtoMaterial.materialId] = resultado['valorSobra'];
+        }
+        
+        _updateTotal();
+      });
+    }
+  }
+  
   List<ProdutoItem> _produtos = [];
   ProdutoItem? _selectedProduto;
   final Map<int, TextEditingController> _quantityControllers = {};
   final Map<int, FocusNode> _quantityFocusNodes = {};
+  
+  // Maps para armazenar dados de sobra por materialId
+  final Map<int, double> _materialSobrasAltura = {};      // Para m²: altura em mm
+  final Map<int, double> _materialSobrasLargura = {};     // Para m²: largura em mm
+  final Map<int, double> _materialSobrasQuantidade = {};  // Para outras unidades
+  final Map<int, double> _materialSobrasValor = {};       // Valor calculado da sobra
   final List<InformacaoAdicionalItem> _informacoesAdicionais = [];
   bool _loading = true;
   bool _faixasCarregadas = false;
@@ -2658,10 +2718,26 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
 
     _initialQuantities.clear();
     _initialQuantityStrings.clear();
+    _materialSobrasAltura.clear();
+    _materialSobrasLargura.clear();
+    _materialSobrasQuantidade.clear();
+    _materialSobrasValor.clear();
     if (widget.initial != null) {
       for (final mat in widget.initial!.materiais) {
         _initialQuantities[mat.materialId] = mat.quantidade;
         _initialQuantityStrings[mat.materialId] = mat.quantidade > 0 ? _formatQuantity(mat.quantidade) : '';
+        
+        // Inicializar sobras se existirem
+        if (mat.alturaSobra != null && mat.larguraSobra != null && mat.valorSobra != null) {
+          // m² usa altura e largura
+          _materialSobrasAltura[mat.materialId] = mat.alturaSobra!;
+          _materialSobrasLargura[mat.materialId] = mat.larguraSobra!;
+          _materialSobrasValor[mat.materialId] = mat.valorSobra!;
+        } else if (mat.quantidadeSobra != null && mat.valorSobra != null) {
+          // Outras unidades usam quantidade
+          _materialSobrasQuantidade[mat.materialId] = mat.quantidadeSobra!;
+          _materialSobrasValor[mat.materialId] = mat.valorSobra!;
+        }
       }
     }
     
@@ -3089,6 +3165,9 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       if (controller != null) {
         final qty = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0.0;
         base += mat.materialCusto * qty;
+        
+        // REMOVIDO: Valor da sobra não entra mais no cálculo base
+        // O valor da sobra agora só é somado no valor sugerido
       }
     }
 
@@ -3772,6 +3851,12 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       final qtyValue = double.tryParse(qty.replaceAll(',', '.'));
       if (qtyValue == null || qtyValue < 0) continue;
       
+      // Pegar dados de sobra se existirem
+      final alturaSobra = _materialSobrasAltura[mat.materialId];
+      final larguraSobra = _materialSobrasLargura[mat.materialId];
+      final quantidadeSobra = _materialSobrasQuantidade[mat.materialId];
+      final valorSobra = _materialSobrasValor[mat.materialId];
+      
       materiais.add(OrcamentoMaterialItem(
         id: widget.initial?.materiais
                 .firstWhere((m) => m.materialId == mat.materialId,
@@ -3789,6 +3874,10 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         materialUnidade: mat.materialUnidade,
         materialCusto: mat.materialCusto,
         quantidade: qtyValue,
+        alturaSobra: alturaSobra,
+        larguraSobra: larguraSobra,
+        quantidadeSobra: quantidadeSobra,
+        valorSobra: valorSobra,
       ));
     }
 
@@ -4411,6 +4500,124 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
             },
           );
         }),
+      ],
+    );
+  }
+
+  Widget _buildSobrasMaterialSection() {
+    if (_selectedProduto == null) return const SizedBox();
+    
+    final theme = Theme.of(context);
+    final currency = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
+    
+    // Filtrar materiais que possuem sobra
+    final materiaisComSobra = _selectedProduto!.materiais.where((mat) {
+      final valorSobra = _materialSobrasValor[mat.materialId];
+      return valorSobra != null && valorSobra > 0;
+    }).toList();
+    
+    if (materiaisComSobra.isEmpty) {
+      return const SizedBox();
+    }
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.green.shade50,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(color: Colors.green.shade200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.content_cut,
+                    size: 20,
+                    color: Colors.green.shade700,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Sobras de Materiais',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.green.shade900,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ...materiaisComSobra.map((mat) {
+                final valorSobra = _materialSobrasValor[mat.materialId] ?? 0.0;
+                final isM2 = mat.materialUnidade.toLowerCase() == 'm²' || 
+                             mat.materialUnidade.toLowerCase() == 'm2';
+                
+                String sobraInfo;
+                if (isM2) {
+                  final altura = _materialSobrasAltura[mat.materialId] ?? 0.0;
+                  final largura = _materialSobrasLargura[mat.materialId] ?? 0.0;
+                  sobraInfo = '${altura.toStringAsFixed(0)}mm × ${largura.toStringAsFixed(0)}mm';
+                } else {
+                  final quantidade = _materialSobrasQuantidade[mat.materialId] ?? 0.0;
+                  sobraInfo = '${quantidade.toStringAsFixed(2)} ${mat.materialUnidade}';
+                }
+                
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              mat.materialNome,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.green.shade900,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Quantidade de sobra: $sobraInfo',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: Colors.green.shade700,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        flex: 1,
+                        child: Text(
+                          currency.format(valorSobra),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green.shade800,
+                          ),
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -5123,7 +5330,16 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                               if (controller == null || focusNode == null) return const SizedBox();
                                               
                                               final qty = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0.0;
-                                              final total = mat.materialCusto * qty;
+                                              final baseTotal = mat.materialCusto * qty;
+                                              
+                                              // O valor da sobra não é mais somado aqui, apenas o custo do material
+                                              final total = baseTotal;
+                                              // A sobra agora é exibida em uma seção separada
+                                              final valorSobra = _materialSobrasValor[mat.materialId];
+                                              final isM2 = mat.materialUnidade.toLowerCase() == 'm²' || mat.materialUnidade.toLowerCase() == 'm2';
+                                              final temSobra = isM2 
+                                                  ? _materialSobrasAltura.containsKey(mat.materialId)
+                                                  : _materialSobrasQuantidade.containsKey(mat.materialId);
                                               
                                               return Container(
                                                 margin: const EdgeInsets.only(bottom: 6),
@@ -5151,25 +5367,84 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                                 child: Column(
                                                                   crossAxisAlignment: CrossAxisAlignment.start,
                                                                   children: [
-                                                                    Text(
-                                                                      mat.materialNome,
-                                                                      style: theme.textTheme.bodySmall?.copyWith(
-                                                                        fontWeight: FontWeight.w600,
-                                                                        fontSize: 11,
-                                                                        color: _isAprovado 
-                                                                            ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
-                                                                            : theme.colorScheme.onSurface,
-                                                                      ),
+                                                                    Row(
+                                                                      children: [
+                                                                        Expanded(
+                                                                          child: Text(
+                                                                            mat.materialNome,
+                                                                            style: theme.textTheme.bodySmall?.copyWith(
+                                                                              fontWeight: FontWeight.w600,
+                                                                              fontSize: 11,
+                                                                              color: _isAprovado 
+                                                                                  ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
+                                                                                  : theme.colorScheme.onSurface,
+                                                                            ),
+                                                                          ),
+                                                                        ),
+                                                                        // Indicador de sobra
+                                                                        if (temSobra) ...[
+                                                                          const SizedBox(width: 4),
+                                                                          Tooltip(
+                                                                            message: () {
+                                                                              final isM2 = mat.materialUnidade.toLowerCase() == 'm²' || mat.materialUnidade.toLowerCase() == 'm2';
+                                                                              if (isM2) {
+                                                                                return 'Sobra: ${_materialSobrasAltura[mat.materialId]}mm × ${_materialSobrasLargura[mat.materialId]}mm\nValor: ${currency.format(valorSobra ?? 0.0)}';
+                                                                              } else {
+                                                                                return 'Sobra: ${_materialSobrasQuantidade[mat.materialId]} ${mat.materialUnidade}\nValor: ${currency.format(valorSobra ?? 0.0)}';
+                                                                              }
+                                                                            }(),
+                                                                            child: Container(
+                                                                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                                                              decoration: BoxDecoration(
+                                                                                color: Colors.green.shade100,
+                                                                                borderRadius: BorderRadius.circular(4),
+                                                                                border: Border.all(color: Colors.green.shade300),
+                                                                              ),
+                                                                              child: Row(
+                                                                                mainAxisSize: MainAxisSize.min,
+                                                                                children: [
+                                                                                  Icon(
+                                                                                    Icons.content_cut,
+                                                                                    size: 10,
+                                                                                    color: Colors.green.shade700,
+                                                                                  ),
+                                                                                  const SizedBox(width: 2),
+                                                                                  Text(
+                                                                                    'Sobra',
+                                                                                    style: TextStyle(
+                                                                                      fontSize: 9,
+                                                                                      fontWeight: FontWeight.w600,
+                                                                                      color: Colors.green.shade700,
+                                                                                    ),
+                                                                                  ),
+                                                                                ],
+                                                                              ),
+                                                                            ),
+                                                                          ),
+                                                                        ],
+                                                                      ],
                                                                     ),
-                                                                    Text(
-                                                                      '${currency.format(mat.materialCusto)} / ${mat.materialUnidade}',
-                                                                      style: theme.textTheme.bodySmall?.copyWith(
-                                                                        fontSize: 10,
-                                                                        color: _isAprovado 
-                                                                            ? theme.colorScheme.onSurface.withValues(alpha: 0.3)
-                                                                            : theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                                                    // Se for m² e tiver altura e largura, mostra dimensões
+                                                                    if (mat.materialUnidade == 'm²' && mat.altura != null && mat.largura != null)
+                                                                      Text(
+                                                                        '${currency.format(mat.materialCusto)} / ${mat.materialUnidade} • ${mat.altura}m × ${mat.largura}m',
+                                                                        style: theme.textTheme.bodySmall?.copyWith(
+                                                                          fontSize: 10,
+                                                                          color: _isAprovado 
+                                                                              ? theme.colorScheme.onSurface.withValues(alpha: 0.3)
+                                                                              : theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                                                        ),
+                                                                      )
+                                                                    else
+                                                                      Text(
+                                                                        '${currency.format(mat.materialCusto)} / ${mat.materialUnidade}',
+                                                                        style: theme.textTheme.bodySmall?.copyWith(
+                                                                          fontSize: 10,
+                                                                          color: _isAprovado 
+                                                                              ? theme.colorScheme.onSurface.withValues(alpha: 0.3)
+                                                                              : theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                                                        ),
                                                                       ),
-                                                                    ),
                                                                   ],
                                                                 ),
                                                               ),
@@ -5203,6 +5478,24 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                       ),
                                                     ),
                                                     const SizedBox(width: 8),
+                                                    // NOVO: Botão de sobra para TODOS os materiais
+                                                    if (!_isAprovado) ...[
+                                                      IconButton(
+                                                        icon: Icon(
+                                                          Icons.content_cut,
+                                                          size: 18,
+                                                          color: temSobra 
+                                                              ? Colors.green.shade700 
+                                                              : theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                                                        ),
+                                                        onPressed: () => _configurarSobraMaterial(mat),
+                                                        tooltip: 'Configurar sobra',
+                                                        padding: EdgeInsets.zero,
+                                                        constraints: const BoxConstraints(),
+                                                        visualDensity: VisualDensity.compact,
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                    ],
                                                     SizedBox(
                                                       width: 70,
                                                       child: TextFormField(
@@ -5257,6 +5550,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                         
                                             const SizedBox(height: 16),
 
+                                            _buildSobrasMaterialSection(),
                                             _buildDespesasSection(),
                                             _buildOpcoesExtrasSection(),
  
