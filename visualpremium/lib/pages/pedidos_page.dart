@@ -73,7 +73,9 @@ class PedidoFilters {
   }
 }
 class PedidosPage extends StatefulWidget {
-  const PedidosPage({super.key});
+  final int? initialPedidoId;
+
+  const PedidosPage({super.key, this.initialPedidoId});
 
   @override
   State<PedidosPage> createState() => _PedidosPageState();
@@ -90,10 +92,14 @@ class _PedidosPageState extends State<PedidosPage> {
   SortOption _sortOption = SortOption.newestFirst;
   PedidoFilters _filters = const PedidoFilters();
   bool _showScrollToTopButton = false;
+  bool _pendingInitialOpen = false;
 
   @override
   void initState() {
     super.initState();
+    if (widget.initialPedidoId != null) {
+      _pendingInitialOpen = true;
+    }
     _load();
     _loadProdutos();
     
@@ -153,6 +159,15 @@ class _PedidosPageState extends State<PedidosPage> {
         _items = items;
         _loading = false;
       });
+      if (_pendingInitialOpen && widget.initialPedidoId != null) {
+        _pendingInitialOpen = false;
+        final target = items.where((e) => e.id == widget.initialPedidoId).firstOrNull;
+        if (target != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _showPedidoEditor(target);
+          });
+        }
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);

@@ -447,13 +447,21 @@ class AlmoxarifadoService {
       const totalOrcadoMateriais = this._calcularTotalMateriais(almoxarifado.pedido.materiais);
       const totalOrcadoDespesas = this._calcularTotalDespesas(almoxarifado.pedido.despesasAdicionais);
       const totalOrcadoOpcoesExtras = this._calcularTotalOpcoesExtras(almoxarifado.pedido.opcoesExtras);
-      const totalOrcado = totalOrcadoMateriais + totalOrcadoDespesas + totalOrcadoOpcoesExtras;
+
+      // Calcular total de sobras orçadas (valorSobra dos materiais do pedido)
+      const totalSobrasOrcado = almoxarifado.pedido.materiais.reduce((total, m) => total + (m.valorSobra || 0), 0);
+
+      const totalOrcado = totalOrcadoMateriais + totalOrcadoDespesas + totalOrcadoOpcoesExtras + totalSobrasOrcado;
 
       const totalRealizadoMateriais = this._calcularTotalMateriaisRealizados(almoxarifado.materiais);
       const totalRealizadoMateriaisAvulsos = this._calcularTotalMateriaisAvulsosRealizados(almoxarifado.materiaisAvulsos || []);
       const totalRealizadoDespesas = this._calcularTotalDespesasRealizadas(almoxarifado.despesasAdicionais);
       const totalRealizadoOpcoesExtras = this._calcularTotalOpcoesExtrasRealizadas(almoxarifado.opcoesExtras);
-      const totalRealizado = totalRealizadoMateriais + totalRealizadoMateriaisAvulsos + totalRealizadoDespesas + totalRealizadoOpcoesExtras;
+
+      // Calcular total de sobras realizadas (custoSobrasRealizado dos materiais do almoxarifado)
+      const totalSobrasRealizado = almoxarifado.materiais.reduce((total, m) => total + (m.custoSobrasRealizado || 0), 0);
+
+      const totalRealizado = totalRealizadoMateriais + totalRealizadoMateriaisAvulsos + totalRealizadoDespesas + totalRealizadoOpcoesExtras + totalSobrasRealizado;
 
       const diferencaMateriais = totalRealizadoMateriais + totalRealizadoMateriaisAvulsos - totalOrcadoMateriais;
       const diferencaDespesas = totalRealizadoDespesas - totalOrcadoDespesas;
@@ -499,10 +507,12 @@ class AlmoxarifadoService {
               totalOrcadoDespesas,
               totalOrcadoOpcoesExtras,
               totalOrcado,
+              totalSobrasOrcado,
               totalRealizadoMateriais,
               totalRealizadoDespesas,
               totalRealizadoOpcoesExtras,
               totalRealizado,
+              totalSobrasRealizado,
               diferencaMateriais,
               diferencaDespesas,
               diferencaOpcoesExtras,
@@ -534,10 +544,12 @@ class AlmoxarifadoService {
               totalOrcadoDespesas,
               totalOrcadoOpcoesExtras,
               totalOrcado,
+              totalSobrasOrcado,
               totalRealizadoMateriais,
               totalRealizadoDespesas,
               totalRealizadoOpcoesExtras,
               totalRealizado,
+              totalSobrasRealizado,
               diferencaMateriais,
               diferencaDespesas,
               diferencaOpcoesExtras,

@@ -77,7 +77,9 @@ class OrcamentoFilters {
 }
 
 class BudgetsPage extends StatefulWidget {
-  const BudgetsPage({super.key});
+  final int? initialOrcamentoId;
+
+  const BudgetsPage({super.key, this.initialOrcamentoId});
 
   @override
   State<BudgetsPage> createState() => _BudgetsPageState();
@@ -94,10 +96,14 @@ class _BudgetsPageState extends State<BudgetsPage> {
   SortOption _sortOption = SortOption.newestFirst;
   OrcamentoFilters _filters = const OrcamentoFilters();
   bool _showScrollToTopButton = false;
+  bool _pendingInitialOpen = false;
 
   @override
   void initState() {
     super.initState();
+    if (widget.initialOrcamentoId != null) {
+      _pendingInitialOpen = true;
+    }
     _load();
     _loadProdutos();
     
@@ -157,6 +163,16 @@ class _BudgetsPageState extends State<BudgetsPage> {
         _items = items;
         _loading = false;
       });
+      // Abrir orçamento específico se veio da HomePage
+      if (_pendingInitialOpen && widget.initialOrcamentoId != null) {
+        _pendingInitialOpen = false;
+        final target = items.where((e) => e.id == widget.initialOrcamentoId).firstOrNull;
+        if (target != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _showOrcamentoEditor(target);
+          });
+        }
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _loading = false);
@@ -5564,29 +5580,28 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                                               : theme.colorScheme.onSurface.withValues(alpha: 0.5),
                                                                         ),
                                                                       ),
-                                                                    // Aviso de quantidade insuficiente no estoque (lado esquerdo)
                                                                     if (mat.materialEstoque != null && qty > 0 && qty > mat.materialEstoque!)
-  Padding(
-    padding: const EdgeInsets.only(top: 4),
-    child: Opacity(
-      opacity: _isAprovado ? 0.4 : 1.0,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.warning_amber_rounded, size: 11, color: Colors.orange),
-          const SizedBox(width: 3),
-          Text(
-            'Quantidade insuficiente no estoque',
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.orange,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    ),
-  ),
+                                                                    Padding(
+                                                                      padding: const EdgeInsets.only(top: 4),
+                                                                      child: Opacity(
+                                                                        opacity: _isAprovado ? 0.4 : 1.0,
+                                                                        child: Row(
+                                                                          mainAxisSize: MainAxisSize.min,
+                                                                          children: [
+                                                                            Icon(Icons.warning_amber_rounded, size: 11, color: Colors.orange),
+                                                                            const SizedBox(width: 3),
+                                                                            Text(
+                                                                              'Quantidade insuficiente no estoque',
+                                                                              style: TextStyle(
+                                                                                fontSize: 10,
+                                                                                color: Colors.orange,
+                                                                                fontWeight: FontWeight.w500,
+                                                                              ),
+                                                                            ),
+                                                                          ],
+                                                                        ),
+                                                                      ),
+                                                                    ),
                                                                   ],
                                                                 ),
                                                               ),

@@ -673,6 +673,8 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
     final totalRealizado = (relatorio['totalRealizado'] as num?)?.toDouble() ?? 0.0;
     final diferencaTotal = (relatorio['diferencaTotal'] as num?)?.toDouble() ?? 0.0;
     final percentualTotal = (relatorio['percentualTotal'] as num?)?.toDouble() ?? 0.0;
+    final totalSobrasOrcado = (relatorio['totalSobrasOrcado'] as num?)?.toDouble();
+    final totalSobrasRealizado = (relatorio['totalSobrasRealizado'] as num?)?.toDouble();
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -739,7 +741,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildResumoCard(theme, currency, totalOrcado, totalRealizado, diferencaTotal, percentualTotal),
+                    _buildResumoCard(theme, currency, totalOrcado, totalRealizado, diferencaTotal, percentualTotal, totalSobrasOrcado, totalSobrasRealizado),
                     const SizedBox(height: 24),
                     
                     if (materiais.isNotEmpty) ...[
@@ -853,10 +855,12 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
   }
 
   Widget _buildResumoCard(ThemeData theme, NumberFormat currency, double totalOrcado, 
-      double totalRealizado, double diferencaTotal, double percentualTotal) {
+      double totalRealizado, double diferencaTotal, double percentualTotal,
+      double? totalSobrasOrcado, double? totalSobrasRealizado) {
     final isEconomia = diferencaTotal < 0;
     final isExcedeu = diferencaTotal > 0;
     final statusColor = isEconomia ? Colors.green : isExcedeu ? Colors.red : Colors.grey;
+    const sobraColor = Color(0xFF7C3AED);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -877,7 +881,29 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: _buildValueColumn(theme, 'Total Orçado', currency.format(totalOrcado), null),
+                child: Column(
+                  children: [
+                    _buildValueColumn(theme, 'Total Orçado', currency.format(totalOrcado), null),
+                    if (totalSobrasOrcado != null && totalSobrasOrcado > 0) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.content_cut, size: 11, color: sobraColor),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Sobras: ${currency.format(totalSobrasOrcado)}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: sobraColor.withValues(alpha: 0.8),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
               ),
               Container(
                 width: 1,
@@ -885,7 +911,29 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                 color: theme.dividerColor.withValues(alpha: 0.2),
               ),
               Expanded(
-                child: _buildValueColumn(theme, 'Total Realizado', currency.format(totalRealizado), null),
+                child: Column(
+                  children: [
+                    _buildValueColumn(theme, 'Total Realizado', currency.format(totalRealizado), null),
+                    if (totalSobrasRealizado != null && totalSobrasRealizado > 0) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.content_cut, size: 11, color: sobraColor),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Sobras: ${currency.format(totalSobrasRealizado)}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: sobraColor.withValues(alpha: 0.8),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ],
           ),

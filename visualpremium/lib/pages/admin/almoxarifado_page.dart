@@ -1512,6 +1512,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                         ],
 
                         // ── Materiais Avulsos ──────────────────────────────
+                        if (!widget.isRealizado || _materiaisAvulsos.isNotEmpty) ...[
                         const SizedBox(height: 24),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1637,6 +1638,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                             ),
                           );
                         }),
+                        ], // fim if (!widget.isRealizado || _materiaisAvulsos.isNotEmpty)
 
                         // ── Opções Extras ──────────────────────────────────
                         if (widget.pedido.opcoesExtras.isNotEmpty) ...[

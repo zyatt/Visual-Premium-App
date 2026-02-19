@@ -1,9 +1,8 @@
 ; ====================================
 ; 📦 VISUAL PREMIUM - INSTALADOR
 ; ====================================
-
 #define MyAppName "Visual Premium"
-#define MyAppVersion "3.0.0"
+#define MyAppVersion "3.2.0"
 #define MyAppPublisher "Matheus Vinícius"
 #define MyAppExeName "visualpremium.exe"
 #define MyAppId "{{7B8E0F9A-2C4D-4B1E-9A0A-3C8E2F5A1234}"
@@ -14,28 +13,22 @@ AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
-
 UninstallDisplayName={#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExeName}
-
 SetupIconFile=logo.ico
 OutputDir=.
 OutputBaseFilename=VisualPremiumSetup-{#MyAppVersion}
-
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=admin
-
 ; --- Atualização inteligente ---
 CloseApplications=force
 RestartApplications=yes
 DisableDirPage=auto
 DisableProgramGroupPage=auto
-
 VersionInfoVersion={#MyAppVersion}
 VersionInfoCompany={#MyAppPublisher}
 VersionInfoDescription={#MyAppName} Setup
@@ -63,14 +56,18 @@ Flags: uninsdeletekey
 ; ============================
 ; 🚀 ABRIR APP AUTOMATICAMENTE
 ; ============================
-
 [Run]
+; Para atualização silenciosa (Flutter) — abre automaticamente
 Filename: "{app}\{#MyAppExeName}"; \
 Flags: nowait; \
 Check: ShouldRunApp
 
-[Code]
+; Para instalação manual — mostra checkbox pro usuário
+Filename: "{app}\{#MyAppExeName}"; \
+Description: "Abrir {#MyAppName}"; \
+Flags: nowait postinstall skipifsilent
 
+[Code]
 var
   IsUpgradeInstall: Boolean;
 
@@ -89,36 +86,20 @@ end;
 function InitializeSetup(): Boolean;
 begin
   IsUpgradeInstall := IsUpgrade();
-
   if IsUpgradeInstall then
     Log('Modo: ATUALIZAÇÃO')
   else
     Log('Modo: INSTALAÇÃO NOVA');
-
   Result := True;
 end;
 
 function ShouldRunApp(): Boolean;
 begin
-  ; Nunca rodar durante uninstall
-  if IsUninstaller then
-  begin
-    Result := False;
-    Exit;
-  end;
-
-  ; Se for atualização silenciosa (vindo do Flutter)
+  // Só executa na atualização silenciosa (vindo do Flutter)
+  // Na instalação manual o segundo [Run] com checkbox cuida disso
   if WizardSilent and IsUpgradeInstall then
   begin
     Log('Abrindo app após atualização silenciosa...');
-    Result := True;
-    Exit;
-  end;
-
-  ; Se for instalação normal (manual)
-  if not WizardSilent then
-  begin
-    Log('Abrindo app após instalação normal...');
     Result := True;
     Exit;
   end;

@@ -96,16 +96,24 @@ class AppRouter {
             GoRoute(
               path: AppRoutes.orcamentos,
               name: 'orcamentos',
-              pageBuilder: (context, state) => NoTransitionPage(
-                child: const BudgetsPage(),
-              ),
+              pageBuilder: (context, state) {
+                final extra = state.extra;
+                final initialId = extra is int ? extra : null;
+                return NoTransitionPage(
+                  child: BudgetsPage(initialOrcamentoId: initialId),
+                );
+              },
             ),
             GoRoute(
               path: AppRoutes.pedidos,
               name: 'pedidos',
-              pageBuilder: (context, state) => NoTransitionPage(
-                child: const PedidosPage(),
-              ),
+              pageBuilder: (context, state) {
+                final extra = state.extra;
+                final initialId = extra is int ? extra : null;
+                return NoTransitionPage(
+                  child: PedidosPage(initialPedidoId: initialId),
+                );
+              },
             ),
             GoRoute(
               path: AppRoutes.produtos,

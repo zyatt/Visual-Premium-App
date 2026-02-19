@@ -27,7 +27,6 @@ class _ChatOverlayState extends State<ChatOverlay> {
   static const double _maxWidth = 600;
   static const double _maxHeight = 700;
 
-  // Edge/corner resize handle size
   static const double _handleSize = 10.0;
 
   @override
@@ -86,7 +85,6 @@ class _ChatOverlayState extends State<ChatOverlay> {
     );
   }
 
-  /// Clamps position so the chat panel stays within screen bounds.
   void _clampPosition(Size screenSize) {
     _position = Offset(
       _position.dx.clamp(0, screenSize.width - _chatWidth),
@@ -94,26 +92,17 @@ class _ChatOverlayState extends State<ChatOverlay> {
     );
   }
 
-  // ─── resize handlers ────────────────────────────────────────────────────────
-
   void _onResizeRight(DragUpdateDetails d, Size screenSize) {
     setState(() {
       _chatWidth = (_chatWidth + d.delta.dx).clamp(_minWidth, _maxWidth);
-      // Also ensure we don't overflow right edge
-      _chatWidth = _chatWidth.clamp(
-        _minWidth,
-        screenSize.width - _position.dx,
-      );
+      _chatWidth = _chatWidth.clamp(_minWidth, screenSize.width - _position.dx);
     });
   }
 
   void _onResizeBottom(DragUpdateDetails d, Size screenSize) {
     setState(() {
       _chatHeight = (_chatHeight + d.delta.dy).clamp(_minHeight, _maxHeight);
-      _chatHeight = _chatHeight.clamp(
-        _minHeight,
-        screenSize.height - _position.dy,
-      );
+      _chatHeight = _chatHeight.clamp(_minHeight, screenSize.height - _position.dy);
     });
   }
 
@@ -141,7 +130,6 @@ class _ChatOverlayState extends State<ChatOverlay> {
     });
   }
 
-  // corner helpers
   void _onResizeBottomRight(DragUpdateDetails d, Size screenSize) {
     _onResizeRight(d, screenSize);
     _onResizeBottom(d, screenSize);
@@ -172,7 +160,6 @@ class _ChatOverlayState extends State<ChatOverlay> {
 
     return Stack(
       children: [
-        // ── chat button ──────────────────────────────────────────────────────
         Positioned(
           right: 24,
           bottom: 24,
@@ -223,7 +210,6 @@ class _ChatOverlayState extends State<ChatOverlay> {
           ),
         ),
 
-        // ── chat panel ───────────────────────────────────────────────────────
         if (_isOpen)
           Positioned(
             left: _position.dx,
@@ -234,14 +220,9 @@ class _ChatOverlayState extends State<ChatOverlay> {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  // ── main panel ──────────────────────────────────────────
                   GestureDetector(
-                    // drag only via the header (drag_indicator icon inside children)
                     behavior: HitTestBehavior.translucent,
-                    onPanUpdate: (details) {
-                      // This outer detector is intentionally left without action;
-                      // dragging is handled inside the header widget below.
-                    },
+                    onPanUpdate: (details) {},
                     child: Material(
                       elevation: 8,
                       borderRadius: BorderRadius.circular(16),
@@ -289,8 +270,6 @@ class _ChatOverlayState extends State<ChatOverlay> {
                       ),
                     ),
                   ),
-
-                  // ── resize handles ──────────────────────────────────────
 
                   // Right edge
                   Positioned(
@@ -639,8 +618,9 @@ class _SeletorUsuariosDialogState extends State<_SeletorUsuariosDialog> {
                                       usuario.nome
                                           .substring(0, 1)
                                           .toUpperCase(),
-                                      style: const TextStyle(
-                                          color: Colors.white, fontSize: 14),
+                                      style: TextStyle(
+                                          color: theme.colorScheme.onPrimary,
+                                          fontSize: 14),
                                     ),
                                   ),
                                   title: Text(
@@ -716,22 +696,24 @@ class _ConversasList extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Icon(Icons.drag_indicator, color: Colors.white, size: 20),
+                Icon(Icons.drag_indicator,
+                    color: theme.colorScheme.onPrimary, size: 20),
                 const SizedBox(width: 8),
-                const Icon(Icons.chat, color: Colors.white, size: 18),
+                Icon(Icons.chat,
+                    color: theme.colorScheme.onPrimary, size: 18),
                 const SizedBox(width: 8),
                 Text(
                   'Conversas',
                   style: theme.textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
+                    color: theme.colorScheme.onPrimary,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
                 ),
                 const Spacer(),
                 IconButton(
-                  icon: const Icon(Icons.add_circle_outline,
-                      color: Colors.white, size: 20),
+                  icon: Icon(Icons.add_circle_outline,
+                      color: theme.colorScheme.onPrimary, size: 20),
                   onPressed: onNovaConversa,
                   tooltip: 'Nova conversa',
                   padding: EdgeInsets.zero,
@@ -739,7 +721,8 @@ class _ConversasList extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                  icon: Icon(Icons.close,
+                      color: theme.colorScheme.onPrimary, size: 20),
                   onPressed: onClose,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -799,8 +782,9 @@ class _ConversasList extends StatelessWidget {
                               conversa.usuario.nome
                                   .substring(0, 1)
                                   .toUpperCase(),
-                              style: const TextStyle(
-                                  color: Colors.white, fontSize: 14),
+                              style: TextStyle(
+                                  color: theme.colorScheme.onPrimary,
+                                  fontSize: 14),
                             ),
                           ),
                           title: Text(
@@ -846,8 +830,8 @@ class _ConversasList extends StatelessWidget {
                                     conversa.naoLidas > 9
                                         ? '9+'
                                         : '${conversa.naoLidas}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
+                                    style: TextStyle(
+                                      color: theme.colorScheme.onPrimary,
                                       fontSize: 9,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -1016,11 +1000,12 @@ class _ChatViewState extends State<_ChatView> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.drag_indicator, color: Colors.white, size: 20),
+                Icon(Icons.drag_indicator,
+                    color: theme.colorScheme.onPrimary, size: 20),
                 const SizedBox(width: 4),
                 IconButton(
-                  icon: const Icon(Icons.arrow_back,
-                      color: Colors.white, size: 20),
+                  icon: Icon(Icons.arrow_back,
+                      color: theme.colorScheme.onPrimary, size: 20),
                   onPressed: widget.onVoltar,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -1028,10 +1013,12 @@ class _ChatViewState extends State<_ChatView> {
                 const SizedBox(width: 8),
                 CircleAvatar(
                   radius: 16,
-                  backgroundColor: Colors.white.withValues(alpha: 0.3),
+                  backgroundColor:
+                      theme.colorScheme.onPrimary.withValues(alpha: 0.3),
                   child: Text(
                     (_nomeUsuario ?? '?').substring(0, 1).toUpperCase(),
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    style: TextStyle(
+                        color: theme.colorScheme.onPrimary, fontSize: 14),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1039,7 +1026,7 @@ class _ChatViewState extends State<_ChatView> {
                   child: Text(
                     _nomeUsuario ?? 'Carregando...',
                     style: theme.textTheme.titleSmall?.copyWith(
-                      color: Colors.white,
+                      color: theme.colorScheme.onPrimary,
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
                     ),
@@ -1047,8 +1034,8 @@ class _ChatViewState extends State<_ChatView> {
                   ),
                 ),
                 IconButton(
-                  icon:
-                      const Icon(Icons.close, color: Colors.white, size: 20),
+                  icon: Icon(Icons.close,
+                      color: theme.colorScheme.onPrimary, size: 20),
                   onPressed: widget.onClose,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -1174,16 +1161,16 @@ class _ChatViewState extends State<_ChatView> {
                 child: IconButton(
                   onPressed: _isSending ? null : _enviarMensagem,
                   icon: _isSending
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: theme.colorScheme.onPrimary,
                           ),
                         )
-                      : const Icon(Icons.send, size: 18),
-                  color: Colors.white,
+                      : Icon(Icons.send,
+                          size: 18, color: theme.colorScheme.onPrimary),
                   padding: const EdgeInsets.all(8),
                   constraints: const BoxConstraints(),
                 ),
@@ -1337,7 +1324,7 @@ class _MessageBubble extends StatelessWidget {
                     mensagem.conteudo,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: isFromMe
-                          ? Colors.white
+                          ? theme.colorScheme.onPrimary
                           : theme.colorScheme.onSurface,
                       fontSize: 13,
                     ),
@@ -1349,7 +1336,7 @@ class _MessageBubble extends StatelessWidget {
                     style: theme.textTheme.bodySmall?.copyWith(
                       fontSize: 9,
                       color: isFromMe
-                          ? Colors.white.withValues(alpha: 0.7)
+                          ? theme.colorScheme.onPrimary.withValues(alpha: 0.7)
                           : theme.colorScheme.onSurface
                               .withValues(alpha: 0.5),
                     ),
