@@ -221,6 +221,7 @@ class OrcamentoMaterialItem {
   final double quantidade;
   final double? altura;
   final double? largura;
+  final double? comprimento;      // Para m/l: comprimento em mm
   final double? alturaSobra;      // Para m²: altura em mm
   final double? larguraSobra;     // Para m²: largura em mm
   final double? quantidadeSobra;  // Para outras unidades: quantidade
@@ -235,6 +236,7 @@ class OrcamentoMaterialItem {
     required this.quantidade,
     this.altura,
     this.largura,
+    this.comprimento,
     this.alturaSobra,
     this.larguraSobra,
     this.quantidadeSobra,
@@ -269,6 +271,7 @@ class OrcamentoMaterialItem {
     double? quantidade,
     double? altura,
     double? largura,
+    double? comprimento,
     double? alturaSobra,
     double? larguraSobra,
     double? quantidadeSobra,
@@ -284,6 +287,7 @@ class OrcamentoMaterialItem {
         quantidade: quantidade ?? this.quantidade,
         altura: altura ?? this.altura,
         largura: largura ?? this.largura,
+        comprimento: comprimento ?? this.comprimento,
         alturaSobra: clearSobra ? null : (alturaSobra ?? this.alturaSobra),
         larguraSobra: clearSobra ? null : (larguraSobra ?? this.larguraSobra),
         quantidadeSobra: clearSobra ? null : (quantidadeSobra ?? this.quantidadeSobra),
@@ -296,10 +300,16 @@ class OrcamentoMaterialItem {
       'quantidade': quantidade,
     };
     
-    // Adiciona campos de sobra se existirem
-    if (alturaSobra != null) map['alturaSobra'] = alturaSobra!;
-    if (larguraSobra != null) map['larguraSobra'] = larguraSobra!;
-    if (quantidadeSobra != null) map['quantidadeSobra'] = quantidadeSobra!;
+    // Para m²: envia alturaSobra e larguraSobra
+    // Para m/l e outras unidades: quantidadeSobra é mapeado para alturaSobra no banco
+    final isM2 = materialUnidade.toLowerCase() == 'm²' || materialUnidade.toLowerCase() == 'm2';
+    if (isM2) {
+      if (alturaSobra != null) map['alturaSobra'] = alturaSobra!;
+      if (larguraSobra != null) map['larguraSobra'] = larguraSobra!;
+    } else {
+      // Usa alturaSobra como campo de armazenamento para quantidadeSobra
+      if (quantidadeSobra != null) map['alturaSobra'] = quantidadeSobra!;
+    }
     if (valorSobra != null) map['valorSobra'] = valorSobra!;
     
     return map;
@@ -330,12 +340,14 @@ class OrcamentoMaterialItem {
       final custoDouble = (custoRaw is int) ? custoRaw.toDouble() : (custoRaw is double ? custoRaw : 0.0);
       final quantidadeDouble = (quantidade is int) ? quantidade.toDouble() : (quantidade is double ? quantidade : 0.0);
 
-      // Parse altura e largura do material
+      // Parse altura, largura e comprimento do material
       double? altura;
       double? largura;
+      double? comprimento;
       
       final alturaRaw = materialMap['altura'];
       final larguraRaw = materialMap['largura'];
+      final comprimentoRaw = materialMap['comprimento'];
       
       if (alturaRaw != null) {
         if (alturaRaw is num) {
@@ -352,8 +364,18 @@ class OrcamentoMaterialItem {
           largura = double.tryParse(larguraRaw);
         }
       }
+      
+      if (comprimentoRaw != null) {
+        if (comprimentoRaw is num) {
+          comprimento = comprimentoRaw.toDouble();
+        } else if (comprimentoRaw is String) {
+          comprimento = double.tryParse(comprimentoRaw);
+        }
+      }
 
       // Parse campos de sobra
+      // No banco: alturaSobra e larguraSobra existem para m²
+      // Para m/l e outras unidades: alturaSobra armazena a quantidade/comprimento
       double? alturaSobra;
       double? larguraSobra;
       double? quantidadeSobra;
@@ -361,39 +383,34 @@ class OrcamentoMaterialItem {
       
       final alturaSobraRaw = map['alturaSobra'];
       final larguraSobraRaw = map['larguraSobra'];
-      final quantidadeSobraRaw = map['quantidadeSobra'];
       final valorSobraRaw = map['valorSobra'];
       
+      double? alturaSobraVal;
+      double? larguraSobraVal;
+      
       if (alturaSobraRaw != null) {
-        if (alturaSobraRaw is num) {
-          alturaSobra = alturaSobraRaw.toDouble();
-        } else if (alturaSobraRaw is String) {
-          alturaSobra = double.tryParse(alturaSobraRaw);
-        }
+        alturaSobraVal = alturaSobraRaw is num
+            ? alturaSobraRaw.toDouble()
+            : double.tryParse(alturaSobraRaw.toString());
       }
-      
       if (larguraSobraRaw != null) {
-        if (larguraSobraRaw is num) {
-          larguraSobra = larguraSobraRaw.toDouble();
-        } else if (larguraSobraRaw is String) {
-          larguraSobra = double.tryParse(larguraSobraRaw);
-        }
+        larguraSobraVal = larguraSobraRaw is num
+            ? larguraSobraRaw.toDouble()
+            : double.tryParse(larguraSobraRaw.toString());
       }
-      
-      if (quantidadeSobraRaw != null) {
-        if (quantidadeSobraRaw is num) {
-          quantidadeSobra = quantidadeSobraRaw.toDouble();
-        } else if (quantidadeSobraRaw is String) {
-          quantidadeSobra = double.tryParse(quantidadeSobraRaw);
-        }
-      }
-      
       if (valorSobraRaw != null) {
-        if (valorSobraRaw is num) {
-          valorSobra = valorSobraRaw.toDouble();
-        } else if (valorSobraRaw is String) {
-          valorSobra = double.tryParse(valorSobraRaw);
-        }
+        valorSobra = valorSobraRaw is num
+            ? valorSobraRaw.toDouble()
+            : double.tryParse(valorSobraRaw.toString());
+      }
+
+      // Distribuir: se larguraSobra preenchida → é m² (alturaSobra + larguraSobra)
+      // Se só alturaSobra preenchida → é m/l ou outra unidade (quantidade em alturaSobra)
+      if (larguraSobraVal != null) {
+        alturaSobra = alturaSobraVal;
+        larguraSobra = larguraSobraVal;
+      } else if (alturaSobraVal != null) {
+        quantidadeSobra = alturaSobraVal;
       }
 
       return OrcamentoMaterialItem(
@@ -405,6 +422,7 @@ class OrcamentoMaterialItem {
         quantidade: quantidadeDouble,
         altura: altura,
         largura: largura,
+        comprimento: comprimento,
         alturaSobra: alturaSobra,
         larguraSobra: larguraSobra,
         quantidadeSobra: quantidadeSobra,
@@ -542,6 +560,8 @@ class ProdutoMaterialItem {
   final double materialCusto;
   final double? altura;      // NOVO CAMPO
   final double? largura;     // NOVO CAMPO
+  final double? comprimento; // Para m/l: comprimento em mm
+  final double? materialEstoque; // Quantidade em estoque
 
   const ProdutoMaterialItem({
     required this.materialId,
@@ -550,6 +570,8 @@ class ProdutoMaterialItem {
     required this.materialCusto,
     this.altura,               // NOVO CAMPO
     this.largura,              // NOVO CAMPO
+    this.comprimento,
+    this.materialEstoque,
   });
 
   static ProdutoMaterialItem? tryFromMap(Map<String, Object?> map) {
@@ -569,12 +591,14 @@ class ProdutoMaterialItem {
 
       final custoDouble = (custo is int) ? custo.toDouble() : (custo is double ? custo : 0.0);
 
-      // Parse altura e largura
+      // Parse altura, largura e comprimento
       double? altura;
       double? largura;
+      double? comprimento;
       
       final alturaRaw = materialMap['altura'];
       final larguraRaw = materialMap['largura'];
+      final comprimentoRaw = materialMap['comprimento'];
       
       if (alturaRaw != null) {
         if (alturaRaw is num) {
@@ -592,6 +616,25 @@ class ProdutoMaterialItem {
         }
       }
 
+      if (comprimentoRaw != null) {
+        if (comprimentoRaw is num) {
+          comprimento = comprimentoRaw.toDouble();
+        } else if (comprimentoRaw is String) {
+          comprimento = double.tryParse(comprimentoRaw);
+        }
+      }
+
+      // Parse quantidade em estoque
+      double? materialEstoque;
+      final estoqueRaw = materialMap['quantidade'];
+      if (estoqueRaw != null) {
+        if (estoqueRaw is num) {
+          materialEstoque = estoqueRaw.toDouble();
+        } else if (estoqueRaw is String) {
+          materialEstoque = double.tryParse(estoqueRaw);
+        }
+      }
+
       return ProdutoMaterialItem(
         materialId: int.parse(id.toString()),
         materialNome: nome.trim(),
@@ -599,6 +642,8 @@ class ProdutoMaterialItem {
         materialCusto: custoDouble,
         altura: altura,
         largura: largura,
+        comprimento: comprimento,
+        materialEstoque: materialEstoque,
       );
     } catch (e) {
       return null;
@@ -738,10 +783,15 @@ class OrcamentoItem {
     return total;
   }
 
+  /// Materiais sem sobras (apenas custo × quantidade).
+  double get totalMateriaisSemSobras {
+    return materiais.fold(0.0, (sum, item) => sum + item.materialCusto * item.quantidade);
+  }
+
   /// Base de cálculo para opções percentuais:
-  /// materiais + despesas adicionais + opções extras não-percentuais.
+  /// materiais (sem sobras) + despesas adicionais + opções extras não-percentuais.
   double get baseCalculoPercentual {
-    return totalMateriais + totalDespesasAdicionais + totalOpcoesExtrasNaoPercentuais;
+    return totalMateriaisSemSobras + totalDespesasAdicionais + totalOpcoesExtrasNaoPercentuais;
   }
 
   /// Soma de TODAS as opções extras, aplicando o percentual sobre a base completa.

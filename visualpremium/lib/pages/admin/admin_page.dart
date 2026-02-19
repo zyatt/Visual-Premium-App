@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -144,28 +146,6 @@ class AdminPage extends StatelessWidget {
                         },
                       ),
                       _AdminFeatureCard(
-                        icon: Icons.backup_outlined,
-                        title: 'Backup',
-                        description: 'Fazer backup dos dados do sistema',
-                        color: Colors.orange,
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Funcionalidade em desenvolvimento')),
-                          );
-                        },
-                      ),
-                      _AdminFeatureCard(
-                        icon: Icons.security_outlined,
-                        title: 'Segurança',
-                        description: 'Gerenciar permissões e acessos',
-                        color: Colors.red,
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Funcionalidade em desenvolvimento')),
-                          );
-                        },
-                      ),
-                      _AdminFeatureCard(
                         icon: Icons.history_outlined,
                         title: 'Logs do Sistema',
                         description: 'Visualizar histórico de ações',
@@ -173,6 +153,22 @@ class AdminPage extends StatelessWidget {
                         onTap: () {
                           context.go(AppRoutes.logs);
                         },
+                      ),
+                      _AdminFeatureCard(
+                        icon: Icons.backup_outlined,
+                        title: 'Backup',
+                        description: 'Fazer backup dos dados do sistema',
+                        color: Colors.orange,
+                        locked: true,
+                        onTap: () => _showLockedSnackBar(context),
+                      ),
+                      _AdminFeatureCard(
+                        icon: Icons.security_outlined,
+                        title: 'Segurança',
+                        description: 'Gerenciar permissões e acessos',
+                        color: Colors.red,
+                        locked: true,
+                        onTap: () => _showLockedSnackBar(context),
                       ),
                     ],
                   ),
@@ -184,6 +180,29 @@ class AdminPage extends StatelessWidget {
       ),
     );
   }
+
+  void _showLockedSnackBar(BuildContext context) {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.construction_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 12),
+            const Text(
+              'Funcionalidade em desenvolvimento',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.orange.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
 }
 
 class _AdminFeatureCard extends StatelessWidget {
@@ -192,6 +211,7 @@ class _AdminFeatureCard extends StatelessWidget {
   final String description;
   final Color color;
   final VoidCallback onTap;
+  final bool locked;
 
   const _AdminFeatureCard({
     required this.icon,
@@ -199,11 +219,79 @@ class _AdminFeatureCard extends StatelessWidget {
     required this.description,
     required this.color,
     required this.onTap,
+    this.locked = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    final cardContent = Ink(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(
+          color: theme.dividerColor.withValues(alpha: 0.1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: color,
+              size: 28,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            description,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+
+    if (locked) {
+      return Material(
+        color: Colors.transparent,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              cardContent,
+              _LockedOverlay(onTap: onTap),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Material(
       color: Colors.transparent,
@@ -211,56 +299,66 @@ class _AdminFeatureCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.md),
         hoverColor: color.withValues(alpha: 0.05),
-        child: Ink(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: theme.cardTheme.color,
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(
-              color: theme.dividerColor.withValues(alpha: 0.1),
+        child: cardContent,
+      ),
+    );
+  }
+}
+
+class _LockedOverlay extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _LockedOverlay({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Stack(
+        children: [
+          BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 3.5, sigmaY: 3.5),
+            child: Container(
+              color: Colors.black.withValues(alpha: 0.15),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.lock_outline_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
                 ),
-                child: Icon(
-                  icon,
-                  color: color,
-                  size: 28,
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Em desenvolvimento',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
                 ),
-              ),
-              const Spacer(),
-              Text(
-                title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                description,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

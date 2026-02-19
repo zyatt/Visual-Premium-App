@@ -113,6 +113,11 @@ class AlmoxarifadoService {
               produtoOpcao: true
             }
           },
+          materiaisAvulsos: {
+            include: {
+              material: true
+            }
+          },
           relatorioComparativo: true
         }
       });
@@ -146,7 +151,7 @@ class AlmoxarifadoService {
           throw new Error('Apenas pedidos concluídos podem ter almoxarifado registrado');
         }
 
-        const { materiais, despesasAdicionais, opcoesExtras, observacoes } = data;
+        const { materiais, despesasAdicionais, opcoesExtras, observacoes, materiaisAvulsos } = data;
 
         const materiaisValidados = [];
         if (materiais && materiais.length > 0) {
@@ -161,11 +166,18 @@ class AlmoxarifadoService {
               throw new Error(`Custo realizado inválido para material ${materialPedido.material.nome}`);
             }
 
-            materiaisValidados.push({
+            const matEntry = {
               materialId: m.materialId,
               quantidade: materialPedido.quantidade,
               custoRealizado: custoRealizado,
-            });
+            };
+            if (m.custoSobrasRealizado !== undefined && m.custoSobrasRealizado !== null) {
+              const custoSobras = parseFloat(m.custoSobrasRealizado);
+              if (!isNaN(custoSobras) && custoSobras >= 0) {
+                matEntry.custoSobrasRealizado = custoSobras;
+              }
+            }
+            materiaisValidados.push(matEntry);
           }
         }
 
@@ -235,6 +247,33 @@ class AlmoxarifadoService {
           }
         }
 
+        // Validar materiais avulsos (não vinculados ao pedido original)
+        const materiaisAvulsosValidados = [];
+        if (materiaisAvulsos && materiaisAvulsos.length > 0) {
+          for (const m of materiaisAvulsos) {
+            if (!m.materialId) {
+              throw new Error('Material avulso deve ter materialId');
+            }
+            const material = await prisma.material.findUnique({ where: { id: m.materialId } });
+            if (!material) {
+              throw new Error(`Material avulso ${m.materialId} não encontrado`);
+            }
+            const quantidade = parseFloat(m.quantidade);
+            const custoRealizado = parseFloat(m.custoRealizado);
+            if (isNaN(quantidade) || quantidade < 0) {
+              throw new Error(`Quantidade inválida para material avulso ${material.nome}`);
+            }
+            if (isNaN(custoRealizado) || custoRealizado < 0) {
+              throw new Error(`Custo inválido para material avulso ${material.nome}`);
+            }
+            materiaisAvulsosValidados.push({
+              materialId: m.materialId,
+              quantidade,
+              custoRealizado,
+            });
+          }
+        }
+
         const almoxarifadoExistente = await prisma.almoxarifado.findUnique({
           where: { pedidoId }
         });
@@ -254,6 +293,9 @@ class AlmoxarifadoService {
             await tx.almoxarifadoOpcaoExtra.deleteMany({
               where: { almoxarifadoId: almoxarifadoExistente.id }
             });
+            await tx.almoxarifadoMaterialAvulso.deleteMany({
+              where: { almoxarifadoId: almoxarifadoExistente.id }
+            });
 
             // Atualizar almoxarifado
             almoxarifado = await tx.almoxarifado.update({
@@ -270,6 +312,9 @@ class AlmoxarifadoService {
                 opcoesExtras: opcoesExtrasValidadas.length > 0 ? {
                   create: opcoesExtrasValidadas
                 } : undefined,
+                materiaisAvulsos: materiaisAvulsosValidados.length > 0 ? {
+                  create: materiaisAvulsosValidados
+                } : undefined,
               },
               include: {
                 pedido: {
@@ -282,7 +327,8 @@ class AlmoxarifadoService {
                 },
                 materiais: { include: { material: true } },
                 despesasAdicionais: true,
-                opcoesExtras: { include: { produtoOpcao: true } }
+                opcoesExtras: { include: { produtoOpcao: true } },
+                materiaisAvulsos: { include: { material: true } }
               }
             });
           });
@@ -312,6 +358,9 @@ class AlmoxarifadoService {
               opcoesExtras: opcoesExtrasValidadas.length > 0 ? {
                 create: opcoesExtrasValidadas
               } : undefined,
+              materiaisAvulsos: materiaisAvulsosValidados.length > 0 ? {
+                create: materiaisAvulsosValidados
+              } : undefined,
             },
             include: {
               pedido: {
@@ -324,7 +373,8 @@ class AlmoxarifadoService {
               },
               materiais: { include: { material: true } },
               despesasAdicionais: true,
-              opcoesExtras: { include: { produtoOpcao: true } }
+              opcoesExtras: { include: { produtoOpcao: true } },
+              materiaisAvulsos: { include: { material: true } }
             }
           });
 
@@ -377,6 +427,11 @@ class AlmoxarifadoService {
               produtoOpcao: true
             }
           },
+          materiaisAvulsos: {
+            include: {
+              material: true
+            }
+          },
           relatorioComparativo: true
         }
       });
@@ -395,11 +450,12 @@ class AlmoxarifadoService {
       const totalOrcado = totalOrcadoMateriais + totalOrcadoDespesas + totalOrcadoOpcoesExtras;
 
       const totalRealizadoMateriais = this._calcularTotalMateriaisRealizados(almoxarifado.materiais);
+      const totalRealizadoMateriaisAvulsos = this._calcularTotalMateriaisAvulsosRealizados(almoxarifado.materiaisAvulsos || []);
       const totalRealizadoDespesas = this._calcularTotalDespesasRealizadas(almoxarifado.despesasAdicionais);
       const totalRealizadoOpcoesExtras = this._calcularTotalOpcoesExtrasRealizadas(almoxarifado.opcoesExtras);
-      const totalRealizado = totalRealizadoMateriais + totalRealizadoDespesas + totalRealizadoOpcoesExtras;
+      const totalRealizado = totalRealizadoMateriais + totalRealizadoMateriaisAvulsos + totalRealizadoDespesas + totalRealizadoOpcoesExtras;
 
-      const diferencaMateriais = totalRealizadoMateriais - totalOrcadoMateriais;
+      const diferencaMateriais = totalRealizadoMateriais + totalRealizadoMateriaisAvulsos - totalOrcadoMateriais;
       const diferencaDespesas = totalRealizadoDespesas - totalOrcadoDespesas;
       const diferencaOpcoesExtras = totalRealizadoOpcoesExtras - totalOrcadoOpcoesExtras;
       const diferencaTotal = totalRealizado - totalOrcado;
@@ -407,7 +463,7 @@ class AlmoxarifadoService {
       const EPSILON = 0.0001;
       const percentualMateriais = Math.abs(totalOrcadoMateriais) > EPSILON 
         ? (diferencaMateriais / totalOrcadoMateriais) * 100 
-        : 0;
+        : (totalRealizadoMateriaisAvulsos > 0 ? 100 : 0);
       const percentualDespesas = Math.abs(totalOrcadoDespesas) > EPSILON 
         ? (diferencaDespesas / totalOrcadoDespesas) * 100 
         : 0;
@@ -567,6 +623,11 @@ class AlmoxarifadoService {
     return materiais.reduce((total, m) => total + m.custoRealizado, 0);
   }
 
+  // Calcular total de materiais avulsos realizados
+  _calcularTotalMateriaisAvulsosRealizados(materiaisAvulsos) {
+    return materiaisAvulsos.reduce((total, m) => total + m.custoRealizado, 0);
+  }
+
   // Calcular total de despesas realizadas
   _calcularTotalDespesasRealizadas(despesas) {
     return despesas.reduce((total, d) => total + d.valorRealizado, 0);
@@ -595,6 +656,7 @@ class AlmoxarifadoService {
   _gerarAnaliseDetalhada(pedido, almoxarifado) {
     const analise = {
       materiais: [],
+      materiaisAvulsos: [],
       despesas: [],
       opcoesExtras: []
     };
@@ -618,9 +680,22 @@ class AlmoxarifadoService {
         custoUnitarioOrcado: materialPed.custo,
         valorOrcado,
         custoRealizadoTotal: valorRealizado,
+        custoSobrasRealizado: materialAlm ? (materialAlm.custoSobrasRealizado ?? null) : null,
+        valorSobraOrcado: materialPed.valorSobra ?? null,
         diferenca,
         percentual,
         status: Math.abs(diferenca) < EPSILON ? 'igual' : (diferenca > 0 ? 'acima' : 'abaixo')
+      });
+    }
+
+    // Análise de materiais avulsos (sem orçado, só realizados)
+    for (const materialAvulso of (almoxarifado.materiaisAvulsos || [])) {
+      analise.materiaisAvulsos.push({
+        materialId: materialAvulso.materialId,
+        materialNome: materialAvulso.material.nome,
+        unidade: materialAvulso.material.unidade,
+        quantidade: materialAvulso.quantidade,
+        custoRealizado: materialAvulso.custoRealizado,
       });
     }
 

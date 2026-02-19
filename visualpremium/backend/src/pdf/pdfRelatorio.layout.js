@@ -12,6 +12,18 @@ class PdfRelatorioLayout {
     currentY = this._desenharInfoPrincipal(doc, data, currentY);
     currentY = this._desenharResumo(doc, data, currentY);
     currentY = this._desenharTabelaMateriais(doc, data.materiais, currentY);
+
+    // ✅ Tabela de sobras separada (igual ao pdf_layout.js)
+    const materiaisComSobras = data.materiais.filter(
+      m => m.valorSobraOrcado != null || m.custoSobrasRealizado != null
+    );
+    if (materiaisComSobras.length > 0) {
+      currentY = this._desenharTabelaSobras(doc, materiaisComSobras, currentY);
+    }
+    
+    if (data.materiaisAvulsos && data.materiaisAvulsos.length > 0) {
+      currentY = this._desenharTabelaMateriaisAvulsos(doc, data.materiaisAvulsos, currentY);
+    }
     
     if (data.despesas && data.despesas.length > 0) {
       currentY = this._desenharTabelaDespesas(doc, data.despesas, currentY);
@@ -119,13 +131,13 @@ class PdfRelatorioLayout {
     let statusText;
     
     if (data.diferencaTotal < 0) {
-      statusColor = '#10b981'; // Verde - Economia
+      statusColor = '#10b981';
       statusText = 'Economia';
     } else if (data.diferencaTotal > 0) {
-      statusColor = '#ef4444'; // Vermelho - Excedeu
+      statusColor = '#ef4444';
       statusText = 'Excedeu';
     } else {
-      statusColor = '#6b7280'; // Cinza - Conforme
+      statusColor = '#6b7280';
       statusText = 'Conforme';
     }
     
@@ -143,9 +155,7 @@ class PdfRelatorioLayout {
     
     const padding = 12;
     const colWidth = (contentWidth - 3 * padding) / 3;
-    
-    // Centralizar verticalmente: (boxHeight - altura_conteudo) / 2
-    const verticalCenter = (boxHeight - 30) / 2; // 30 = altura aproximada do conteúdo (label + value)
+    const verticalCenter = (boxHeight - 30) / 2;
     
     let x = margin + padding;
     this._desenharColuna(doc, 'ORÇADO', this._formatarMoeda(data.totalOrcado), x, y + verticalCenter, colWidth);
@@ -212,7 +222,7 @@ class PdfRelatorioLayout {
     
     const tableStartY = y;
     const headerHeight = 15;
-    const rowHeight = 13;
+    const rowHeight = 20;
     
     doc.roundedRect(margin, y, contentWidth, headerHeight, 3)
        .fillAndStroke('#f3f4f6', '#d1d5db');
@@ -246,7 +256,7 @@ class PdfRelatorioLayout {
       }
       
       x = margin;
-      const textY = y + 3.5;
+      const textY = y + 7;
       
       doc.fillColor('#6b7280')
          .font('Helvetica-Bold')
@@ -278,21 +288,333 @@ class PdfRelatorioLayout {
       
       const diferencaColor = material.status === 'abaixo' ? '#10b981' : material.status === 'acima' ? '#ef4444' : '#6b7280';
       const diferencaText = `${material.diferenca >= 0 ? '+' : ''}${this._formatarMoeda(material.diferenca)}`;
+      const diferencaPct = material.valorOrcado !== 0
+        ? Math.abs((material.diferenca / material.valorOrcado) * 100).toFixed(1)
+        : '0.0';
       
       doc.fillColor(diferencaColor)
          .font('Helvetica-Bold')
          .fontSize(6)
          .text(diferencaText, x, textY, { width: colWidths.diferenca, align: 'center' });
+      doc.fillColor(diferencaColor)
+         .font('Helvetica')
+         .fontSize(5.5)
+         .text(`${diferencaPct}%`, x, textY + 7, { width: colWidths.diferenca, align: 'center' });
       
       y += rowHeight;
     });
     
-    const tableHeight = headerHeight + (materiais.length * rowHeight);
+    const tableHeight = y - tableStartY;
     doc.roundedRect(margin, tableStartY, contentWidth, tableHeight, 4)
        .strokeColor('#d1d5db')
        .lineWidth(1)
        .stroke();
+
+    // ✅ Subtotal Materiais (sem sobras)
+    const subtotalMateriais = materiais.reduce((sum, m) => sum + (m.custoRealizadoTotal || 0), 0);
+    const subtotalBoxWidth = 200;
+    const subtotalBoxX = pageWidth - margin - subtotalBoxWidth;
+
+    y += 8;
+
+    doc.fontSize(6)
+      .font('Helvetica')
+      .fillColor('#6b7280')
+      .text('Subtotal Materiais', subtotalBoxX, y, { 
+        width: subtotalBoxWidth - 87, 
+        align: 'right' 
+      });
     
+    doc.fontSize(7)
+      .font('Helvetica-Bold')
+      .fillColor('#1f2937')
+      .text(this._formatarMoeda(subtotalMateriais), subtotalBoxX + subtotalBoxWidth - 105, y, { 
+        width: 80, 
+        align: 'right' 
+      });
+
+    y += 15;
+    
+    return y;
+  }
+
+  // ✅ Tabela de sobras separada — colunas Orçado / Realizado / Diferença
+  _desenharTabelaSobras(doc, materiaisComSobras, startY) {
+    const margin = doc.page.margins.left;
+    const pageWidth = doc.page.width;
+    const contentWidth = pageWidth - 2 * margin;
+    let y = startY;
+
+    doc.fontSize(7)
+       .font('Helvetica-Bold')
+       .fillColor('#1a1a1a')
+       .text('SOBRAS', margin, y);
+
+    y += 10;
+
+    const colWidths = {
+      numero: contentWidth * 0.05,
+      material: contentWidth * 0.40,
+      orcado: contentWidth * 0.18,
+      realizado: contentWidth * 0.18,
+      diferenca: contentWidth * 0.19
+    };
+
+    const tableStartY = y;
+    const headerHeight = 15;
+    const rowHeight = 20;
+
+    doc.roundedRect(margin, y, contentWidth, headerHeight, 3)
+       .fillAndStroke('#f3f4f6', '#d1d5db');
+
+    doc.fontSize(6)
+       .font('Helvetica-Bold')
+       .fillColor('#374151');
+
+    let x = margin;
+    doc.text('#', x, y + 4.5, { width: colWidths.numero, align: 'center' });
+    x += colWidths.numero;
+
+    doc.text('MATERIAL', x, y + 4.5, { width: colWidths.material, align: 'center' });
+    x += colWidths.material;
+
+    doc.text('ORÇADO', x, y + 4.5, { width: colWidths.orcado, align: 'center' });
+    x += colWidths.orcado;
+
+    doc.text('REALIZADO', x, y + 4.5, { width: colWidths.realizado, align: 'center' });
+    x += colWidths.realizado;
+
+    doc.text('DIFERENÇA', x, y + 4.5, { width: colWidths.diferenca, align: 'center' });
+
+    y += headerHeight;
+
+    materiaisComSobras.forEach((material, index) => {
+      if (index % 2 === 0) {
+        doc.rect(margin, y, contentWidth, rowHeight)
+           .fillColor('#fafafa')
+           .fill();
+      }
+
+      x = margin;
+      const textY = y + 7;
+
+      doc.fillColor('#6b7280')
+         .font('Helvetica-Bold')
+         .fontSize(6)
+         .text((index + 1).toString(), x, textY, { width: colWidths.numero, align: 'center' });
+      x += colWidths.numero;
+
+      doc.fillColor('#1f2937')
+         .font('Helvetica-Oblique')
+         .fontSize(6)
+         .text(material.materialNome, x + 6, textY, {
+           width: colWidths.material - 6,
+           align: 'left',
+           lineBreak: false,
+           ellipsis: true
+         });
+      x += colWidths.material;
+
+      // Orçado
+      if (material.valorSobraOrcado != null) {
+        doc.fillColor('#6b7280')
+           .font('Helvetica')
+           .fontSize(6)
+           .text(this._formatarMoeda(material.valorSobraOrcado), x, textY, { width: colWidths.orcado, align: 'center' });
+      } else {
+        doc.fillColor('#d1d5db')
+           .font('Helvetica')
+           .fontSize(6)
+           .text('—', x, textY, { width: colWidths.orcado, align: 'center' });
+      }
+      x += colWidths.orcado;
+
+      // Realizado
+      if (material.custoSobrasRealizado != null) {
+        doc.fillColor('#1f2937')
+           .font('Helvetica-Bold')
+           .fontSize(6)
+           .text(this._formatarMoeda(material.custoSobrasRealizado), x, textY, { width: colWidths.realizado, align: 'center' });
+      } else {
+        doc.fillColor('#d1d5db')
+           .font('Helvetica')
+           .fontSize(6)
+           .text('—', x, textY, { width: colWidths.realizado, align: 'center' });
+      }
+      x += colWidths.realizado;
+
+      // Diferença
+      if (material.valorSobraOrcado != null && material.custoSobrasRealizado != null) {
+        const sobraDif = material.custoSobrasRealizado - material.valorSobraOrcado;
+        const sobraDifColor = sobraDif < 0 ? '#10b981' : sobraDif > 0 ? '#ef4444' : '#6b7280';
+        const sobraPct = material.valorSobraOrcado !== 0
+          ? Math.abs((sobraDif / material.valorSobraOrcado) * 100).toFixed(1)
+          : '0.0';
+        doc.fillColor(sobraDifColor)
+           .font('Helvetica-Bold')
+           .fontSize(6)
+           .text(`${sobraDif >= 0 ? '+' : ''}${this._formatarMoeda(sobraDif)}`, x, textY, { width: colWidths.diferenca, align: 'center' });
+        doc.fillColor(sobraDifColor)
+           .font('Helvetica')
+           .fontSize(5.5)
+           .text(`${sobraPct}%`, x, textY + 7, { width: colWidths.diferenca, align: 'center' });
+      } else {
+        doc.fillColor('#d1d5db')
+           .font('Helvetica')
+           .fontSize(6)
+           .text('—', x, textY, { width: colWidths.diferenca, align: 'center' });
+      }
+
+      y += rowHeight;
+    });
+
+    const tableHeight = headerHeight + (materiaisComSobras.length * rowHeight);
+    doc.roundedRect(margin, tableStartY, contentWidth, tableHeight, 4)
+       .strokeColor('#d1d5db')
+       .lineWidth(1)
+       .stroke();
+
+    // Divisórias verticais
+    let xDiv = margin + colWidths.numero;
+    [colWidths.material, colWidths.orcado, colWidths.realizado].forEach(w => {
+      doc.moveTo(xDiv, tableStartY)
+         .lineTo(xDiv, tableStartY + tableHeight)
+         .strokeColor('#e5e7eb')
+         .lineWidth(0.5)
+         .stroke();
+      xDiv += w;
+    });
+
+    y += 8;
+
+    // ✅ Subtotal Sobras
+    const subtotalSobrasOrcado = materiaisComSobras.reduce((sum, m) => sum + (m.valorSobraOrcado || 0), 0);
+    const subtotalSobrasRealizado = materiaisComSobras.reduce((sum, m) => sum + (m.custoSobrasRealizado || 0), 0);
+    const subtotalBoxWidth = 200;
+    const subtotalBoxX = pageWidth - margin - subtotalBoxWidth;
+
+    doc.fontSize(6)
+      .font('Helvetica')
+      .fillColor('#6b7280')
+      .text('Subtotal Sobras', subtotalBoxX, y, {
+        width: subtotalBoxWidth - 87,
+        align: 'right'
+      });
+
+    doc.fontSize(7)
+      .font('Helvetica-Bold')
+      .fillColor('#1f2937')
+      .text(this._formatarMoeda(subtotalSobrasRealizado), subtotalBoxX + subtotalBoxWidth - 105, y, {
+        width: 80,
+        align: 'right'
+      });
+
+    y += 15;
+
+    return y;
+  }
+
+  _desenharTabelaMateriaisAvulsos(doc, materiaisAvulsos, startY) {
+    const margin = doc.page.margins.left;
+    const pageWidth = doc.page.width;
+    const contentWidth = pageWidth - 2 * margin;
+    let y = startY;
+
+    doc.fontSize(7)
+       .font('Helvetica-Bold')
+       .fillColor('#1a1a1a')
+       .text('MATERIAIS ADICIONAIS', margin, y);
+
+    y += 10;
+
+    const colWidths = {
+      numero: contentWidth * 0.05,
+      material: contentWidth * 0.40,
+      orcado: contentWidth * 0.18,
+      realizado: contentWidth * 0.18,
+      diferenca: contentWidth * 0.19
+    };
+
+    const tableStartY = y;
+    const headerHeight = 15;
+    const rowHeight = 13;
+
+    doc.roundedRect(margin, y, contentWidth, headerHeight, 3)
+       .fillAndStroke('#f3f4f6', '#d1d5db');
+
+    doc.fontSize(6)
+       .font('Helvetica-Bold')
+       .fillColor('#374151');
+
+    let x = margin;
+    doc.text('#', x, y + 4.5, { width: colWidths.numero, align: 'center' });
+    x += colWidths.numero;
+
+    doc.text('MATERIAL', x, y + 4.5, { width: colWidths.material, align: 'center' });
+    x += colWidths.material;
+
+    doc.text('ORÇADO', x, y + 4.5, { width: colWidths.orcado, align: 'center' });
+    x += colWidths.orcado;
+
+    doc.text('REALIZADO', x, y + 4.5, { width: colWidths.realizado, align: 'center' });
+    x += colWidths.realizado;
+
+    doc.text('DIFERENÇA', x, y + 4.5, { width: colWidths.diferenca, align: 'center' });
+
+    y += headerHeight;
+
+    materiaisAvulsos.forEach((item, index) => {
+      if (index % 2 === 0) {
+        doc.rect(margin, y, contentWidth, rowHeight)
+           .fillColor('#fafafa')
+           .fill();
+      }
+
+      x = margin;
+      const textY = y + 3.5;
+
+      doc.fillColor('#6b7280')
+         .font('Helvetica-Bold')
+         .fontSize(6)
+         .text((index + 1).toString(), x, textY, { width: colWidths.numero, align: 'center' });
+      x += colWidths.numero;
+
+      doc.fillColor('#1f2937')
+         .font('Helvetica')
+         .fontSize(6)
+         .text(item.materialNome, x + 6, textY, {
+           width: colWidths.material - 6,
+           align: 'left',
+           lineBreak: false,
+           ellipsis: true
+         });
+      x += colWidths.material;
+
+      doc.fillColor('#d1d5db')
+         .fontSize(6)
+         .text('—', x, textY, { width: colWidths.orcado, align: 'center' });
+      x += colWidths.orcado;
+
+      doc.fillColor('#1f2937')
+         .font('Helvetica-Bold')
+         .fontSize(6)
+         .text(this._formatarMoeda(item.custoRealizado), x, textY, { width: colWidths.realizado, align: 'center' });
+      x += colWidths.realizado;
+
+      doc.fillColor('#d1d5db')
+         .font('Helvetica-Bold')
+         .fontSize(6)
+         .text('—', x, textY, { width: colWidths.diferenca, align: 'center' });
+
+      y += rowHeight;
+    });
+
+    const tableHeight = headerHeight + (materiaisAvulsos.length * rowHeight);
+    doc.roundedRect(margin, tableStartY, contentWidth, tableHeight, 4)
+       .strokeColor('#d1d5db')
+       .lineWidth(1)
+       .stroke();
+
     return y + 8;
   }
 
@@ -319,7 +641,7 @@ class PdfRelatorioLayout {
     
     const tableStartY = y;
     const headerHeight = 15;
-    const rowHeight = 13;
+    const rowHeight = 20;
     
     doc.roundedRect(margin, y, contentWidth, headerHeight, 3)
        .fillAndStroke('#f3f4f6', '#d1d5db');
@@ -353,7 +675,7 @@ class PdfRelatorioLayout {
       }
       
       x = margin;
-      const textY = y + 3.5;
+      const textY = y + 7;
       
       doc.fillColor('#6b7280')
          .font('Helvetica-Bold')
@@ -385,11 +707,18 @@ class PdfRelatorioLayout {
       
       const diferencaColor = despesa.status === 'abaixo' ? '#10b981' : despesa.status === 'acima' ? '#ef4444' : '#6b7280';
       const diferencaText = `${despesa.diferenca >= 0 ? '+' : ''}${this._formatarMoeda(despesa.diferenca)}`;
+      const diferencaPct = despesa.valorOrcado !== 0
+        ? Math.abs((despesa.diferenca / despesa.valorOrcado) * 100).toFixed(1)
+        : '0.0';
       
       doc.fillColor(diferencaColor)
          .font('Helvetica-Bold')
          .fontSize(6)
          .text(diferencaText, x, textY, { width: colWidths.diferenca, align: 'center' });
+      doc.fillColor(diferencaColor)
+         .font('Helvetica')
+         .fontSize(5.5)
+         .text(`${diferencaPct}%`, x, textY + 7, { width: colWidths.diferenca, align: 'center' });
       
       y += rowHeight;
     });
@@ -426,7 +755,7 @@ class PdfRelatorioLayout {
     
     const tableStartY = y;
     const headerHeight = 15;
-    const rowHeight = 13;
+    const rowHeight = 20;
     
     doc.roundedRect(margin, y, contentWidth, headerHeight, 3)
        .fillAndStroke('#f3f4f6', '#d1d5db');
@@ -460,7 +789,7 @@ class PdfRelatorioLayout {
       }
       
       x = margin;
-      const textY = y + 3.5;
+      const textY = y + 7;
       
       doc.fillColor('#6b7280')
          .font('Helvetica-Bold')
@@ -492,11 +821,18 @@ class PdfRelatorioLayout {
       
       const diferencaColor = opcao.status === 'abaixo' ? '#10b981' : opcao.status === 'acima' ? '#ef4444' : '#6b7280';
       const diferencaText = `${opcao.diferenca >= 0 ? '+' : ''}${this._formatarMoeda(opcao.diferenca)}`;
+      const diferencaPct = opcao.valorOrcado !== 0
+        ? Math.abs((opcao.diferenca / opcao.valorOrcado) * 100).toFixed(1)
+        : '0.0';
       
       doc.fillColor(diferencaColor)
          .font('Helvetica-Bold')
          .fontSize(6)
          .text(diferencaText, x, textY, { width: colWidths.diferenca, align: 'center' });
+      doc.fillColor(diferencaColor)
+         .font('Helvetica')
+         .fontSize(5.5)
+         .text(`${diferencaPct}%`, x, textY + 7, { width: colWidths.diferenca, align: 'center' });
       
       y += rowHeight;
     });

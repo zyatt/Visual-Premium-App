@@ -1,4 +1,4 @@
-  import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
   import 'package:flutter/services.dart';
   import 'package:go_router/go_router.dart';
   import 'package:visualpremium/data/products_repository.dart';
@@ -612,14 +612,6 @@
                               Row(
                                 children: [
                                   ExcludeFocus(
-                                    child: IconButton(
-                                      onPressed: _load,
-                                      icon: const Icon(Icons.refresh),
-                                      tooltip: 'Atualizar',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  ExcludeFocus(
                                     child: ElevatedButton.icon(
                                       onPressed: () => _showProductEditor(null),
                                       icon: const Icon(Icons.add),
@@ -821,34 +813,45 @@
                 ),
               ),
             ),
-            if (_loading)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: SizedBox(
-                  height: 3,
-                  child: LinearProgressIndicator(
-                    backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      theme.colorScheme.primary,
-                    ),
+          Positioned(
+            top: 32,
+            right: 32,
+            child: ExcludeFocus(
+              child: IconButton(
+                onPressed: _loading ? null : _load,
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Atualizar',
+              ),
+            ),
+          ),
+          if (_loading)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SizedBox(
+                height: 3,
+                child: LinearProgressIndicator(
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    theme.colorScheme.primary,
                   ),
                 ),
               ),
+            ),
               if (_showScrollToTopButton)
               Positioned(
-                right: 32,
-                bottom: 32,
+                right: 24,
+              bottom: 100, 
                 child: AnimatedOpacity(
                   opacity: _showScrollToTopButton ? 1.0 : 0.0,
                   duration: const Duration(milliseconds: 200),
                   child: FloatingActionButton(
+                    mini: false,
                     onPressed: _scrollToTop,
                     tooltip: 'Voltar ao topo',
                     backgroundColor: theme.colorScheme.primary,
                     foregroundColor: theme.colorScheme.onPrimary,
-                    elevation: 4,
                     child: const Icon(Icons.arrow_upward),
                   ),
                 ),
@@ -1248,7 +1251,7 @@
       final theme = Theme.of(context);
       
       return Container(
-        width: 280,
+        width: 240,
         margin: const EdgeInsets.only(top: 72),
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -1740,19 +1743,351 @@
           );
         },
       );
-      
-      if (result != null) {
+
+      if (result == null) return;
+
+      // Detecta materiais removidos da nova seleção
+      final removedIds = _selectedMaterialIds.difference(result);
+      if (removedIds.isEmpty) {
         setState(() {
           _selectedMaterialIds.clear();
           _selectedMaterialIds.addAll(result);
         });
+        return;
       }
+
+      // Verifica se algum material removido tem avisos vinculados
+      final avisosAfetados = _avisos
+          .where((a) => a.materialId != null && removedIds.contains(a.materialId))
+          .toList();
+
+      if (avisosAfetados.isEmpty) {
+        setState(() {
+          _selectedMaterialIds.clear();
+          _selectedMaterialIds.addAll(result);
+        });
+        return;
+      }
+
+      final materiaisComAvisos = removedIds
+          .where((id) => avisosAfetados.any((a) => a.materialId == id))
+          .toList();
+      final nomesMateriais = materiaisComAvisos.map((id) {
+        final m = widget.availableMaterials.firstWhere(
+          (m) => m.id == id.toString(),
+          orElse: () => MaterialItem(
+              id: '-1', name: 'material', costCents: 0, unit: '', quantity: '', createdAt: DateTime.now()),
+        );
+        return m.name;
+      }).join(', ');
+
+      final confirmed = await _showRemoveManyMaterialsWithAvisosDialog(
+          nomesMateriais, avisosAfetados, materiaisComAvisos.length);
+
+      if (confirmed == null) return;
+
+      setState(() {
+        if (confirmed == 'remove_avisos') {
+          _avisos.removeWhere((a) => a.materialId != null && removedIds.contains(a.materialId));
+        } else if (confirmed == 'unlink_avisos') {
+          for (int i = 0; i < _avisos.length; i++) {
+            if (_avisos[i].materialId != null && removedIds.contains(_avisos[i].materialId)) {
+              _avisos[i] = ProductAviso(
+                id: _avisos[i].id,
+                mensagem: _avisos[i].mensagem,
+                materialId: null,
+                materialNome: null,
+                opcaoExtraId: null,
+                opcaoExtraNome: null,
+                createdAt: _avisos[i].createdAt,
+                updatedAt: DateTime.now(),
+              );
+            }
+          }
+        }
+        _selectedMaterialIds.clear();
+        _selectedMaterialIds.addAll(result);
+      });
     }
 
-    void _removeMaterial(int materialId) {
+    Future<String?> _showRemoveManyMaterialsWithAvisosDialog(
+        String nomesMateriais, List<ProductAviso> avisosAfetados, int qtdMateriais) {
+      final theme = Theme.of(context);
+      return showDialog<String>(
+        context: context,
+        builder: (dialogContext) {
+          return Dialog(
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            backgroundColor: theme.colorScheme.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded, color: theme.colorScheme.error, size: 28),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Materiais com avisos vinculados',
+                            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      '${avisosAfetados.length} ${avisosAfetados.length == 1 ? 'aviso está vinculado' : 'avisos estão vinculados'} ao${qtdMateriais == 1 ? ' material' : 's materiais'} "$nomesMateriais" que ${qtdMateriais == 1 ? 'foi removido' : 'foram removidos'}. O que deseja fazer?',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      constraints: const BoxConstraints(maxHeight: 160),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.15)),
+                      ),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: avisosAfetados.map((a) => Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.warning_outlined, size: 14,
+                                    color: theme.colorScheme.error.withValues(alpha: 0.7)),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    '${a.materialNome != null ? '[${a.materialNome}] ' : ''}${a.mensagem}',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.75)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )).toList(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(dialogContext).pop('unlink_avisos'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          side: BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.5)),
+                        ),
+                        child: Text(
+                          'Confirmar e desassociar ${avisosAfetados.length == 1 ? 'o aviso' : 'os avisos'}',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(dialogContext).pop('remove_avisos'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.colorScheme.error,
+                          foregroundColor: theme.colorScheme.onError,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: Text(
+                          'Confirmar e excluir ${avisosAfetados.length == 1 ? 'o aviso' : 'os avisos'}',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(null),
+                        child: const Text('Cancelar (manter seleção anterior)'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    Future<void> _removeMaterial(int materialId) async {
+      final avisosVinculados = _avisos.where((a) => a.materialId == materialId).toList();
+
+      if (avisosVinculados.isNotEmpty) {
+        final materialNome = widget.availableMaterials
+            .firstWhere((m) => m.id == materialId.toString(),
+                orElse: () => MaterialItem(
+                    id: '-1', name: 'material', costCents: 0, unit: '', quantity: '', createdAt: DateTime.now()))
+            .name;
+
+        final confirmed = await _showRemoveMaterialWithAvisosDialog(materialNome, avisosVinculados);
+        if (confirmed == null) return; // cancelado
+        if (confirmed == 'remove_avisos') {
+          setState(() {
+            _avisos.removeWhere((a) => a.materialId == materialId);
+            _selectedMaterialIds.remove(materialId);
+          });
+        } else if (confirmed == 'unlink_avisos') {
+          setState(() {
+            for (int i = 0; i < _avisos.length; i++) {
+              if (_avisos[i].materialId == materialId) {
+                _avisos[i] = _avisos[i].copyWith(
+                  materialId: -1, // sentinel to clear
+                  materialNome: null,
+                );
+                // rebuild sem materialId
+                _avisos[i] = ProductAviso(
+                  id: _avisos[i].id,
+                  mensagem: _avisos[i].mensagem,
+                  materialId: null,
+                  materialNome: null,
+                  opcaoExtraId: null,
+                  opcaoExtraNome: null,
+                  createdAt: _avisos[i].createdAt,
+                  updatedAt: DateTime.now(),
+                );
+              }
+            }
+            _selectedMaterialIds.remove(materialId);
+          });
+        }
+        return;
+      }
+
       setState(() {
         _selectedMaterialIds.remove(materialId);
       });
+    }
+
+    Future<String?> _showRemoveMaterialWithAvisosDialog(
+        String materialNome, List<ProductAviso> avisosVinculados) {
+      final theme = Theme.of(context);
+      return showDialog<String>(
+        context: context,
+        builder: (dialogContext) {
+          return Dialog(
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            backgroundColor: theme.colorScheme.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded, color: theme.colorScheme.error, size: 28),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Material com avisos vinculados',
+                            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'O material "$materialNome" possui ${avisosVinculados.length} ${avisosVinculados.length == 1 ? 'aviso vinculado' : 'avisos vinculados'}. O que deseja fazer com ${avisosVinculados.length == 1 ? 'ele' : 'eles'}?',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.15)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: avisosVinculados.map((a) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.warning_outlined, size: 14,
+                                  color: theme.colorScheme.error.withValues(alpha: 0.7)),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(a.mensagem,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.75))),
+                              ),
+                            ],
+                          ),
+                        )).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(dialogContext).pop('unlink_avisos'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          side: BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.5)),
+                        ),
+                        child: Text(
+                          'Remover material e desassociar ${avisosVinculados.length == 1 ? 'o aviso' : 'os avisos'}',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(dialogContext).pop('remove_avisos'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.colorScheme.error,
+                          foregroundColor: theme.colorScheme.onError,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: Text(
+                          'Remover material e excluir ${avisosVinculados.length == 1 ? 'o aviso' : 'os avisos'}',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(null),
+                        child: const Text('Cancelar'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
     }
 
     Future<void> _showOpcaoExtraEditor([ProductOpcaoExtra? initial]) async {
@@ -1784,11 +2119,46 @@
     }
 
     Future<void> _removeOpcaoExtra(ProductOpcaoExtra opcao) async {
+      // Verifica se há avisos vinculados a esta opção extra
+      final avisosVinculados = _avisos.where((a) => a.opcaoExtraId == opcao.id).toList();
+
+      if (avisosVinculados.isNotEmpty) {
+        final confirmed = await _showRemoveOpcaoExtraWithAvisosDialog(opcao.nome, avisosVinculados);
+        if (confirmed == null) return; // cancelado
+
+        if (confirmed == 'remove_avisos') {
+          setState(() {
+            _avisos.removeWhere((a) => a.opcaoExtraId == opcao.id);
+            _opcoesExtras.removeWhere((o) => o.id == opcao.id);
+          });
+        } else if (confirmed == 'unlink_avisos') {
+          setState(() {
+            for (int i = 0; i < _avisos.length; i++) {
+              if (_avisos[i].opcaoExtraId == opcao.id) {
+                _avisos[i] = ProductAviso(
+                  id: _avisos[i].id,
+                  mensagem: _avisos[i].mensagem,
+                  materialId: null,
+                  materialNome: null,
+                  opcaoExtraId: null,
+                  opcaoExtraNome: null,
+                  createdAt: _avisos[i].createdAt,
+                  updatedAt: DateTime.now(),
+                );
+              }
+            }
+            _opcoesExtras.removeWhere((o) => o.id == opcao.id);
+          });
+        }
+        return;
+      }
+
+      // Sem avisos vinculados — para opções existentes no banco, pede confirmação simples
       final isExisting = opcao.id > 0 && opcao.id < 1000000;
-      
+
       if (isExisting && widget.initial != null) {
         final wasOriginal = _initialOpcoesExtras.any((o) => o.id == opcao.id);
-        
+
         if (wasOriginal) {
           final theme = Theme.of(context);
           final confirmed = await showDialog<bool>(
@@ -1889,14 +2259,127 @@
               );
             },
           );
-          
+
           if (confirmed != true) return;
         }
       }
-      
+
       setState(() {
         _opcoesExtras.removeWhere((o) => o.id == opcao.id);
       });
+    }
+
+    Future<String?> _showRemoveOpcaoExtraWithAvisosDialog(
+        String opcaoNome, List<ProductAviso> avisosVinculados) {
+      final theme = Theme.of(context);
+      return showDialog<String>(
+        context: context,
+        builder: (dialogContext) {
+          return Dialog(
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            backgroundColor: theme.colorScheme.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded, color: theme.colorScheme.error, size: 28),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Opção com avisos vinculados',
+                            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'A opção "$opcaoNome" possui ${avisosVinculados.length} ${avisosVinculados.length == 1 ? 'aviso vinculado' : 'avisos vinculados'}. O que deseja fazer com ${avisosVinculados.length == 1 ? 'ele' : 'eles'}?',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.15)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: avisosVinculados.map((a) => Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.warning_outlined, size: 14,
+                                  color: theme.colorScheme.error.withValues(alpha: 0.7)),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(a.mensagem,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                        color: theme.colorScheme.onSurface.withValues(alpha: 0.75))),
+                              ),
+                            ],
+                          ),
+                        )).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(dialogContext).pop('unlink_avisos'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          side: BorderSide(color: theme.colorScheme.primary.withValues(alpha: 0.5)),
+                        ),
+                        child: Text(
+                          'Remover opção e desassociar ${avisosVinculados.length == 1 ? 'o aviso' : 'os avisos'}',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(dialogContext).pop('remove_avisos'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.colorScheme.error,
+                          foregroundColor: theme.colorScheme.onError,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: Text(
+                          'Remover opção e excluir ${avisosVinculados.length == 1 ? 'o aviso' : 'os avisos'}',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(null),
+                        child: const Text('Cancelar'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
     }
 
     Future<bool> _onWillPop() async {

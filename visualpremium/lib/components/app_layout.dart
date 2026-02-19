@@ -46,7 +46,7 @@ class _Sidebar extends StatelessWidget {
     final authProvider = Provider.of<AuthProvider>(context);
 
     return Container(
-      width: 250,
+      width: 260,
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF252323) : Colors.white,
         border: Border(
@@ -103,24 +103,26 @@ class _Sidebar extends StatelessWidget {
                 ),
                 _NavItem(
                   icon: Icons.shopping_cart_outlined,
-                  label: 'Pedidos',
+                  label: 'Relações de Compras',
                   route: '/pedidos',
                 ),
+                if (!authProvider.isOrcamentista) ...[
+                  _NavItem(
+                    icon: Icons.inventory_2_outlined,
+                    label: 'Produtos',
+                    route: '/produtos',
+                  ),
+                  _NavItem(
+                    icon: Icons.construction_outlined,
+                    label: 'Materiais',
+                    route: '/materiais',
+                  ),
+                ],
                 _NavItem(
-                  icon: Icons.inventory_2_outlined,
-                  label: 'Produtos',
-                  route: '/produtos',
-                ),
-                _NavItem(
-                  icon: Icons.construction_outlined,
-                  label: 'Materiais',
-                  route: '/materiais',
-                ),
-                _NavItem(
-                  icon: Icons.chat,
-                  label: 'Chat',
-                  route: '/chat',
-                ),
+                    icon: Icons.chat,
+                    label: 'Chat',
+                    route: '/chat',
+                  ),
                 if (authProvider.hasAlmoxarifadoAccess || authProvider.isAdmin) ...[
                   const SizedBox(height: 16),
                   Padding(
@@ -193,7 +195,7 @@ class _Sidebar extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                authProvider.isAdmin ? 'Administrador' : 'Usuário',
+                                authProvider.roleLabel,
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.7),
                                 ),
@@ -306,7 +308,7 @@ class _NavItem extends StatelessWidget {
           onTap: () => context.go(route),
           borderRadius: BorderRadius.circular(10),
           hoverColor: colorScheme.primary.withValues(alpha: 0.05),
-          splashColor: Colors.transparent,  // <-- Adicione para remover ripple
+          splashColor: Colors.transparent,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(

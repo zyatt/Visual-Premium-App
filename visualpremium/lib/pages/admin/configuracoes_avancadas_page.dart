@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:visualpremium/widgets/clickable_ink.dart';
@@ -40,67 +42,6 @@ class ConfiguracoesAvancadasPage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 32),
-
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.purple,
-                    Colors.purple.withValues(alpha: 0.8),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.purple.withValues(alpha: 0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.settings_suggest,
-                      size: 32,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 20),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Configurações do Sistema',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Ajuste parâmetros avançados de precificação e cálculos',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: Colors.white.withValues(alpha: 0.9),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 32),
-
             LayoutBuilder(
               builder: (context, constraints) {
                 final crossAxisCount = constraints.maxWidth > 1200
@@ -128,12 +69,22 @@ class ConfiguracoesAvancadasPage extends StatelessWidget {
                         },
                       ),
                       _ConfigCard(
+                        icon: Icons.percent,
+                        title: 'Impostos sobre Sobras',
+                        description: 'Configurar percentual de impostos aplicado às sobras de materiais',
+                        color: Colors.indigo,
+                        onTap: () {
+                          context.go(AppRoutes.impostoSobra);
+                        },
+                      ),
+                      _ConfigCard(
                         icon: Icons.calculate_outlined,
                         title: 'Formação de Preço',
                         description: 'Configurar parâmetros de cálculo de preços',
                         color: Colors.blue,
+                        locked: true,
                         onTap: () {
-                          context.go(AppRoutes.formacaoPreco);
+                          _showLockedSnackBar(context);
                         },
                       ),
                       _ConfigCard(
@@ -141,17 +92,9 @@ class ConfiguracoesAvancadasPage extends StatelessWidget {
                         title: 'Folha de Pagamento',
                         description: 'Gerenciar custos com pessoal e produtividade',
                         color: Colors.orange,
+                        locked: true,
                         onTap: () {
-                          context.go(AppRoutes.folhaPagamento);
-                        },
-                      ),
-                      _ConfigCard(
-                        icon: Icons.percent,
-                        title: 'Impostos sobre Sobras',
-                        description: 'Configurar percentual de impostos aplicado às sobras de materiais',
-                        color: Colors.indigo,
-                        onTap: () {
-                          context.go(AppRoutes.impostoSobra);
+                          _showLockedSnackBar(context);
                         },
                       ),
                     ],
@@ -164,6 +107,29 @@ class ConfiguracoesAvancadasPage extends StatelessWidget {
       ),
     );
   }
+
+  void _showLockedSnackBar(BuildContext context) {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.construction_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 12),
+            const Text(
+              'Funcionalidade em desenvolvimento',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.orange.shade700,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
 }
 
 class _ConfigCard extends StatelessWidget {
@@ -172,6 +138,7 @@ class _ConfigCard extends StatelessWidget {
   final String description;
   final Color color;
   final VoidCallback onTap;
+  final bool locked;
 
   const _ConfigCard({
     required this.icon,
@@ -179,11 +146,81 @@ class _ConfigCard extends StatelessWidget {
     required this.description,
     required this.color,
     required this.onTap,
+    this.locked = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    final cardContent = Ink(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(
+          color: theme.dividerColor.withValues(alpha: 0.1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: color,
+              size: 28,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            description,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+
+    if (locked) {
+      return Material(
+        color: Colors.transparent,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Card base (conteúdo que ficará desfocado)
+              cardContent,
+              // Overlay com blur por cima
+              _LockedOverlay(onTap: onTap),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Material(
       color: Colors.transparent,
@@ -191,56 +228,68 @@ class _ConfigCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.md),
         hoverColor: color.withValues(alpha: 0.05),
-        child: Ink(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: theme.cardTheme.color,
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(
-              color: theme.dividerColor.withValues(alpha: 0.1),
+        child: cardContent,
+      ),
+    );
+  }
+}
+
+class _LockedOverlay extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _LockedOverlay({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Stack(
+        children: [
+          // Blur layer
+          BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 3.5, sigmaY: 3.5),
+            child: Container(
+              color: Colors.black.withValues(alpha: 0.15),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+          // Lock icon + label centralizados
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.lock_outline_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
                 ),
-                child: Icon(
-                  icon,
-                  color: color,
-                  size: 28,
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Em desenvolvimento',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
                 ),
-              ),
-              const Spacer(),
-              Text(
-                title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                description,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

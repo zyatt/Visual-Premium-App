@@ -158,7 +158,7 @@ class _PedidosPageState extends State<PedidosPage> {
       setState(() => _loading = false);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar pedidos: $e')),
+          SnackBar(content: Text('Erro ao carregar relações: $e')),
         );
       });
     }
@@ -181,7 +181,7 @@ class _PedidosPageState extends State<PedidosPage> {
      WidgetsBinding.instance.addPostFrameCallback((_) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Pedido #${item.numero} salvo!'),
+          content: Text('Relação #${item.numero} salva!'),
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
         ),
@@ -192,7 +192,7 @@ class _PedidosPageState extends State<PedidosPage> {
       setState(() => _loading = false);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao salvar pedido: $e')),
+          SnackBar(content: Text('Erro ao salvar relação: $e')),
         );
       });
     }
@@ -238,7 +238,7 @@ class _PedidosPageState extends State<PedidosPage> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Pedido "${item.numero != null ? "#${item.numero}" : ""}" excluído'),
+            content: Text('Relação "${item.numero != null ? "#${item.numero}" : ""}" excluída'),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -263,7 +263,7 @@ class _PedidosPageState extends State<PedidosPage> {
     try {
       final directory = await getDownloadsDirectory() ?? 
                         await getApplicationDocumentsDirectory();
-      final fileName = 'pedido_${item.numero ?? "sem_numero"}_${item.cliente.replaceAll(' ', '_')}.pdf';
+      final fileName = 'relacao_${item.numero ?? "sem_numero"}_${item.cliente.replaceAll(' ', '_')}.pdf';
       final filePath = '${directory.path}/$fileName';
       final file = File(filePath);
       
@@ -334,10 +334,10 @@ class _PedidosPageState extends State<PedidosPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Excluir pedido?', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                    Text('Excluir relação?', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 8),
                     Text(
-                      'Você tem certeza que deseja excluir o pedido ${numero != null ? "#$numero" : "(sem número)"} de $cliente?',
+                      'Você tem certeza que deseja excluir a relação ${numero != null ? "#$numero" : "(sem número)"} de $cliente?',
                       style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
                     ),
                     const SizedBox(height: 20),
@@ -487,10 +487,10 @@ class _PedidosPageState extends State<PedidosPage> {
         filtered.sort((a, b) => b.status.compareTo(a.status));
         break;
       case SortOption.totalAsc:
-        filtered.sort((a, b) => a.total.compareTo(b.total));
+        filtered.sort((a, b) => a.totalGeral.compareTo(b.totalGeral));
         break;
       case SortOption.totalDesc:
-        filtered.sort((a, b) => b.total.compareTo(a.total));
+        filtered.sort((a, b) => b.totalGeral.compareTo(a.totalGeral));
         break;
     }
     
@@ -604,19 +604,12 @@ class _PedidosPageState extends State<PedidosPage> {
                                 ),
                                 const SizedBox(width: 12),
                                 Text(
-                                  'Pedidos', 
+                                  'Relações de Compras', 
                                   style: theme.textTheme.headlineMedium?.copyWith(
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
                               ],
-                            ),
-                            ExcludeFocus(
-                              child: IconButton(
-                                onPressed: _load,
-                                icon: const Icon(Icons.refresh),
-                                tooltip: 'Atualizar',
-                              ),
                             ),
                           ],
                         ),
@@ -634,7 +627,7 @@ class _PedidosPageState extends State<PedidosPage> {
                                 child: TextField(
                                   onChanged: (value) => setState(() => _searchQuery = value),
                                   decoration: InputDecoration(
-                                    hintText: 'Buscar pedidos',
+                                    hintText: 'Buscar relações',
                                     border: InputBorder.none,
                                     enabledBorder: InputBorder.none,
                                     focusedBorder: InputBorder.none,
@@ -796,7 +789,7 @@ class _PedidosPageState extends State<PedidosPage> {
                                 final item = filteredItems[index];
                                 return _PedidoCard(
                                   item: item,
-                                  formattedValue: currency.format(item.total),
+                                  formattedValue: currency.format(item.totalGeral),
                                   onTap: () => _showPedidoEditor(item),
                                   onDelete: () async {
                                     final ok = await _showConfirmDelete(item.cliente, item.numero);
@@ -828,6 +821,17 @@ class _PedidosPageState extends State<PedidosPage> {
               ),
             ),
           ),
+          Positioned(
+            top: 32,
+            right: 32,
+            child: ExcludeFocus(
+              child: IconButton(
+                onPressed: _loading ? null : _load,
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Atualizar',
+              ),
+            ),
+          ),
           if (_loading)
             Positioned(
               top: 0,
@@ -843,19 +847,19 @@ class _PedidosPageState extends State<PedidosPage> {
                 ),
               ),
             ),
-             if (_showScrollToTopButton)
+          if (_showScrollToTopButton)
             Positioned(
-              right: 32,
-              bottom: 32,
+              right: 24,
+              bottom: 100,
               child: AnimatedOpacity(
                 opacity: _showScrollToTopButton ? 1.0 : 0.0,
                 duration: const Duration(milliseconds: 200),
                 child: FloatingActionButton(
+                  mini: false,
                   onPressed: _scrollToTop,
                   tooltip: 'Voltar ao topo',
                   backgroundColor: theme.colorScheme.primary,
                   foregroundColor: theme.colorScheme.onPrimary,
-                  elevation: 4,
                   child: const Icon(Icons.arrow_upward),
                 ),
               ),
@@ -1030,7 +1034,7 @@ class _FilterDialogState extends State<_FilterDialog> {
                   Icon(Icons.filter_list, color: theme.colorScheme.primary),
                   const SizedBox(width: 12),
                   Text(
-                    'Filtrar Pedidos',
+                    'Filtrar Relações',
                     style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const Spacer(),
@@ -1747,7 +1751,7 @@ class _FilterPanel extends StatelessWidget {
     final theme = Theme.of(context);
     
     return Container(
-      width: 280,
+      width: 240,
       margin: const EdgeInsets.only(top: 72),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1949,7 +1953,7 @@ class _EmptyPedidosState extends StatelessWidget {
             Icon(Icons.search_off, size: 64, color: theme.colorScheme.onSurface.withValues(alpha: 0.3)),
             const SizedBox(height: 16),
             Text(
-              'Nenhum pedido encontrado',
+              'Nenhuma relação encontrada',
               style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
             ),
           ],
@@ -1979,9 +1983,9 @@ class _EmptyPedidosState extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Nenhum pedido cadastrado', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+                Text('Nenhuma relação cadastrada', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
-                Text('Pedidos são criados automaticamente quando um orçamento é aprovado.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.65))),
+                Text('Relações são criadas automaticamente quando um orçamento é aprovado.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withValues(alpha: 0.65))),
               ],
             ),
           ),
@@ -2053,7 +2057,7 @@ class _PedidoCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Pedido ${item.numero != null ? "#${item.numero}" : "(sem número)"}',
+                      'Relação ${item.numero != null ? "#${item.numero}" : "(sem número)"}',
                       style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 2),
@@ -2464,7 +2468,7 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
         pedido.id != widget.initial.id);
     
     if (isDuplicate) {
-      return 'Já existe um pedido\ncom este número';
+      return 'Já existe uma relação\ncom este número';
     }
     
     return null;
@@ -2594,7 +2598,7 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                           children: [
                             Expanded(
                               child: Text(
-                                'Pedido',
+                                'Relação',
                                 style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                               ),
                             ),
@@ -2640,7 +2644,7 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                       const SizedBox(width: 12),
                                       Expanded(
                                         child: Text(
-                                          'Pedido gerado a partir do Orçamento #${widget.initial.orcamentoNumero}',
+                                          'Relação gerada a partir do Orçamento #${widget.initial.orcamentoNumero}',
                                           style: theme.textTheme.bodySmall?.copyWith(
                                             color: theme.colorScheme.primary,
                                             fontWeight: FontWeight.w500,
@@ -2685,6 +2689,7 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                         isDense: true,
                                         contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                       ),
+                                      autovalidateMode: AutovalidateMode.onUserInteraction,
                                       validator: _validateNumeroPedido,
                                     ),
                                   ),
@@ -2771,7 +2776,15 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                                     // Se for m² e tiver altura e largura, mostra dimensões
                                                     if (mat.materialUnidade == 'm²' && mat.altura != null && mat.largura != null)
                                                       Text(
-                                                        '${currency.format(mat.materialCusto)} / ${mat.materialUnidade} • ${mat.altura}m × ${mat.largura}m',
+                                                        '${currency.format(mat.materialCusto)} / ${mat.materialUnidade} • ${mat.altura}mm × ${mat.largura}mm',
+                                                        style: theme.textTheme.bodySmall?.copyWith(
+                                                          fontSize: 10,
+                                                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                                        ),
+                                                      )
+                                                    else if ((mat.materialUnidade == 'm/l' || mat.materialUnidade == 'ml') && mat.comprimento != null)
+                                                      Text(
+                                                        '${currency.format(mat.materialCusto)} / ${mat.materialUnidade} • ${mat.comprimento!.toStringAsFixed(0)}mm',
                                                         style: theme.textTheme.bodySmall?.copyWith(
                                                           fontSize: 10,
                                                           color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
@@ -2820,6 +2833,115 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                                           ),
                                         );
                                       }),
+
+                                      // Sobras de Materiais
+                                      ...() {
+                                        final materiaisComSobra = widget.initial.materiais
+                                            .where((m) => m.valorSobra != null && m.valorSobra! > 0)
+                                            .toList();
+
+                                        if (materiaisComSobra.isEmpty) return <Widget>[];
+
+                                        return <Widget>[
+                                          const SizedBox(height: 16),
+                                          Container(
+                                            padding: const EdgeInsets.all(16),
+                                            decoration: BoxDecoration(
+                                              color: theme.colorScheme.primary.withValues(alpha: 0.08),
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.3)),
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.content_cut,
+                                                      size: 18,
+                                                      color: theme.colorScheme.primary,
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Text(
+                                                      'Sobras de Materiais',
+                                                      style: theme.textTheme.titleSmall?.copyWith(
+                                                        fontWeight: FontWeight.w600,
+                                                        fontSize: 12,
+                                                        color: theme.colorScheme.primary,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 12),
+                                                ...materiaisComSobra.map((mat) {
+                                                  final isM2 = mat.materialUnidade.toLowerCase() == 'm²' ||
+                                                               mat.materialUnidade.toLowerCase() == 'm2';
+                                                  final isMetroLinear = mat.materialUnidade.toLowerCase() == 'm/l' ||
+                                                                        mat.materialUnidade.toLowerCase() == 'ml' ||
+                                                                        mat.materialUnidade.toLowerCase() == 'metro linear';
+
+                                                  String sobraInfo;
+                                                  if (isM2 && mat.alturaSobra != null && mat.larguraSobra != null) {
+                                                    sobraInfo = '${mat.alturaSobra!.toStringAsFixed(0)}mm × ${mat.larguraSobra!.toStringAsFixed(0)}mm';
+                                                  } else if (isMetroLinear && mat.quantidadeSobra != null) {
+                                                    sobraInfo = '${mat.quantidadeSobra!.toStringAsFixed(0)} mm';
+                                                  } else if (mat.quantidadeSobra != null) {
+                                                    sobraInfo = '${mat.quantidadeSobra!.toStringAsFixed(2)} ${mat.materialUnidade}';
+                                                  } else {
+                                                    sobraInfo = '';
+                                                  }
+
+                                                  return Container(
+                                                    margin: const EdgeInsets.only(bottom: 8),
+                                                    padding: const EdgeInsets.all(10),
+                                                    decoration: BoxDecoration(
+                                                      color: theme.colorScheme.surface,
+                                                      borderRadius: BorderRadius.circular(6),
+                                                      border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.25)),
+                                                    ),
+                                                    child: Row(
+                                                      children: [
+                                                        Expanded(
+                                                          child: Column(
+                                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                                            children: [
+                                                              Text(
+                                                                mat.materialNome,
+                                                                style: theme.textTheme.bodySmall?.copyWith(
+                                                                  fontWeight: FontWeight.w600,
+                                                                  fontSize: 11,
+                                                                ),
+                                                              ),
+                                                              if (sobraInfo.isNotEmpty) ...[
+                                                                const SizedBox(height: 2),
+                                                                Text(
+                                                                  'Quantidade de sobra: $sobraInfo',
+                                                                  style: theme.textTheme.bodySmall?.copyWith(
+                                                                    color: theme.colorScheme.primary,
+                                                                    fontSize: 10,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ],
+                                                          ),
+                                                        ),
+                                                        Text(
+                                                          currency.format(mat.valorSobra!),
+                                                          style: theme.textTheme.bodySmall?.copyWith(
+                                                            fontWeight: FontWeight.bold,
+                                                            color: theme.colorScheme.primary,
+                                                            fontSize: 11,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
+                                                }),
+                                              ],
+                                            ),
+                                          ),
+                                        ];
+                                      }(),
                                       
                                       // Despesas Adicionais (filtrando __NAO_SELECIONADO__)
                                       ...() {
@@ -3142,15 +3264,63 @@ class _PedidoEditorSheetState extends State<PedidoEditorSheet> {
                         ),
                         child: Column(
                           children: [
+                            if (widget.initial.totalSobras > 0) ...[
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Total da Relação',
+                                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+                                  ),
+                                  Text(
+                                    currency.format(widget.initial.total),
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      color: theme.colorScheme.onSurface,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.content_cut, size: 14, color: theme.colorScheme.primary),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Sobras',
+                                        style: theme.textTheme.bodyMedium?.copyWith(
+                                          fontWeight: FontWeight.w500,
+                                          color: theme.colorScheme.primary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    currency.format(widget.initial.totalSobras),
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8),
+                                child: Divider(height: 1),
+                              ),
+                            ],
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  'Total do Pedido',
+                                  'Total Geral',
                                   style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                                 ),
                                 Text(
-                                  currency.format(widget.initial.total),
+                                  currency.format(widget.initial.totalGeral),
                                   style: theme.textTheme.titleLarge?.copyWith(
                                     fontWeight: FontWeight.bold,
                                     color: theme.colorScheme.primary,

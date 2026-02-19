@@ -195,7 +195,7 @@ class SettingsDialog extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      authProvider.isAdmin ? 'Administrador' : 'Usuário',
+                      authProvider.roleLabel,
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         color: theme.colorScheme.onSurface

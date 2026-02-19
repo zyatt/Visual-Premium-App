@@ -7,7 +7,7 @@ import 'chat_provider.dart';
 
 enum UserRole {
   admin,
-  almoxarife,
+  compras,
   user,
 }
 
@@ -52,8 +52,21 @@ class AuthProvider extends ChangeNotifier {
   String? _token; 
   bool _isLoading = true;
   bool _shouldShowWelcome = false;
-  bool get isAlmoxarife => _currentUser?.role == UserRole.almoxarife;
-  bool get hasAlmoxarifadoAccess => isAdmin || isAlmoxarife;
+  bool get isCompras => _currentUser?.role == UserRole.compras;
+  bool get hasAlmoxarifadoAccess => isAdmin || isCompras;
+
+  String get roleLabel {
+    switch (_currentUser?.role) {
+      case UserRole.admin:
+        return 'Administrador';
+      case UserRole.compras:
+        return 'Compras';
+      case UserRole.user:
+        return 'Orçamentista';
+      default:
+        return 'Usuário';
+    }
+  }
 
   User? get currentUser => _currentUser;
   String? get token => _token;
@@ -61,7 +74,8 @@ class AuthProvider extends ChangeNotifier {
   bool get isAdmin => _currentUser?.role == UserRole.admin;
   bool get isLoading => _isLoading;
   bool get shouldShowWelcome => _shouldShowWelcome;
-
+  bool get isOrcamentista => _currentUser?.role == UserRole.user;
+  
   AuthProvider() {
     _loadUser();
   }
@@ -159,6 +173,25 @@ class AuthProvider extends ChangeNotifier {
     }
   }
   
+  Future<void> updateCurrentUser({
+    required String username,
+    required String nome,
+  }) async {
+    if (_currentUser == null) return;
+
+    _currentUser = User(
+      id: _currentUser!.id,
+      username: username,
+      nome: nome,
+      role: _currentUser!.role,
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_userKey, jsonEncode(_currentUser!.toJson()));
+
+    notifyListeners();
+  }
+
   void setChatProvider(ChatProvider? chatProvider) {
     // Used to clear chat on logout
   }

@@ -60,4 +60,36 @@ class LogsRepository {
       rethrow;
     }
   }
+
+  Future<void> deleteLog(int id) async {
+    try {
+      final uri = Uri.parse('${Config.baseUrl}/logs/$id');
+      final headers = await _getHeaders();
+      final response = await http.delete(uri, headers: headers);
+
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
+      } else if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('Erro HTTP ${response.statusCode}: ${response.body}');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> deleteAllLogs() async {
+    try {
+      final uri = Uri.parse('${Config.baseUrl}/logs');
+      final headers = await _getHeaders();
+      final response = await http.delete(uri, headers: headers);
+
+      if (response.statusCode == 401) {
+        throw Exception('Não autorizado - faça login novamente');
+      } else if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('Erro HTTP ${response.statusCode}: ${response.body}');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
 }

@@ -13,6 +13,12 @@ class PdfLayout {
     currentY = this._desenharInfoPrincipal(doc, data.cliente, data.produtoNome, currentY);
     currentY = this._desenharTabelaMateriais(doc, data.materiais, currentY);
     
+    // ✅ Adicionar tabela de sobras se houver
+    const materiaisComSobras = data.materiais.filter(m => (m.valorSobra || 0) > 0);
+    if (materiaisComSobras.length > 0) {
+      currentY = this._desenharTabelaSobras(doc, materiaisComSobras, currentY);
+    }
+    
     const temItensAdicionais = this._verificarItensAdicionais(data, type);
     
     if (temItensAdicionais) {
@@ -29,10 +35,8 @@ class PdfLayout {
   _verificarItensAdicionais(data, type) {
     const temDespesas = data.despesasAdicionais && data.despesasAdicionais.length > 0;
     const temOpcoesExtras = data.opcoesExtras && data.opcoesExtras.length > 0;
-    const temFrete = type === 'pedido' && data.frete && data.freteDesc && data.freteValor;
-    const temMunck = type === 'pedido' && data.caminhaoMunck && data.caminhaoMunckHoras && data.caminhaoMunckValorHora;
     
-    return temDespesas || temOpcoesExtras || temFrete || temMunck;
+    return temDespesas || temOpcoesExtras;
   }
 
   _desenharHeader(doc, logoPath, numero, titulo) {
@@ -63,12 +67,10 @@ class PdfLayout {
     
     const infoBlockWidth = 120;
     const infoBlockX = pageWidth - infoBlockWidth;
-    
     doc.fontSize(8)
       .font('Helvetica')
       .fillColor('#666')
       .text(titulo, infoBlockX, y, { width: infoBlockWidth, align: 'center' });
-    
     doc.fontSize(24)
       .font('Helvetica-Bold')
       .fillColor('#1a1a1a')
@@ -273,19 +275,12 @@ class PdfLayout {
        .lineWidth(0.5)
        .stroke();
     
-    return y + 8;
-  }
-
-  _desenharItensAdicionais(doc, data, type, currentY) {
-    const margin = doc.page.margins.left;
-    const pageWidth = doc.page.width;
-    const contentWidth = pageWidth - 2 * margin;
-    let y = currentY;
+    y += 8;
     
-    let subtotal = 0;
-    data.materiais.forEach(mat => {
-      subtotal += this._calcularTotalItem(mat.quantidade, mat.materialCusto);
-    });
+    // ✅ Subtotal Materiais
+    const subtotalMateriais = materiais.reduce((sum, mat) => {
+      return sum + this._calcularTotalItem(mat.quantidade, mat.materialCusto);
+    }, 0);
     
     const subtotalBoxWidth = 200;
     const subtotalBoxX = pageWidth - margin - subtotalBoxWidth;
@@ -301,12 +296,200 @@ class PdfLayout {
     doc.fontSize(7)
       .font('Helvetica-Bold')
       .fillColor('#1f2937')
-      .text(this._formatarMoeda(subtotal), subtotalBoxX + subtotalBoxWidth - 105, y, { 
+      .text(this._formatarMoeda(subtotalMateriais), subtotalBoxX + subtotalBoxWidth - 105, y, { 
         width: 80, 
         align: 'right' 
       });
     
     y += 15;
+    
+    return y;
+  }
+
+  // ✅ Tabela de sobras com coluna Unidade
+  _desenharTabelaSobras(doc, materiaisComSobras, startY) {
+    const margin = doc.page.margins.left;
+    const pageWidth = doc.page.width;
+    const contentWidth = pageWidth - 2 * margin;
+    let y = startY;
+    
+    doc.fontSize(7)
+       .font('Helvetica-Bold')
+       .fillColor('#1a1a1a')
+       .text('SOBRAS', margin, y);
+    
+    y += 10;
+    
+    const colWidths = {
+      numero: contentWidth * 0.08,
+      material: contentWidth * 0.50,
+      unidade: contentWidth * 0.10,
+      sobras: contentWidth * 0.16,
+      total: contentWidth * 0.16
+    };
+    
+    const tableStartY = y;
+    const headerHeight = 15;
+    const rowHeight = 13;
+    
+    doc.roundedRect(margin, y, contentWidth, headerHeight, 3)
+       .fillAndStroke('#f3f4f6', '#d1d5db');
+    
+    doc.fontSize(6)
+       .font('Helvetica-Bold')
+       .fillColor('#374151');
+    
+    let x = margin;
+    doc.text('#', x, y + 4.5, { width: colWidths.numero, align: 'center' });
+    x += colWidths.numero;
+    
+    doc.text('MATERIAL', x, y + 4.5, { width: colWidths.material, align: 'center' });
+    x += colWidths.material;
+    
+    doc.text('UNIDADE', x, y + 4.5, { width: colWidths.unidade, align: 'center' });
+    x += colWidths.unidade;
+    
+    doc.text('SOBRAS', x, y + 4.5, { width: colWidths.sobras, align: 'center' });
+    x += colWidths.sobras;
+    
+    doc.text('TOTAL', x, y + 4.5, { width: colWidths.total, align: 'center' });
+    
+    y += headerHeight;
+    
+    materiaisComSobras.forEach((material, index) => {
+      if (index % 2 === 0) {
+        doc.rect(margin, y, contentWidth, rowHeight)
+           .fillColor('#fafafa')
+           .fill();
+      }
+      
+      x = margin;
+      const textY = y + 3.5;
+      
+      doc.fillColor('#6b7280')
+         .font('Helvetica-Bold')
+         .fontSize(6)
+         .text((index + 1).toString(), x, textY, { width: colWidths.numero, align: 'center' });
+      x += colWidths.numero;
+      
+      doc.fillColor('#1f2937')
+         .font('Helvetica')
+         .fontSize(6)
+         .text(material.materialNome, x + 6, textY, { 
+           width: colWidths.material - 6, 
+           align: 'left',
+           lineBreak: false,
+           ellipsis: true
+         });
+      x += colWidths.material;
+      
+      // ✅ Coluna Unidade
+      doc.fillColor('#6b7280')
+         .fontSize(6)
+         .text(material.materialUnidade, x, textY, { width: colWidths.unidade, align: 'center' });
+      x += colWidths.unidade;
+      
+      // Formatar sobras em mm
+      const sobraTexto = this._formatarSobras(material);
+      doc.fillColor('#1f2937')
+         .font('Helvetica-Bold')
+         .fontSize(6)
+         .text(sobraTexto, x, textY, { width: colWidths.sobras, align: 'center' });
+      x += colWidths.sobras;
+      
+      doc.fillColor('#1f2937')
+         .font('Helvetica-Bold')
+         .fontSize(6)
+         .text(this._formatarMoeda(material.valorSobra || 0), x, textY, { width: colWidths.total, align: 'center' });
+      
+      y += rowHeight;
+    });
+    
+    const tableHeight = headerHeight + (materiaisComSobras.length * rowHeight);
+    doc.roundedRect(margin, tableStartY, contentWidth, tableHeight, 4)
+       .strokeColor('#d1d5db')
+       .lineWidth(1)
+       .stroke();
+    
+    x = margin + colWidths.numero;
+    doc.moveTo(x, tableStartY)
+       .lineTo(x, tableStartY + tableHeight)
+       .strokeColor('#e5e7eb')
+       .lineWidth(0.5)
+       .stroke();
+    
+    x += colWidths.material;
+    doc.moveTo(x, tableStartY)
+       .lineTo(x, tableStartY + tableHeight)
+       .strokeColor('#e5e7eb')
+       .lineWidth(0.5)
+       .stroke();
+    
+    x += colWidths.unidade;
+    doc.moveTo(x, tableStartY)
+       .lineTo(x, tableStartY + tableHeight)
+       .strokeColor('#e5e7eb')
+       .lineWidth(0.5)
+       .stroke();
+    
+    x += colWidths.sobras;
+    doc.moveTo(x, tableStartY)
+       .lineTo(x, tableStartY + tableHeight)
+       .strokeColor('#e5e7eb')
+       .lineWidth(0.5)
+       .stroke();
+    
+    y += 8;
+    
+    // ✅ Subtotal Sobras
+    const subtotalSobras = materiaisComSobras.reduce((sum, mat) => {
+      return sum + (mat.valorSobra || 0);
+    }, 0);
+    
+    const subtotalBoxWidth = 200;
+    const subtotalBoxX = pageWidth - margin - subtotalBoxWidth;
+    
+    doc.fontSize(6)
+      .font('Helvetica')
+      .fillColor('#6b7280')
+      .text('Subtotal Sobras', subtotalBoxX, y, { 
+        width: subtotalBoxWidth - 87, 
+        align: 'right' 
+      });
+    
+    doc.fontSize(7)
+      .font('Helvetica-Bold')
+      .fillColor('#1f2937')
+      .text(this._formatarMoeda(subtotalSobras), subtotalBoxX + subtotalBoxWidth - 105, y, { 
+        width: 80, 
+        align: 'right' 
+      });
+    
+    y += 15;
+    
+    return y;
+  }
+
+  _formatarSobras(material) {
+    const altura = parseFloat(material.alturaSobra) || 0;
+    const largura = parseFloat(material.larguraSobra) || 0;
+    
+    if (altura > 0 && largura > 0) {
+      return `${altura} × ${largura} mm`;
+    } else if (altura > 0) {
+      return `${altura} mm`;
+    } else if (largura > 0) {
+      return `${largura} mm`;
+    }
+    
+    return '-';
+  }
+
+  _desenharItensAdicionais(doc, data, type, currentY) {
+    const margin = doc.page.margins.left;
+    const pageWidth = doc.page.width;
+    const contentWidth = pageWidth - 2 * margin;
+    let y = currentY;
     
     doc.fontSize(7)
       .font('Helvetica-Bold')
@@ -437,79 +620,6 @@ class PdfLayout {
         y += rowHeight;
         itemIndex++;
       });
-    }
-    
-    if (type === 'pedido' && data.frete && data.freteDesc && data.freteValor) {
-      if (itemIndex % 2 === 0) {
-        doc.rect(margin, y, contentWidth, rowHeight)
-           .fillColor('#fafafa')
-           .fill();
-      }
-      
-      x = margin;
-      const textY = y + 3.5;
-      
-      doc.fillColor('#6b7280')
-         .font('Helvetica-Bold')
-         .fontSize(6)
-         .text((itemIndex + 1).toString(), x, textY, { width: colWidths.numero, align: 'center' });
-      x += colWidths.numero;
-      
-      doc.fillColor('#1f2937')
-         .font('Helvetica')
-         .fontSize(6)
-         .text(`Frete: ${data.freteDesc}`, x + 6, textY, { 
-           width: colWidths.descricao - 6, 
-           align: 'left',
-           lineBreak: false,
-           ellipsis: true
-         });
-      x += colWidths.descricao;
-      
-      doc.fillColor('#1f2937')
-         .font('Helvetica-Bold')
-         .fontSize(6)
-         .text(this._formatarMoeda(data.freteValor), x, textY, { width: colWidths.valor, align: 'center' });
-      
-      y += rowHeight;
-      itemIndex++;
-    }
-    
-    if (type === 'pedido' && data.caminhaoMunck && data.caminhaoMunckHoras && data.caminhaoMunckValorHora) {
-      if (itemIndex % 2 === 0) {
-        doc.rect(margin, y, contentWidth, rowHeight)
-           .fillColor('#fafafa')
-           .fill();
-      }
-      
-      x = margin;
-      const textY = y + 3.5;
-      const totalMunck = data.caminhaoMunckTotal || (data.caminhaoMunckHoras * data.caminhaoMunckValorHora);
-      
-      doc.fillColor('#6b7280')
-         .font('Helvetica-Bold')
-         .fontSize(6)
-         .text((itemIndex + 1).toString(), x, textY, { width: colWidths.numero, align: 'center' });
-      x += colWidths.numero;
-      
-      doc.fillColor('#1f2937')
-         .font('Helvetica')
-         .fontSize(6)
-         .text(`Caminhão Munck: ${this._formatarHoras(data.caminhaoMunckHoras)} × ${this._formatarMoeda(data.caminhaoMunckValorHora)}/hora`, x + 6, textY, { 
-           width: colWidths.descricao - 6, 
-           align: 'left',
-           lineBreak: false,
-           ellipsis: true
-         });
-      x += colWidths.descricao;
-      
-      doc.fillColor('#1f2937')
-         .font('Helvetica-Bold')
-         .fontSize(6)
-         .text(this._formatarMoeda(totalMunck), x, textY, { width: colWidths.valor, align: 'center' });
-      
-      y += rowHeight;
-      itemIndex++;
     }
     
     const tableHeight = headerHeight + (itemIndex * rowHeight);
@@ -643,16 +753,20 @@ class PdfLayout {
     
     y += 8;
     
+    // ✅ Seção de total simplificada (sem breakdown)
     const totalBoxHeight = 40;
     doc.roundedRect(margin, y, contentWidth, totalBoxHeight, 4)
        .strokeColor('#d1d5db')
        .lineWidth(1)
        .stroke();
     
+    let totalY = y + 8;
+    
+    // Total Geral direto
     doc.fontSize(6)
        .font('Helvetica-Bold')
        .fillColor('#6b7280')
-       .text('VALOR TOTAL', margin, y + 8, {
+       .text('VALOR TOTAL', margin, totalY, {
          width: contentWidth, 
          align: 'center' 
        });
@@ -660,12 +774,53 @@ class PdfLayout {
     doc.fontSize(14)
        .font('Helvetica-Bold')
        .fillColor('#1a1a1a')
-       .text(this._formatarMoeda(data.total), margin, y + 19, {
+       .text(this._formatarMoeda(data.total), margin, totalY + 11, {
          width: contentWidth, 
          align: 'center' 
        });
     
-    return y + totalBoxHeight;
+    y += totalBoxHeight + 8;
+    
+    // ✅ Valor Sugerido (se disponível)
+    if (data.valorSugerido && data.valorSugerido.valorSugerido) {
+      const sugeridoBoxHeight = 50;
+      
+      doc.roundedRect(margin, y, contentWidth, sugeridoBoxHeight, 4)
+         .fillAndStroke('#e0f2fe', '#0284c7');
+      
+      doc.fontSize(6)
+         .font('Helvetica-Bold')
+         .fillColor('#0369a1')
+         .text('VALOR SUGERIDO', margin, y + 8, {
+           width: contentWidth, 
+           align: 'center' 
+         });
+      
+      doc.fontSize(12)
+         .font('Helvetica-Bold')
+         .fillColor('#0c4a6e')
+         .text(this._formatarMoeda(data.valorSugerido.valorSugerido), margin, y + 19, {
+           width: contentWidth, 
+           align: 'center' 
+         });
+      
+      doc.fontSize(5)
+         .font('Helvetica')
+         .fillColor('#0369a1')
+         .text(
+           `Margem de ${data.valorSugerido.margem}% aplicada sobre ${this._formatarMoeda(data.valorSugerido.custoTotal)}`,
+           margin,
+           y + 36,
+           {
+             width: contentWidth,
+             align: 'center'
+           }
+         );
+      
+      y += sugeridoBoxHeight;
+    }
+    
+    return y;
   }
 
   _desenharFooter(doc) {

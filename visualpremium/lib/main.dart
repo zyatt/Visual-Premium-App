@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:visualpremium/providers/chat_provider.dart';
 import 'package:window_manager/window_manager.dart';
 import 'theme.dart';
 import 'theme_provider.dart';
@@ -9,11 +8,12 @@ import 'providers/auth_provider.dart';
 import 'providers/data_provider.dart';
 import 'nav.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'providers/chat_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await dotenv.load(fileName: '.env');
+  await dotenv.load(fileName: ".env");
 
   await windowManager.ensureInitialized();
 
@@ -59,13 +59,20 @@ class _MyAppState extends State<MyApp> {
             Provider.of<AuthProvider>(context, listen: false),
           );
           return MaterialApp.router(
-            title: 'Visual Premium',
-            debugShowCheckedModeBanner: false,
-            theme: lightTheme,
-            darkTheme: darkTheme,
-            themeMode: themeProvider.themeMode,
-            routerConfig: _router!,
-          );
+          title: 'Visual Premium',
+          debugShowCheckedModeBanner: false,
+          theme: lightTheme,
+          darkTheme: darkTheme,
+          themeMode: themeProvider.themeMode,
+          routerConfig: _router!,
+
+          builder: (context, child) {
+            return MouseRegion(
+              cursor: SystemMouseCursors.basic, // cursor padrão global
+              child: child!,
+            );
+          },
+        );
         },
       ),
     );

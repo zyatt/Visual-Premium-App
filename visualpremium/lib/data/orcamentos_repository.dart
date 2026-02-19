@@ -198,6 +198,17 @@ class OrcamentosApiRepository {
     if (response.statusCode == 200) {
       return;
     } else {
+      try {
+        final errorJson = jsonDecode(response.body);
+        if (errorJson is Map) {
+          final errorMessage = errorJson['message'] ?? errorJson['error'];
+          if (errorMessage != null && errorMessage is String) {
+            throw Exception(errorMessage);
+          }
+        }
+      } catch (e) {
+        if (e is Exception) rethrow;
+      }
       throw Exception('Erro ao deletar orçamento: ${response.statusCode}');
     }
   }
@@ -405,8 +416,9 @@ class OrcamentosApiRepository {
     int pedidoId,
     List<Map<String, dynamic>> materiais,
     List<Map<String, dynamic>> despesas,
-    List<Map<String, dynamic>> opcoesExtras,
-  ) async {
+    List<Map<String, dynamic>> opcoesExtras, {
+    List<Map<String, dynamic>> materiaisAvulsos = const [],
+  }) async {
     try {
       final url = Uri.parse('$baseUrl/almoxarifado/pedido/$pedidoId');
       final headers = await _getHeaders();
@@ -418,6 +430,7 @@ class OrcamentosApiRepository {
           'materiais': materiais,
           'despesasAdicionais': despesas,
           'opcoesExtras': opcoesExtras,
+          'materiaisAvulsos': materiaisAvulsos,
         }),
       );
 

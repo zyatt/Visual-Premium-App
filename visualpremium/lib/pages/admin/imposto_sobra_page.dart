@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:visualpremium/theme.dart';
 import 'package:visualpremium/data/imposto_sobra_repository.dart';
+import 'package:go_router/go_router.dart';
+import '../../../routes.dart';
 
 class ImpostoSobraPage extends StatefulWidget {
   const ImpostoSobraPage({super.key});
@@ -89,7 +91,8 @@ class _ImpostoSobraPageState extends State<ImpostoSobraPage> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.arrow_back),
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () => context.go(AppRoutes.configuracoesAvancadas),
+                  tooltip: 'Voltar',
                 ),
                 const SizedBox(width: 12),
                 Icon(

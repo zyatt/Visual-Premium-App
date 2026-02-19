@@ -18,6 +18,25 @@ class LogController {
       return res.status(500).json({ error: 'Erro ao listar logs' });
     }
   }
+
+  async deletar(req, res) {
+    try {
+      const { id } = req.params;
+      await logService.deletar(id);
+      return res.status(204).send();
+    } catch (error) {
+      return res.status(500).json({ error: 'Erro ao deletar log' });
+    }
+  }
+
+  async deletarTodos(req, res) {
+    try {
+      const result = await logService.deletarTodos();
+      return res.json({ message: `${result.count} logs deletados com sucesso` });
+    } catch (error) {
+      return res.status(500).json({ error: 'Erro ao deletar todos os logs' });
+    }
+  }
 }
 
 module.exports = new LogController();

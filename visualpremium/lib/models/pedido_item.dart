@@ -219,8 +219,13 @@ class PedidoMaterialItem {
   final String materialUnidade;
   final double materialCusto;
   final double quantidade;
-  final double? altura;      // NOVO CAMPO
-  final double? largura;     // NOVO CAMPO
+  final double? altura;
+  final double? largura;
+  final double? comprimento;
+  final double? alturaSobra;
+  final double? larguraSobra;
+  final double? quantidadeSobra;
+  final double? valorSobra;
 
   const PedidoMaterialItem({
     required this.id,
@@ -229,8 +234,13 @@ class PedidoMaterialItem {
     required this.materialUnidade,
     required this.materialCusto,
     required this.quantidade,
-    this.altura,               // NOVO CAMPO
-    this.largura,              // NOVO CAMPO
+    this.altura,
+    this.largura,
+    this.comprimento,
+    this.alturaSobra,
+    this.larguraSobra,
+    this.quantidadeSobra,
+    this.valorSobra,
   });
 
   double get total {
@@ -246,6 +256,11 @@ class PedidoMaterialItem {
     double? quantidade,
     double? altura,
     double? largura,
+    double? comprimento,
+    double? alturaSobra,
+    double? larguraSobra,
+    double? quantidadeSobra,
+    double? valorSobra,
   }) =>
       PedidoMaterialItem(
         id: id ?? this.id,
@@ -256,12 +271,24 @@ class PedidoMaterialItem {
         quantidade: quantidade ?? this.quantidade,
         altura: altura ?? this.altura,
         largura: largura ?? this.largura,
+        comprimento: comprimento ?? this.comprimento,
+        alturaSobra: alturaSobra ?? this.alturaSobra,
+        larguraSobra: larguraSobra ?? this.larguraSobra,
+        quantidadeSobra: quantidadeSobra ?? this.quantidadeSobra,
+        valorSobra: valorSobra ?? this.valorSobra,
       );
 
-  Map<String, Object?> toMap() => {
-        'materialId': materialId,
-        'quantidade': quantidade,
-      };
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{
+      'materialId': materialId,
+      'quantidade': quantidade,
+    };
+    if (alturaSobra != null) map['alturaSobra'] = alturaSobra;
+    if (larguraSobra != null) map['larguraSobra'] = larguraSobra;
+    if (quantidadeSobra != null) map['quantidadeSobra'] = quantidadeSobra;
+    if (valorSobra != null) map['valorSobra'] = valorSobra;
+    return map;
+  }
 
   static PedidoMaterialItem? tryFromMap(Map<String, Object?> map) {
     try {
@@ -278,7 +305,7 @@ class PedidoMaterialItem {
       final nome = materialMap['nome'] as String?;
       final unidade = materialMap['unidade'] as String?;
 
-      if (nome == null || unidade == null) {
+      if (nome == null) {
         return null;
       }
 
@@ -288,12 +315,12 @@ class PedidoMaterialItem {
       final custoDouble = (custoRaw is int) ? custoRaw.toDouble() : (custoRaw is double ? custoRaw : 0.0);
       final quantidadeDouble = (quantidade is int) ? quantidade.toDouble() : (quantidade is double ? quantidade : 0.0);
 
-      // Parse altura e largura
+      // Parse altura e largura (campos do item do pedido, não do material)
       double? altura;
       double? largura;
       
-      final alturaRaw = materialMap['altura'];
-      final larguraRaw = materialMap['largura'];
+      final alturaRaw = map['altura'] ?? materialMap['altura'];
+      final larguraRaw = map['largura'] ?? materialMap['largura'];
       
       if (alturaRaw != null) {
         if (alturaRaw is num) {
@@ -311,15 +338,59 @@ class PedidoMaterialItem {
         }
       }
 
+      double? comprimento;
+      final comprimentoRaw = map['comprimento'] ?? materialMap['comprimento'];
+      if (comprimentoRaw != null) {
+        if (comprimentoRaw is num) {
+          comprimento = comprimentoRaw.toDouble();
+        } else if (comprimentoRaw is String) {
+          comprimento = double.tryParse(comprimentoRaw);
+        }
+      }
+
+      // Parse sobra fields
+      // No banco: alturaSobra e larguraSobra existem para m²
+      // Para m/l e outras unidades: alturaSobra armazena a quantidade/comprimento
+      double? alturaSobra;
+      double? larguraSobra;
+      double? quantidadeSobra;
+      double? valorSobra;
+
+      final alturaSobraRaw = map['alturaSobra'];
+      final larguraSobraRaw = map['larguraSobra'];
+      final valorSobraRaw = map['valorSobra'];
+
+      final alturaSobraVal = alturaSobraRaw != null
+          ? ((alturaSobraRaw is num) ? alturaSobraRaw.toDouble() : double.tryParse(alturaSobraRaw.toString()))
+          : null;
+      final larguraSobraVal = larguraSobraRaw != null
+          ? ((larguraSobraRaw is num) ? larguraSobraRaw.toDouble() : double.tryParse(larguraSobraRaw.toString()))
+          : null;
+      if (valorSobraRaw != null) valorSobra = (valorSobraRaw is num) ? valorSobraRaw.toDouble() : double.tryParse(valorSobraRaw.toString());
+
+      // Se larguraSobra preenchida → é m² (alturaSobra + larguraSobra)
+      // Se só alturaSobra preenchida → é m/l ou outra unidade (quantidade em alturaSobra)
+      if (larguraSobraVal != null) {
+        alturaSobra = alturaSobraVal;
+        larguraSobra = larguraSobraVal;
+      } else if (alturaSobraVal != null) {
+        quantidadeSobra = alturaSobraVal;
+      }
+
       return PedidoMaterialItem(
         id: int.parse(id.toString()),
         materialId: int.parse(materialId.toString()),
         materialNome: nome.trim(),
-        materialUnidade: unidade.trim(),
+        materialUnidade: (unidade ?? '').trim(),
         materialCusto: custoDouble,
         quantidade: quantidadeDouble,
         altura: altura,
         largura: largura,
+        comprimento: comprimento,
+        alturaSobra: alturaSobra,
+        larguraSobra: larguraSobra,
+        quantidadeSobra: quantidadeSobra,
+        valorSobra: valorSobra,
       );
     } catch (e) {
       return null;
@@ -370,6 +441,10 @@ class PedidoItem {
     return materiais.fold(0.0, (sum, item) => sum + item.total);
   }
 
+  double get totalSobras {
+    return materiais.fold(0.0, (sum, item) => sum + (item.valorSobra ?? 0.0));
+  }
+
   double get totalDespesasAdicionais {
     return despesasAdicionais.fold(0.0, (sum, item) => sum + item.valor);
   }
@@ -396,6 +471,10 @@ class PedidoItem {
 
   double get total {
     return totalMateriais + totalDespesasAdicionais + totalOpcoesExtras;
+  }
+
+  double get totalGeral {
+    return total + totalSobras;
   }
 
   PedidoItem copyWith({

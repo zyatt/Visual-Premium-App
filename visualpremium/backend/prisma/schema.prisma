@@ -230,7 +230,8 @@ model Material {
   pedidoMaterials       PedidoMaterial[]
   avisos                ProdutoAviso[]
   produtos              ProdutoMaterial[]
-
+  almoxarifadosAvulsos  AlmoxarifadoMaterialAvulso[] 
+  
   @@map("materiais")
 }
 
@@ -289,18 +290,32 @@ model Almoxarifado {
   opcoesExtras         AlmoxarifadoOpcaoExtra[]
   pedido               Pedido                   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
   relatorioComparativo RelatorioComparativo?
-
+  materiaisAvulsos    AlmoxarifadoMaterialAvulso[]
   @@map("almoxarifados")
 }
 
+model AlmoxarifadoMaterialAvulso {
+  id              Int          @id @default(autoincrement())
+  almoxarifadoId  Int
+  materialId      Int
+  quantidade      Float
+  custoRealizado  Float
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  almoxarifado    Almoxarifado @relation(fields: [almoxarifadoId], references: [id], onDelete: Cascade)
+  material        Material     @relation(fields: [materialId], references: [id])
+}
+
 model AlmoxarifadoMaterial {
-  id             Int          @id @default(autoincrement())
-  almoxarifadoId Int
-  materialId     Int
-  quantidade     Float
-  custoRealizado Float
-  almoxarifado   Almoxarifado @relation(fields: [almoxarifadoId], references: [id], onDelete: Cascade)
-  material       Material     @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  id                   Int          @id @default(autoincrement())
+  almoxarifadoId       Int
+  materialId           Int
+  quantidade           Float
+  custoRealizado       Float
+  custoSobrasRealizado Float?       // <<< NOVO: custo efetivo da sobra deste material
+  almoxarifado         Almoxarifado @relation(fields: [almoxarifadoId], references: [id], onDelete: Cascade)
+  material             Material     @relation(fields: [materialId], references: [id], onDelete: Cascade)
 
   @@map("almoxarifado_materiais")
 }

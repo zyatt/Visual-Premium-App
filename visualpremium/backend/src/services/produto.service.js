@@ -60,7 +60,6 @@ class ProdutoService {
 
     if (avisos && avisos.length > 0) {
       const materiaisIds = (materiais || []).map(m => +m.materialId);
-      const opcoesExtrasIds = (opcoesExtras || []).map((o, idx) => idx);
       
       for (const aviso of avisos) {
         if (!aviso.mensagem || aviso.mensagem.trim() === '') {
@@ -150,7 +149,6 @@ class ProdutoService {
       throw new Error('Produto não encontrado');
     }
 
-    const nomeNormalizado = nome.trim().toLowerCase();
     const existente = await prisma.produto.findFirst({
       where: {
         nome: {
@@ -231,9 +229,45 @@ class ProdutoService {
     const materiaisRemovidos = materiaisAntigos.filter(id => !materiaisNovos.includes(id));
     
     if (materiaisRemovidos.length > 0) {
-      const avisosAfetados = produtoAntigo.avisos.filter(a => 
-        a.materialId && materiaisRemovidos.includes(a.materialId)
+      // CORREÇÃO: Verificar apenas os avisos que ainda estão vinculados ao material
+      // nos dados recebidos do frontend. Se o aviso foi desvinculado/removido pelo
+      // usuário no frontend, ele virá sem materialId ou não virá na lista.
+      const avisosRecebidosIds = new Set(
+        (avisos || [])
+          .filter(a => a.id && a.id > 0 && a.id < 1000000)
+          .map(a => a.id)
       );
+      
+      // Um aviso do banco ainda "bloqueia" a remoção somente se:
+      // 1. Ainda está vinculado ao material removido no banco, E
+      // 2. O frontend NÃO o removeu (ainda está na lista) E
+      // 3. O frontend NÃO o desvinculou (ainda tem o mesmo materialId no request)
+      const avisosAfetados = produtoAntigo.avisos.filter(avisoAntigo => {
+        if (!avisoAntigo.materialId || !materiaisRemovidos.includes(avisoAntigo.materialId)) {
+          return false;
+        }
+        
+        // Verificar se o frontend já tratou este aviso
+        const avisoNoRequest = (avisos || []).find(a => a.id === avisoAntigo.id);
+        
+        if (!avisoNoRequest) {
+          // Aviso foi removido pelo frontend - OK
+          return false;
+        }
+        
+        // Aviso ainda existe no request - verificar se foi desvinculado
+        const materialIdNoRequest = avisoNoRequest.materialId 
+          ? +avisoNoRequest.materialId 
+          : null;
+          
+        if (materialIdNoRequest !== avisoAntigo.materialId) {
+          // materialId foi alterado (desvinculado ou reatribuído) - OK
+          return false;
+        }
+        
+        // Aviso ainda está vinculado ao mesmo material removido - BLOQUEAR
+        return true;
+      });
       
       if (avisosAfetados.length > 0) {
         const materiaisComAvisos = avisosAfetados
@@ -254,9 +288,31 @@ class ProdutoService {
     const opcoesRemovidas = opcoesAntigasIds.filter(id => !opcoesNovasIds.includes(id));
     
     if (opcoesRemovidas.length > 0) {
-      const avisosAfetados = produtoAntigo.avisos.filter(a => 
-        a.opcaoExtraId && opcoesRemovidas.includes(a.opcaoExtraId)
-      );
+      // Mesma lógica: verificar se o frontend já tratou os avisos afetados
+      const avisosAfetados = produtoAntigo.avisos.filter(avisoAntigo => {
+        if (!avisoAntigo.opcaoExtraId || !opcoesRemovidas.includes(avisoAntigo.opcaoExtraId)) {
+          return false;
+        }
+        
+        const avisoNoRequest = (avisos || []).find(a => a.id === avisoAntigo.id);
+        
+        if (!avisoNoRequest) {
+          // Aviso foi removido pelo frontend - OK
+          return false;
+        }
+        
+        const opcaoExtraIdNoRequest = avisoNoRequest.opcaoExtraId 
+          ? +avisoNoRequest.opcaoExtraId 
+          : null;
+          
+        if (opcaoExtraIdNoRequest !== avisoAntigo.opcaoExtraId) {
+          // opcaoExtraId foi alterado (desvinculado ou reatribuído) - OK
+          return false;
+        }
+        
+        // Aviso ainda está vinculado à mesma opção removida - BLOQUEAR
+        return true;
+      });
       
       if (avisosAfetados.length > 0) {
         const opcoesComAvisos = avisosAfetados

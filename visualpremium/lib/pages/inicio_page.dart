@@ -359,17 +359,17 @@ class _HomePageContent extends StatelessWidget {
             ),
           if (showScrollToTopButton)
             Positioned(
-              right: screenWidth < 600 ? 16 : 32,
-              bottom: screenWidth < 600 ? 16 : 32,
+              right: 24,
+              bottom: 100,
               child: AnimatedOpacity(
                 opacity: showScrollToTopButton ? 1.0 : 0.0,
                 duration: const Duration(milliseconds: 200),
                 child: FloatingActionButton(
+                  mini: false,
                   onPressed: onScrollToTop,
                   tooltip: 'Voltar ao topo',
                   backgroundColor: theme.colorScheme.primary,
                   foregroundColor: theme.colorScheme.onPrimary,
-                  elevation: 4,
                   child: const Icon(Icons.arrow_upward),
                 ),
               ),
@@ -384,73 +384,80 @@ class _HomePageContent extends StatelessWidget {
       builder: (context, constraints) {
         final isWide = constraints.maxWidth > 900;
         final isMedium = constraints.maxWidth > 600;
-        
-        final children = [
-          Expanded(
-            child: RepaintBoundary(
-              child: _StatCard(
-                title: 'Total',
-                value: _totalOrcamentos.toString(),
-                icon: Icons.description_outlined,
-                color: theme.colorScheme.primary,
-                isCompact: screenWidth < 600,
-              ),
+        final spacing = isWide ? 16.0 : 12.0;
+
+        final cards = [
+          RepaintBoundary(
+            child: _StatCard(
+              title: 'Total',
+              value: _totalOrcamentos.toString(),
+              icon: Icons.description_outlined,
+              color: theme.colorScheme.primary,
+              isCompact: screenWidth < 600,
             ),
           ),
-          SizedBox(width: isWide ? 16 : 12, height: isWide ? 16 : 12),
-          Expanded(
-            child: RepaintBoundary(
-              child: _StatCard(
-                title: 'Pendentes',
-                value: _orcamentosPendentes.toString(),
-                icon: Icons.schedule,
-                color: Colors.orange,
-                isCompact: screenWidth < 600,
-              ),
+          RepaintBoundary(
+            child: _StatCard(
+              title: 'Pendentes',
+              value: _orcamentosPendentes.toString(),
+              icon: Icons.schedule,
+              color: Colors.orange,
+              isCompact: screenWidth < 600,
             ),
           ),
-          SizedBox(width: isWide ? 16 : 12, height: isWide ? 16 : 12),
-          Expanded(
-            child: RepaintBoundary(
-              child: _StatCard(
-                title: 'Aprovados',
-                value: _orcamentosAprovados.toString(),
-                icon: Icons.check_circle_outline,
-                color: Colors.green,
-                isCompact: screenWidth < 600,
-              ),
+          RepaintBoundary(
+            child: _StatCard(
+              title: 'Aprovados',
+              value: _orcamentosAprovados.toString(),
+              icon: Icons.check_circle_outline,
+              color: Colors.green,
+              isCompact: screenWidth < 600,
             ),
           ),
-          SizedBox(width: isWide ? 16 : 12, height: isWide ? 16 : 12),
-          Expanded(
-            child: RepaintBoundary(
-              child: _StatCard(
-                title: 'Não Aprovados',
-                value: _orcamentosNaoAprovados.toString(),
-                icon: Icons.cancel_outlined,
-                color: Colors.red,
-                isCompact: screenWidth < 600,
-              ),
+          RepaintBoundary(
+            child: _StatCard(
+              title: 'Não Aprovados',
+              value: _orcamentosNaoAprovados.toString(),
+              icon: Icons.cancel_outlined,
+              color: Colors.red,
+              isCompact: screenWidth < 600,
             ),
           ),
         ];
 
         if (isWide) {
-          return Row(children: children);
+          return Row(
+            children: [
+              for (var i = 0; i < cards.length; i++) ...[
+                if (i > 0) SizedBox(width: spacing),
+                Expanded(child: cards[i]),
+              ],
+            ],
+          );
         } else if (isMedium) {
           return Column(
             children: [
-              Row(children: [children[0], children[1], children[2]]),
-              const SizedBox(height: 12),
-              Row(children: [children[4], children[6]]),
+              Row(children: [
+                Expanded(child: cards[0]),
+                SizedBox(width: spacing),
+                Expanded(child: cards[1]),
+              ]),
+              SizedBox(height: spacing),
+              Row(children: [
+                Expanded(child: cards[2]),
+                SizedBox(width: spacing),
+                Expanded(child: cards[3]),
+              ]),
             ],
           );
         } else {
           return Column(
-            children: children.map((w) {
-              if (w is SizedBox) return const SizedBox(height: 12);
-              return w;
-            }).toList(),
+            children: [
+              for (var i = 0; i < cards.length; i++) ...[
+                if (i > 0) SizedBox(height: spacing),
+                cards[i],
+              ],
+            ],
           );
         }
       },
@@ -462,73 +469,80 @@ class _HomePageContent extends StatelessWidget {
       builder: (context, constraints) {
         final isWide = constraints.maxWidth > 900;
         final isMedium = constraints.maxWidth > 600;
-        
-        final children = [
-          Expanded(
-            child: RepaintBoundary(
-              child: _StatCard(
-                title: 'Total',
-                value: _totalPedidos.toString(),
-                icon: Icons.shopping_cart_outlined,
-                color: theme.colorScheme.secondary,
-                isCompact: screenWidth < 600,
-              ),
+        final spacing = isWide ? 16.0 : 12.0;
+
+        final cards = [
+          RepaintBoundary(
+            child: _StatCard(
+              title: 'Total',
+              value: _totalPedidos.toString(),
+              icon: Icons.shopping_cart_outlined,
+              color: theme.colorScheme.secondary,
+              isCompact: screenWidth < 600,
             ),
           ),
-          SizedBox(width: isWide ? 16 : 12, height: isWide ? 16 : 12),
-          Expanded(
-            child: RepaintBoundary(
-              child: _StatCard(
-                title: 'Pendente',
-                value: _pedidosEmAndamento.toString(),
-                icon: Icons.play_circle_outline,
-                color: Colors.blue,
-                isCompact: screenWidth < 600,
-              ),
+          RepaintBoundary(
+            child: _StatCard(
+              title: 'Pendente',
+              value: _pedidosEmAndamento.toString(),
+              icon: Icons.schedule,
+              color: Colors.blue,
+              isCompact: screenWidth < 600,
             ),
           ),
-          SizedBox(width: isWide ? 16 : 12, height: isWide ? 16 : 12),
-          Expanded(
-            child: RepaintBoundary(
-              child: _StatCard(
-                title: 'Concluídos',
-                value: _pedidosConcluidos.toString(),
-                icon: Icons.check_circle_outline,
-                color: Colors.green,
-                isCompact: screenWidth < 600,
-              ),
+          RepaintBoundary(
+            child: _StatCard(
+              title: 'Concluídos',
+              value: _pedidosConcluidos.toString(),
+              icon: Icons.check_circle_outline,
+              color: Colors.green,
+              isCompact: screenWidth < 600,
             ),
           ),
-          SizedBox(width: isWide ? 16 : 12, height: isWide ? 16 : 12),
-          Expanded(
-            child: RepaintBoundary(
-              child: _StatCard(
-                title: 'Cancelados',
-                value: _pedidosCancelados.toString(),
-                icon: Icons.cancel_outlined,
-                color: Colors.red,
-                isCompact: screenWidth < 600,
-              ),
+          RepaintBoundary(
+            child: _StatCard(
+              title: 'Cancelados',
+              value: _pedidosCancelados.toString(),
+              icon: Icons.cancel_outlined,
+              color: Colors.red,
+              isCompact: screenWidth < 600,
             ),
           ),
         ];
 
         if (isWide) {
-          return Row(children: children);
+          return Row(
+            children: [
+              for (var i = 0; i < cards.length; i++) ...[
+                if (i > 0) SizedBox(width: spacing),
+                Expanded(child: cards[i]),
+              ],
+            ],
+          );
         } else if (isMedium) {
           return Column(
             children: [
-              Row(children: [children[0], children[1], children[2]]),
-              const SizedBox(height: 12),
-              Row(children: [children[4], children[6]]),
+              Row(children: [
+                Expanded(child: cards[0]),
+                SizedBox(width: spacing),
+                Expanded(child: cards[1]),
+              ]),
+              SizedBox(height: spacing),
+              Row(children: [
+                Expanded(child: cards[2]),
+                SizedBox(width: spacing),
+                Expanded(child: cards[3]),
+              ]),
             ],
           );
         } else {
           return Column(
-            children: children.map((w) {
-              if (w is SizedBox) return const SizedBox(height: 12);
-              return w;
-            }).toList(),
+            children: [
+              for (var i = 0; i < cards.length; i++) ...[
+                if (i > 0) SizedBox(height: spacing),
+                cards[i],
+              ],
+            ],
           );
         }
       },

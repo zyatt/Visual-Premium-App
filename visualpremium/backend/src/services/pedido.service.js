@@ -1,5 +1,6 @@
 const prisma = require('../config/prisma');
 const logService = require('./log.service');
+const faixaCustoService = require('../services/faixaCustoMargem.service');
 
 class PedidoService {
   async listar() {
@@ -110,6 +111,120 @@ class PedidoService {
     return total;
   }
 
+  async calcularValorSugerido(pedido) {
+    try {
+      // ✅ Calcular total BASE (sem sobras)
+      let custoTotalBase = 0;
+      
+      // Materiais (sem sobras)
+      if (pedido.materiais && pedido.materiais.length > 0) {
+        for (const mat of pedido.materiais) {
+          const custo = parseFloat(mat.custo) || 0;
+          const quantidade = parseFloat(mat.quantidade) || 0;
+          custoTotalBase += custo * quantidade;
+        }
+      }
+      
+      // Despesas adicionais
+      if (pedido.despesasAdicionais && pedido.despesasAdicionais.length > 0) {
+        for (const despesa of pedido.despesasAdicionais) {
+          if (despesa.descricao !== '__NAO_SELECIONADO__') {
+            custoTotalBase += parseFloat(despesa.valor) || 0;
+          }
+        }
+      }
+      
+      // Opções extras não-percentuais
+      if (pedido.opcoesExtras && pedido.opcoesExtras.length > 0) {
+        for (const opcao of pedido.opcoesExtras) {
+          if (opcao.valorString === '__NAO_SELECIONADO__') continue;
+          
+          const tipo = opcao.produtoOpcao?.tipo || opcao.tipo;
+          
+          if (tipo === 'STRINGFLOAT') {
+            custoTotalBase += parseFloat(opcao.valorFloat1) || 0;
+          } else if (tipo === 'FLOATFLOAT') {
+            const valor1 = parseFloat(opcao.valorFloat1) || 0;
+            const valor2 = parseFloat(opcao.valorFloat2) || 0;
+            custoTotalBase += valor1 * valor2;
+          }
+        }
+      }
+      
+      // Opções extras percentuais (aplicadas sobre a base)
+      if (pedido.opcoesExtras && pedido.opcoesExtras.length > 0) {
+        for (const opcao of pedido.opcoesExtras) {
+          if (opcao.valorString === '__NAO_SELECIONADO__') continue;
+          
+          const tipo = opcao.produtoOpcao?.tipo || opcao.tipo;
+          
+          if (tipo === 'PERCENTFLOAT') {
+            const percentual = parseFloat(opcao.valorFloat1) || 0;
+            custoTotalBase += (percentual / 100.0) * custoTotalBase;
+          }
+        }
+      }
+      
+      if (custoTotalBase <= 0) {
+        return null;
+      }
+      
+      // Buscar faixas de custo
+      const faixas = await faixaCustoService.listar();
+      
+      if (!faixas || faixas.length === 0) {
+        return null;
+      }
+      
+      // Encontrar faixa aplicável baseada no custo BASE
+      let faixaAplicavel = null;
+      for (const faixa of faixas) {
+        const dentroDoInicio = custoTotalBase >= faixa.custoInicio;
+        const dentroDoFim = faixa.custoFim === null || custoTotalBase <= faixa.custoFim;
+        
+        if (dentroDoInicio && dentroDoFim) {
+          faixaAplicavel = faixa;
+          break;
+        }
+      }
+      
+      if (!faixaAplicavel) {
+        return null;
+      }
+      
+      const margem = parseFloat(faixaAplicavel.margem);
+      
+      // ✅ Aplicar margem sobre o custo BASE
+      const valorComMargem = custoTotalBase * (margem / 100);
+      
+      // ✅ Calcular total de sobras separadamente
+      let totalSobras = 0;
+      if (pedido.materiais && pedido.materiais.length > 0) {
+        for (const mat of pedido.materiais) {
+          const valorSobra = parseFloat(mat.valorSobra) || 0;
+          totalSobras += valorSobra;
+        }
+      }
+      
+      // ✅ Valor sugerido final = valor com margem + sobras
+      const valorSugeridoFinal = valorComMargem + totalSobras;
+      
+      return {
+        custoTotal: custoTotalBase,
+        margem: margem,
+        valorSugerido: valorSugeridoFinal,
+        valorComMargem: valorComMargem,
+        totalSobras: totalSobras,
+        faixaId: faixaAplicavel.id,
+        custoInicio: faixaAplicavel.custoInicio,
+        custoFim: faixaAplicavel.custoFim,
+      };
+    } catch (error) {
+      console.error('Erro ao calcular valor sugerido:', error);
+      return null;
+    }
+  }
+
   async criar(data, user) {
     const { 
       cliente, 
@@ -174,7 +289,6 @@ class PedidoService {
     const despesasValidadas = [];
     if (despesasAdicionais && Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
       for (const despesa of despesasAdicionais) {
-        // Ignorar despesas marcadas como "Não"
         if (despesa.descricao === '__NAO_SELECIONADO__') {
           continue;
         }
@@ -216,11 +330,21 @@ class PedidoService {
           quantidadeNum = qty;
         }
 
-        materiaisValidados.push({
+        const matValidado = {
           materialId: m.materialId,
           quantidade: quantidadeNum,
           custo: material.material.custo,
-        });
+        };
+
+        if (m.alturaSobra !== undefined && m.alturaSobra !== null) {
+          matValidado.alturaSobra = parseFloat(m.alturaSobra);
+        } else if (m.quantidadeSobra !== undefined && m.quantidadeSobra !== null) {
+          matValidado.alturaSobra = parseFloat(m.quantidadeSobra);
+        }
+        if (m.larguraSobra !== undefined && m.larguraSobra !== null) matValidado.larguraSobra = parseFloat(m.larguraSobra);
+        if (m.valorSobra !== undefined && m.valorSobra !== null) matValidado.valorSobra = parseFloat(m.valorSobra);
+
+        materiaisValidados.push(matValidado);
       }
     }
 
@@ -488,7 +612,6 @@ class PedidoService {
       despesasValidadas = [];
       if (Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
         for (const despesa of despesasAdicionais) {
-          // Ignorar despesas marcadas como "Não"
           if (despesa.descricao === '__NAO_SELECIONADO__') {
             continue;
           }
@@ -533,11 +656,21 @@ class PedidoService {
             quantidadeNum = qty;
           }
 
-          materiaisValidados.push({
+          const matValidadoAtualizar = {
             materialId: m.materialId,
             quantidade: quantidadeNum,
             custo: material.material.custo,
-          });
+          };
+
+          if (m.alturaSobra !== undefined && m.alturaSobra !== null) {
+            matValidadoAtualizar.alturaSobra = parseFloat(m.alturaSobra);
+          } else if (m.quantidadeSobra !== undefined && m.quantidadeSobra !== null) {
+            matValidadoAtualizar.alturaSobra = parseFloat(m.quantidadeSobra);
+          }
+          if (m.larguraSobra !== undefined && m.larguraSobra !== null) matValidadoAtualizar.larguraSobra = parseFloat(m.larguraSobra);
+          if (m.valorSobra !== undefined && m.valorSobra !== null) matValidadoAtualizar.valorSobra = parseFloat(m.valorSobra);
+
+          materiaisValidados.push(matValidadoAtualizar);
         }
       }
     }
@@ -610,22 +743,25 @@ class PedidoService {
             if (isNaN(valorFloat1) || valorFloat1 < 0 || valorFloat1 > 100) {
               throw new Error(`Percentual inválido para a opção "${opcaoExtra.nome}" (deve estar entre 0 e 100)`);
             }
+
+            // ✅ CORREÇÃO: preservar o valorFloat2 original (base salva no banco)
+            // em vez de recalcular com o totalBase do request, que pode ser diferente
+            const baseOriginal = (opcaoValor.valorFloat2 != null && opcaoValor.valorFloat2 !== undefined)
+              ? parseFloat(opcaoValor.valorFloat2)
+              : totalBase;
             
             opcoesExtrasValidadas.push({
               produtoOpcaoId: opcaoValor.produtoOpcaoId,
               valorString: null,
               valorFloat1: valorFloat1,
-              valorFloat2: totalBase
+              valorFloat2: baseOriginal
             });
           }
         }
       }
     }
 
-    
-
    const pedidoAtualizado = await prisma.$transaction(async (tx) => {
-      // Deletar materiais, despesas e opções extras
       if (materiaisValidados !== undefined) {
         await tx.pedidoMaterial.deleteMany({
           where: { pedidoId: id }
@@ -644,14 +780,13 @@ class PedidoService {
         });
       }
 
-      // ✅ PROCESSAR INFORMAÇÕES ADICIONAIS DE FORMA INTELIGENTE
-      if (informacoesAdicionais !== undefined && Array.isArray(informacoesAdicionais)) {
+      if (informacoesAdicionais !== undefined && Array.
+        isArray(informacoesAdicionais)) {
         const informacoesExistentes = pedidoAntigo.informacoesAdicionais;
         const idsRecebidos = informacoesAdicionais
           .filter(info => info.id)
           .map(info => info.id);
 
-        // Deletar informações que não estão mais na lista
         const idsParaDeletar = informacoesExistentes
           .filter(info => !idsRecebidos.includes(info.id))
           .map(info => info.id);
@@ -664,7 +799,6 @@ class PedidoService {
           });
         }
 
-        // Atualizar ou criar cada informação
         for (const info of informacoesAdicionais) {
           if (!info.data || !info.descricao || info.descricao.trim() === '') {
             throw new Error('Data e descrição são obrigatórias para informações adicionais');
@@ -676,13 +810,11 @@ class PedidoService {
           };
 
           if (info.id) {
-            // Buscar a informação existente
             const infoExistente = await tx.pedidoInformacaoAdicional.findUnique({
               where: { id: info.id }
             });
 
             if (infoExistente) {
-              // Normalizar datas para comparação (remover milissegundos e segundos)
               const dataExistenteNormalizada = new Date(infoExistente.data);
               dataExistenteNormalizada.setMilliseconds(0);
               dataExistenteNormalizada.setSeconds(0);
@@ -690,11 +822,9 @@ class PedidoService {
               dataNovaNormalizada.setMilliseconds(0);
               dataNovaNormalizada.setSeconds(0);
               
-              // Verificar se houve mudança nos dados
               const dataChanged = dataExistenteNormalizada.getTime() !== dataNovaNormalizada.getTime();
               const descricaoChanged = infoExistente.descricao.trim() !== infoData.descricao.trim();
               
-              // Só atualizar se algo mudou
               if (dataChanged || descricaoChanged) {
                 await tx.pedidoInformacaoAdicional.update({
                   where: { id: info.id },
@@ -705,10 +835,8 @@ class PedidoService {
                   }
                 });
               }
-              // Se nada mudou, não faz nada (mantém updatedAt original)
             }
           } else {
-            // Criar novo
             const createData = {
               ...infoData,
               pedidoId: id
@@ -725,7 +853,6 @@ class PedidoService {
         }
       }
 
-      // Montar dados de atualização
       const updateData = {};
       
       if (cliente !== undefined) updateData.cliente = cliente.trim();
@@ -754,8 +881,6 @@ class PedidoService {
           create: opcoesExtrasValidadas
         };
       }
-
-      // Não incluir informacoesAdicionais no updateData pois já foram processadas acima
 
       return await tx.pedido.update({
         where: { id },
@@ -837,12 +962,10 @@ class PedidoService {
     console.log(`  - Status novo: ${status}`);
     console.log(`  - Tem almoxarifado? ${!!pedido.almoxarifado}`);
     
-    // Se o status está mudando para "Concluído" e não existe almoxarifado, criar
     if (status === 'Concluído' && statusAnterior !== 'Concluído' && !pedido.almoxarifado) {
       console.log(`[PEDIDO] Criando almoxarifado para o pedido ${id}...`);
       
       return await prisma.$transaction(async (tx) => {
-        // Atualizar status do pedido
         const pedidoAtualizado = await tx.pedido.update({
           where: { id },
           data: { status },
@@ -882,7 +1005,6 @@ class PedidoService {
           }
         });
 
-        // Criar almoxarifado vazio
         const almoxarifado = await tx.almoxarifado.create({
           data: {
             pedidoId: id,
@@ -913,7 +1035,6 @@ class PedidoService {
 
     console.log(`[PEDIDO] Atualizando apenas o status (sem criar almoxarifado)`);
 
-    // Atualizar apenas o status
     const pedidoAtualizado = await prisma.pedido.update({
       where: { id },
       data: { status },
@@ -985,7 +1106,6 @@ class PedidoService {
       throw new Error('Pedido não encontrado');
     }
 
-    // ✅ VALIDAÇÃO: Apenas admin pode deletar pedidos
     if (user.role !== 'admin') {
       throw new Error('Apenas administradores podem excluir pedidos');
     }

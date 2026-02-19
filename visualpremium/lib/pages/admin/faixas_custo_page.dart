@@ -61,7 +61,10 @@ class _FaixasCustoPageState extends State<FaixasCustoPage> {
         await _load();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(faixa == null ? 'Faixa criada!' : 'Faixa atualizada!')),
+          SnackBar(
+            content: Text(faixa == null ? 'Faixa criada!' : 'Faixa atualizada!'),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       } catch (e) {
         if (!mounted) return;
@@ -147,7 +150,9 @@ class _FaixasCustoPageState extends State<FaixasCustoPage> {
         await _load();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Faixa excluída!')),
+          const SnackBar(content: Text('Faixa excluída!'),
+          behavior: SnackBarBehavior.floating,
+          ),
         );
       } catch (e) {
         if (!mounted) return;
@@ -208,14 +213,6 @@ class _FaixasCustoPageState extends State<FaixasCustoPage> {
                         'Faixas de Custo e Margem',
                         style: theme.textTheme.headlineMedium?.copyWith(
                           fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const Spacer(),
-                      ExcludeFocus(
-                        child: IconButton(
-                          onPressed: _loading ? null : _load,
-                          icon: const Icon(Icons.refresh),
-                          tooltip: 'Atualizar',
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -392,6 +389,17 @@ class _FaixasCustoPageState extends State<FaixasCustoPage> {
                       },
                     ),
                 ],
+              ),
+            ),
+          ),
+          Positioned(
+            top: 32,
+            right: 32,
+            child: ExcludeFocus(
+              child: IconButton(
+                onPressed: _loading ? null : _load,
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Atualizar',
               ),
             ),
           ),

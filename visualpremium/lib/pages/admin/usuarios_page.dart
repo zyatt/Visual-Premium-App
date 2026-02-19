@@ -129,7 +129,10 @@ class _UsuariosPageState extends State<UsuariosPage> {
       await _repository.deleteUsuario(usuario.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Usuário excluído')),
+          const SnackBar(
+            content: Text('Usuário excluído'),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
         _loadUsuarios();
       }
@@ -182,14 +185,6 @@ class _UsuariosPageState extends State<UsuariosPage> {
                       'Gerenciar Usuários',
                       style: theme.textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const Spacer(),
-                    ExcludeFocus(
-                      child: IconButton(
-                        onPressed: _isLoading ? null : _loadUsuarios,
-                        icon: const Icon(Icons.refresh),
-                        tooltip: 'Atualizar',
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -277,6 +272,17 @@ class _UsuariosPageState extends State<UsuariosPage> {
                 ),
               ),
             ],
+          ),
+          Positioned(
+            top: 32,
+            right: 32,
+            child: ExcludeFocus(
+              child: IconButton(
+                onPressed: _isLoading ? null : _loadUsuarios,
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Atualizar',
+              ),
+            ),
           ),
           if (_isLoading)
             Positioned(
@@ -367,7 +373,7 @@ class _UsuarioCard extends StatelessWidget {
                 ),
               ),
             
-            if (usuario.role == 'almoxarife')
+            if (usuario.role == 'compras')
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
@@ -375,7 +381,7 @@ class _UsuarioCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  'ALMOXARIFE',
+                  'COMPRAS',
                   style: GoogleFonts.inter(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -440,7 +446,10 @@ class _UsuarioCard extends StatelessWidget {
                 : 'Excluir usuário',
             color: isCurrentUser 
                 ? theme.colorScheme.onSurface.withValues(alpha: 0.3)
-                : theme.colorScheme.error,
+                : Colors.red.withValues(alpha: 0.7),
+            style: IconButton.styleFrom(
+              hoverColor: Colors.red.withValues(alpha: 0.1),
+            ),
             onPressed: isCurrentUser ? null : onDelete,
           ),
         ),
@@ -512,6 +521,17 @@ class _UsuarioDialogState extends State<_UsuarioDialog> {
         await repository.createUsuario(data);
       } else {
         await repository.updateUsuario(widget.usuario!.id, data);
+
+        // Se editou o próprio usuário logado, atualiza o AuthProvider
+        if (mounted) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    if (authProvider.currentUser?.id == widget.usuario!.id) {
+      await authProvider.updateCurrentUser(
+        username: _usernameController.text.trim(),
+        nome: _nomeController.text.trim(),
+      );
+    }
+  }
       }
 
       if (mounted) {
@@ -523,6 +543,7 @@ class _UsuarioDialogState extends State<_UsuarioDialog> {
                   ? 'Usuário criado'
                   : 'Usuário atualizado',
             ),
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -648,7 +669,7 @@ class _UsuarioDialogState extends State<_UsuarioDialog> {
                 ),
                 items: const [
                   DropdownMenuItem(value: 'user', child: Text('Orçamentista')),
-                  DropdownMenuItem(value: 'almoxarife', child: Text('Almoxarife')),
+                  DropdownMenuItem(value: 'compras', child: Text('Compras')),
                   DropdownMenuItem(value: 'admin', child: Text('Administrador')),
                 ],
                 onChanged: (value) {

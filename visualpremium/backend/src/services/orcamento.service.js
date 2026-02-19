@@ -1,7 +1,6 @@
 const prisma = require('../config/prisma');
 const logService = require('./log.service');
-const faixaCustoMargemService = require('./faixaCustoMargem.service');
-const impostoSobraService = require('./impostoSobra.service');
+const faixaCustoService = require('../services/faixaCustoMargem.service');
 
 class OrcamentoService {
   // Método auxiliar para verificar se o orçamento está completo
@@ -101,6 +100,123 @@ class OrcamentoService {
     return true;
   }
 
+  async calcularValorSugerido(orcamento) {
+    try {
+      // ✅ Calcular total BASE (sem sobras)
+      let custoTotalBase = 0;
+      
+      // Materiais (sem sobras)
+      if (orcamento.materiais && orcamento.materiais.length > 0) {
+        for (const mat of orcamento.materiais) {
+          const custo = parseFloat(mat.custo) || 0;
+          const quantidade = parseFloat(mat.quantidade) || 0;
+          custoTotalBase += custo * quantidade;
+        }
+      }
+      
+      // Despesas adicionais
+      if (orcamento.despesasAdicionais && orcamento.despesasAdicionais.length > 0) {
+        for (const despesa of orcamento.despesasAdicionais) {
+          if (despesa.descricao !== '__NAO_SELECIONADO__') {
+            custoTotalBase += parseFloat(despesa.valor) || 0;
+          }
+        }
+      }
+      
+      // Opções extras não-percentuais
+      if (orcamento.opcoesExtras && orcamento.opcoesExtras.length > 0) {
+        for (const opcao of orcamento.opcoesExtras) {
+          if (opcao.valorString === '__NAO_SELECIONADO__') continue;
+          
+          const tipo = opcao.produtoOpcao?.tipo || opcao.tipo;
+          
+          if (tipo === 'STRINGFLOAT') {
+            custoTotalBase += parseFloat(opcao.valorFloat1) || 0;
+          } else if (tipo === 'FLOATFLOAT') {
+            const valor1 = parseFloat(opcao.valorFloat1) || 0;
+            const valor2 = parseFloat(opcao.valorFloat2) || 0;
+            custoTotalBase += valor1 * valor2;
+          }
+        }
+      }
+
+      // Base para percentual = materiais + despesas + opções extras não-percentuais (sem sobras)
+      const custoBasePercentual = custoTotalBase;
+      
+      // Opções extras percentuais (aplicadas sobre materiais + despesas + opções extras, SEM sobras)
+      if (orcamento.opcoesExtras && orcamento.opcoesExtras.length > 0) {
+        for (const opcao of orcamento.opcoesExtras) {
+          if (opcao.valorString === '__NAO_SELECIONADO__') continue;
+          
+          const tipo = opcao.produtoOpcao?.tipo || opcao.tipo;
+          
+          if (tipo === 'PERCENTFLOAT') {
+            const percentual = parseFloat(opcao.valorFloat1) || 0;
+            custoTotalBase += (percentual / 100.0) * custoBasePercentual;
+          }
+        }
+      }
+      
+      if (custoTotalBase <= 0) {
+        return null;
+      }
+      
+      // Buscar faixas de custo
+      const faixas = await faixaCustoService.listar();
+      
+      if (!faixas || faixas.length === 0) {
+        return null;
+      }
+      
+      // Encontrar faixa aplicável baseada no custo BASE
+      let faixaAplicavel = null;
+      for (const faixa of faixas) {
+        const dentroDoInicio = custoTotalBase >= faixa.custoInicio;
+        const dentroDoFim = faixa.custoFim === null || custoTotalBase <= faixa.custoFim;
+        
+        if (dentroDoInicio && dentroDoFim) {
+          faixaAplicavel = faixa;
+          break;
+        }
+      }
+      
+      if (!faixaAplicavel) {
+        return null;
+      }
+      
+      const margem = parseFloat(faixaAplicavel.margem);
+      
+      // ✅ Aplicar margem sobre o custo BASE
+      const valorComMargem = custoTotalBase * (margem / 100);
+      
+      // ✅ Calcular total de sobras separadamente
+      let totalSobras = 0;
+      if (orcamento.materiais && orcamento.materiais.length > 0) {
+        for (const mat of orcamento.materiais) {
+          const valorSobra = parseFloat(mat.valorSobra) || 0;
+          totalSobras += valorSobra;
+        }
+      }
+      
+      // ✅ Valor sugerido final = valor com margem + sobras
+      const valorSugeridoFinal = valorComMargem + totalSobras;
+      
+      return {
+        custoTotal: custoTotalBase,
+        margem: margem,
+        valorSugerido: valorSugeridoFinal,
+        valorComMargem: valorComMargem,
+        totalSobras: totalSobras,
+        faixaId: faixaAplicavel.id,
+        custoInicio: faixaAplicavel.custoInicio,
+        custoFim: faixaAplicavel.custoFim,
+      };
+    } catch (error) {
+      console.error('Erro ao calcular valor sugerido:', error);
+      return null;
+    }
+  }
+
   async listar() {
     const orcamentos = await prisma.orcamento.findMany({
       include: {
@@ -129,49 +245,10 @@ class OrcamentoService {
 
     const orcamentosComValorSugerido = await Promise.all(
       orcamentos.map(async (orcamento) => {
-        // Calcular total BASE (sem sobras)
-        let totalBase = 0;
-        
-        for (const mat of orcamento.materiais) {
-          totalBase += mat.custo * mat.quantidade;
-        }
-        
-        for (const desp of orcamento.despesasAdicionais) {
-          totalBase += desp.valor;
-        }
-        
-        for (const opcao of orcamento.opcoesExtras) {
-          const produtoOpcao = await prisma.produtoOpcaoExtra.findUnique({
-            where: { id: opcao.produtoOpcaoId }
-          });
-          
-          if (produtoOpcao.tipo === 'STRINGFLOAT') {
-            totalBase += opcao.valorFloat1 || 0;
-          } else if (produtoOpcao.tipo === 'FLOATFLOAT') {
-            totalBase += (opcao.valorFloat1 || 0) * (opcao.valorFloat2 || 0);
-          } else if (produtoOpcao.tipo === 'PERCENTFLOAT') {
-            totalBase += ((opcao.valorFloat1 || 0) / 100) * (opcao.valorFloat2 || 0);
-          }
-        }
-
-        // Calcular valor sugerido APENAS sobre o total base (sem sobras)
-        const valorSugeridoBase = await faixaCustoMargemService.calcularValorSugerido(totalBase);
-
-        // Calcular total de SOBRAS com imposto aplicado
-        let totalSobrasComImposto = 0;
-        for (const mat of orcamento.materiais) {
-          if (mat.valorSobra && mat.valorSobra > 0) {
-            const valorSobraComImposto = await impostoSobraService.calcularValorSobraComImposto(mat.valorSobra);
-            totalSobrasComImposto += valorSobraComImposto;
-          }
-        }
-
-        // Valor sugerido final = valor com margem + sobras com imposto
-        const valorSugeridoFinal = valorSugeridoBase + totalSobrasComImposto;
-
+        const valorSugerido = await this.calcularValorSugerido(orcamento);
         return {
           ...orcamento,
-          valorSugerido: valorSugeridoFinal
+          valorSugerido: valorSugerido?.valorSugerido || null
         };
       })
     );
@@ -207,49 +284,11 @@ class OrcamentoService {
       throw new Error('Orçamento não encontrado');
     }
 
-    // Calcular total BASE (sem sobras)
-    let totalBase = 0;
-    
-    for (const mat of orcamento.materiais) {
-      totalBase += mat.custo * mat.quantidade;
-    }
-    
-    for (const desp of orcamento.despesasAdicionais) {
-      totalBase += desp.valor;
-    }
-    
-    for (const opcao of orcamento.opcoesExtras) {
-      const produtoOpcao = await prisma.produtoOpcaoExtra.findUnique({
-        where: { id: opcao.produtoOpcaoId }
-      });
-      
-      if (produtoOpcao.tipo === 'STRINGFLOAT') {
-        totalBase += opcao.valorFloat1 || 0;
-      } else if (produtoOpcao.tipo === 'FLOATFLOAT') {
-        totalBase += (opcao.valorFloat1 || 0) * (opcao.valorFloat2 || 0);
-      } else if (produtoOpcao.tipo === 'PERCENTFLOAT') {
-        totalBase += ((opcao.valorFloat1 || 0) / 100) * (opcao.valorFloat2 || 0);
-      }
-    }
-
-    // Calcular valor sugerido APENAS sobre o total base (sem sobras)
-    const valorSugeridoBase = await faixaCustoMargemService.calcularValorSugerido(totalBase);
-
-    // Calcular total de SOBRAS com imposto aplicado
-    let totalSobrasComImposto = 0;
-    for (const mat of orcamento.materiais) {
-      if (mat.valorSobra && mat.valorSobra > 0) {
-        const valorSobraComImposto = await impostoSobraService.calcularValorSobraComImposto(mat.valorSobra);
-        totalSobrasComImposto += valorSobraComImposto;
-      }
-    }
-
-    // Valor sugerido final = valor com margem + sobras com imposto
-    const valorSugeridoFinal = valorSugeridoBase + totalSobrasComImposto;
+    const valorSugerido = await this.calcularValorSugerido(orcamento);
 
     return {
       ...orcamento,
-      valorSugerido: valorSugeridoFinal
+      valorSugerido: valorSugerido?.valorSugerido || null
     };
   }
 
@@ -295,7 +334,7 @@ class OrcamentoService {
         formaPagamento,
         condicoesPagamento,
         prazoEntrega,
-        rascunho // ✅ USAR O VALOR ENVIADO PELO FRONTEND
+        rascunho
       } = data;
 
       // Validações básicas obrigatórias (sempre necessárias)
@@ -332,13 +371,9 @@ class OrcamentoService {
         throw new Error('Produto não encontrado');
       }
 
-      // ✅ USAR O VALOR DE RASCUNHO ENVIADO PELO FRONTEND
-      // Se não foi enviado, assume true (rascunho)
       const ehRascunho = rascunho !== false;
 
-      // Para rascunhos, apenas validações mínimas
       if (!ehRascunho) {
-        // Validações completas (orçamento finalizado)
         if (!formaPagamento || formaPagamento.trim() === '') {
           throw new Error('Forma de pagamento é obrigatória');
         }
@@ -355,7 +390,6 @@ class OrcamentoService {
       const despesasValidadas = [];
       if (despesasAdicionais && Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
         for (const despesa of despesasAdicionais) {
-          // ✅ Permitir __NAO_SELECIONADO__ com valor 0
           if (despesa.descricao === '__NAO_SELECIONADO__' && despesa.valor === 0) {
             despesasValidadas.push({
               descricao: '__NAO_SELECIONADO__',
@@ -407,15 +441,11 @@ class OrcamentoService {
             custo: material.material.custo,
           };
           
-          // NOVO: Adicionar campos de sobra se existirem
           if (m.alturaSobra !== undefined && m.alturaSobra !== null) {
             materialValidado.alturaSobra = parseFloat(m.alturaSobra);
           }
           if (m.larguraSobra !== undefined && m.larguraSobra !== null) {
             materialValidado.larguraSobra = parseFloat(m.larguraSobra);
-          }
-          if (m.quantidadeSobra !== undefined && m.quantidadeSobra !== null) {
-            materialValidado.quantidadeSobra = parseFloat(m.quantidadeSobra);
           }
           if (m.valorSobra !== undefined && m.valorSobra !== null) {
             materialValidado.valorSobra = parseFloat(m.valorSobra);
@@ -445,7 +475,6 @@ class OrcamentoService {
             );
 
           if (isNaoSelection) {
-            // Salvar a opção marcada como "Não" para preservar o estado
             opcoesPrimeiraPassagem.push({
               produtoOpcaoId: opcaoValor.produtoOpcaoId,
               valorString: '__NAO_SELECIONADO__',
@@ -477,13 +506,11 @@ class OrcamentoService {
         for (const opcao of opcoesPrimeiraPassagem) {
           const { _tipo, ...opcaoSemTipo } = opcao;
 
-          // Pular validações para opções marcadas como "Não"
           if (opcaoSemTipo.valorString === '__NAO_SELECIONADO__') {
             opcoesExtrasValidadas.push(opcaoSemTipo);
             continue;
           }
 
-          // Validações rigorosas apenas se NÃO for rascunho
           if (!ehRascunho) {
             if (_tipo === 'STRINGFLOAT') {
               if (!opcaoSemTipo.valorString || opcaoSemTipo.valorString.trim() === '') {
@@ -506,7 +533,6 @@ class OrcamentoService {
               opcaoSemTipo.valorFloat2 = baseParaPercentuais;
             }
           } else {
-            // Para rascunho, calcular o valorFloat2 para PERCENTFLOAT se tiver valorFloat1
             if (_tipo === 'PERCENTFLOAT' && opcaoSemTipo.valorFloat1 != null) {
               opcaoSemTipo.valorFloat2 = baseParaPercentuais;
             }
@@ -521,7 +547,6 @@ class OrcamentoService {
           cliente: cliente.trim(),
           numero: numeroInt,
           produtoId,
-          // ✅ CORRIGIDO: Em rascunhos, aceita string vazia. Apenas finalizado força "A definir"
           formaPagamento: ehRascunho 
             ? (formaPagamento || '').trim() 
             : ((formaPagamento || '').trim() || 'A definir'),
@@ -622,7 +647,7 @@ class OrcamentoService {
         condicoesPagamento,
         prazoEntrega,
         informacoesAdicionais,
-        rascunho // ✅ USAR O VALOR ENVIADO PELO FRONTEND
+        rascunho
       } = data;
 
       if (!cliente || !numero || !produtoId) {
@@ -663,11 +688,8 @@ class OrcamentoService {
         throw new Error('Produto não encontrado');
       }
 
-      // ✅ USAR O VALOR DE RASCUNHO ENVIADO PELO FRONTEND
-      // Se não foi enviado, assume true (rascunho)
       const ehRascunho = rascunho !== false;
 
-      // Para rascunhos, apenas validações mínimas
       if (!ehRascunho) {
         if (!formaPagamento || formaPagamento.trim() === '') {
           throw new Error('Forma de pagamento é obrigatória');
@@ -685,7 +707,6 @@ class OrcamentoService {
       const despesasValidadas = [];
       if (despesasAdicionais && Array.isArray(despesasAdicionais) && despesasAdicionais.length > 0) {
         for (const despesa of despesasAdicionais) {
-          // ✅ Permitir __NAO_SELECIONADO__ com valor 0
           if (despesa.descricao === '__NAO_SELECIONADO__' && despesa.valor === 0) {
             despesasValidadas.push({
               descricao: '__NAO_SELECIONADO__',
@@ -737,7 +758,6 @@ class OrcamentoService {
             custo: material.material.custo,
           };
           
-          // NOVO: Adicionar campos de sobra se existirem
           if (m.alturaSobra !== undefined && m.alturaSobra !== null) {
             materialValidado.alturaSobra = parseFloat(m.alturaSobra);
           }
@@ -775,7 +795,6 @@ class OrcamentoService {
             );
 
           if (isNaoSelection) {
-            // Salvar a opção marcada como "Não" para preservar o estado
             opcoesPrimeiraPassagem.push({
               produtoOpcaoId: opcaoValor.produtoOpcaoId,
               valorString: '__NAO_SELECIONADO__',
@@ -807,13 +826,11 @@ class OrcamentoService {
         for (const opcao of opcoesPrimeiraPassagem) {
           const { _tipo, ...opcaoSemTipo } = opcao;
 
-          // Pular validações para opções marcadas como "Não"
           if (opcaoSemTipo.valorString === '__NAO_SELECIONADO__') {
             opcoesExtrasValidadas.push(opcaoSemTipo);
             continue;
           }
 
-          // Validações rigorosas apenas se NÃO for rascunho
           if (!ehRascunho) {
             if (_tipo === 'STRINGFLOAT') {
               if (!opcaoSemTipo.valorString || opcaoSemTipo.valorString.trim() === '') {
@@ -836,7 +853,6 @@ class OrcamentoService {
               opcaoSemTipo.valorFloat2 = baseParaPercentuais;
             }
           } else {
-            // Para rascunho, calcular o valorFloat2 para PERCENTFLOAT se tiver valorFloat1
             if (_tipo === 'PERCENTFLOAT' && opcaoSemTipo.valorFloat1 != null) {
               opcaoSemTipo.valorFloat2 = baseParaPercentuais;
             }
@@ -857,7 +873,6 @@ class OrcamentoService {
           where: { orcamentoId: id }
         });
 
-        // Processar informações adicionais
         if (informacoesAdicionais && Array.isArray(informacoesAdicionais)) {
           const informacoesExistentes = orcamentoAtual.informacoesAdicionais;
           const idsRecebidos = informacoesAdicionais
@@ -941,7 +956,6 @@ class OrcamentoService {
             cliente: cliente.trim(),
             numero: numeroInt,
             produtoId,
-            // ✅ CORRIGIDO: Em rascunhos, aceita string vazia. Apenas finalizado força "A definir"
             formaPagamento: ehRascunho 
               ? (formaPagamento || '').trim() 
               : ((formaPagamento || '').trim() || 'A definir'),
@@ -983,7 +997,6 @@ class OrcamentoService {
           }
         });
 
-        // Sincronizar com pedido se aprovado
         if (orcamentoAtual.status === 'Aprovado' && orcamentoAtual.pedido) {
           const pedidoInfosExistentes = await tx.pedidoInformacaoAdicional.findMany({
             where: { pedidoId: orcamentoAtual.pedido.id }
@@ -1110,12 +1123,10 @@ class OrcamentoService {
         throw new Error('Orçamento não encontrado');
       }
 
-      // ✅ NOVA VALIDAÇÃO: Orçamento aprovado só pode ter status alterado por admin
       if (orcamento.status === 'Aprovado' && user.role !== 'admin') {
         throw new Error('Apenas administradores podem alterar o status de orçamentos aprovados');
       }
 
-      // Não permite aprovar orçamentos em rascunho
       if (status === 'Aprovado' && orcamento.rascunho) {
         throw new Error('Não é possível aprovar um orçamento não finalizado.');
       }
@@ -1138,11 +1149,17 @@ class OrcamentoService {
 
         if(orcamento.materiais && orcamento.materiais.length > 0) {
           pedidoData.materiais = {
-            create: orcamento.materiais.map(m => ({
-              materialId: m.materialId,
-              quantidade: m.quantidade,
-              custo: m.custo,
-            }))
+            create: orcamento.materiais.map(m => {
+              const mat = {
+                materialId: m.materialId,
+                quantidade: m.quantidade,
+                custo: m.custo,
+              };
+              if (m.alturaSobra !== null && m.alturaSobra !== undefined) mat.alturaSobra = m.alturaSobra;
+              if (m.larguraSobra !== null && m.larguraSobra !== undefined) mat.larguraSobra = m.larguraSobra;
+              if (m.valorSobra !== null && m.valorSobra !== undefined) mat.valorSobra = m.valorSobra;
+              return mat;
+            })
           };
         }
 
@@ -1306,7 +1323,6 @@ class OrcamentoService {
         throw new Error('Orçamento não encontrado');
       }
 
-      // ✅ NOVA VALIDAÇÃO: Apenas admin pode deletar
       if (user.role !== 'admin') {
         throw new Error('Apenas administradores podem excluir orçamentos');
       }

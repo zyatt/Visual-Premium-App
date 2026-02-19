@@ -637,14 +637,6 @@ class _BudgetsPageState extends State<BudgetsPage> {
                             Row(
                               children: [
                                 ExcludeFocus(
-                                  child: IconButton(
-                                    onPressed: _load,
-                                    icon: const Icon(Icons.refresh),
-                                    tooltip: 'Atualizar',
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                ExcludeFocus(
                                   child: ElevatedButton.icon(
                                     onPressed: () => _showOrcamentoEditor(null),
                                     icon: const Icon(Icons.add),
@@ -869,9 +861,19 @@ class _BudgetsPageState extends State<BudgetsPage> {
               ),
             ),
           ),
+          Positioned(
+            top: 32,
+            right: 32,
+            child: ExcludeFocus(
+              child: IconButton(
+                onPressed: _loading ? null : _load,
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Atualizar',
+              ),
+            ),
+          ),
           if (_loading)
-            Positioned(
-              top: 0,
+            Positioned(              top: 0,
               left: 0,
               right: 0,
               child: SizedBox(
@@ -886,17 +888,17 @@ class _BudgetsPageState extends State<BudgetsPage> {
             ),
           if (_showScrollToTopButton)
             Positioned(
-              right: 32,
-              bottom: 32,
+              right: 24,
+              bottom: 100,  
               child: AnimatedOpacity(
                 opacity: _showScrollToTopButton ? 1.0 : 0.0,
                 duration: const Duration(milliseconds: 200),
                 child: FloatingActionButton(
+                  mini: false,
                   onPressed: _scrollToTop,
                   tooltip: 'Voltar ao topo',
                   backgroundColor: theme.colorScheme.primary,
                   foregroundColor: theme.colorScheme.onPrimary,
-                  elevation: 4,
                   child: const Icon(Icons.arrow_upward),
                 ),
               ),
@@ -1785,7 +1787,7 @@ class _FilterPanel extends StatelessWidget {
     final theme = Theme.of(context);
     
     return Container(
-      width: 280,
+      width: 240,
       margin: const EdgeInsets.only(top: 72),
       padding:const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -2247,7 +2249,7 @@ class _OrcamentoCard extends StatelessWidget {
                       value: 'approve',
                       child: Row(
                         children: [
-                          Icon(Icons.check_circle, color: Colors.green, size: 18),
+                          Icon(Icons.check_circle, color: Colors.orange, size: 18),
                           SizedBox(width: 8),
                           Text('Aprovar'),
                         ],
@@ -2501,17 +2503,76 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       _valorSugeridoLocal = null;
       return;
     }
-    final custoTotal = _calculateTotal();
-    if (custoTotal <= 0) {
+    
+    // ✅ CORREÇÃO: Calcular total BASE (sem sobras)
+    double custoTotalBase = 0;
+    
+    // Materiais (sem sobras)
+    if (_selectedProduto != null) {
+      for (final mat in _selectedProduto!.materiais) {
+        final controller = _quantityControllers[mat.materialId];
+        if (controller != null) {
+          final qty = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0.0;
+          custoTotalBase += mat.materialCusto * qty;
+          // ❌ NÃO adiciona sobra aqui
+        }
+      }
+    }
+    
+    // Despesas adicionais
+    for (final valorCtrl in _despesaValorControllers) {
+      final valor = double.tryParse(valorCtrl.text.replaceAll(',', '.')) ?? 0.0;
+      custoTotalBase += valor;
+    }
+    
+    // Opções extras não-percentuais
+    if (_selectedProduto != null) {
+      for (final opcao in _selectedProduto!.opcoesExtras) {
+        final isEnabled = _opcoesExtrasEnabled[opcao.id] ?? false;
+        if (!isEnabled) continue;
+
+        if (opcao.tipo == TipoOpcaoExtra.stringFloat) {
+          final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id];
+          if (float1Ctrl != null) {
+            custoTotalBase += double.tryParse(float1Ctrl.text.replaceAll(',', '.')) ?? 0.0;
+          }
+        } else if (opcao.tipo == TipoOpcaoExtra.floatFloat) {
+          final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id];
+          final float2Ctrl = _opcaoExtraFloat2Controllers[opcao.id];
+          if (float1Ctrl != null && float2Ctrl != null) {
+            final horas = double.tryParse(float1Ctrl.text.replaceAll(',', '.')) ?? 0.0;
+            final valorHora = double.tryParse(float2Ctrl.text.replaceAll(',', '.')) ?? 0.0;
+            custoTotalBase += horas * valorHora;
+          }
+        }
+      }
+    }
+    
+    // Opções extras percentuais (aplicadas sobre a base)
+    if (_selectedProduto != null) {
+      for (final opcao in _selectedProduto!.opcoesExtras) {
+        final isEnabled = _opcoesExtrasEnabled[opcao.id] ?? false;
+        if (!isEnabled || opcao.tipo != TipoOpcaoExtra.percentFloat) continue;
+
+        final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id];
+        if (float1Ctrl != null) {
+          final percentual = double.tryParse(float1Ctrl.text.replaceAll(',', '.')) ?? 0.0;
+          custoTotalBase += (percentual / 100.0) * custoTotalBase;
+        }
+      }
+    }
+
+    if (custoTotalBase <= 0) {
       _valorSugeridoLocal = null;
       return;
     }
 
+    // Encontrar faixa aplicável baseada no custo BASE
     Map<String, dynamic>? faixaAplicavel;
     for (final faixa in _faixas) {
-      final dentroDoInicio = custoTotal >= (faixa['custoInicio'] as num);
+      final dentroDoInicio = custoTotalBase >= (faixa['custoInicio'] as num);
       final custoFim = faixa['custoFim'] as num?;
-      final dentroDoFim = custoFim == null || custoTotal <= custoFim;
+      final dentroDoFim = custoFim == null || custoTotalBase <= custoFim;
       
       if (dentroDoInicio && dentroDoFim) {
         faixaAplicavel = faixa;
@@ -2525,14 +2586,32 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     }
 
     final margem = (faixaAplicavel['margem'] is int)
-    ? (faixaAplicavel['margem'] as int).toDouble()
-    : faixaAplicavel['margem'] as double;
+        ? (faixaAplicavel['margem'] as int).toDouble()
+        : faixaAplicavel['margem'] as double;
 
-    final valorSugerido = custoTotal * (margem / 100);
+    // ✅ Aplicar margem sobre o custo BASE
+    final valorComMargem = custoTotalBase * (margem / 100);
+    
+    // ✅ Calcular total de sobras separadamente
+    double totalSobras = 0;
+    if (_selectedProduto != null) {
+      for (final mat in _selectedProduto!.materiais) {
+        final valorSobra = _materialSobrasValor[mat.materialId];
+        if (valorSobra != null) {
+          totalSobras += valorSobra;
+        }
+      }
+    }
+    
+    // ✅ Valor sugerido final = valor com margem + sobras
+    final valorSugeridoFinal = valorComMargem + totalSobras;
+    
     _valorSugeridoLocal = {
-      'custoTotal': custoTotal,
+      'custoTotal': custoTotalBase,
       'margem': margem,
-      'valorSugerido': valorSugerido,
+      'valorSugerido': valorSugeridoFinal,
+      'valorComMargem': valorComMargem,
+      'totalSobras': totalSobras,
       'faixaId': faixaAplicavel['id'],
       'custoInicio': faixaAplicavel['custoInicio'],
       'custoFim': faixaAplicavel['custoFim'],
@@ -3160,22 +3239,22 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
 
     double base = 0.0;
 
+    // Materiais sem sobras (apenas custo × quantidade)
     for (final mat in _selectedProduto!.materiais) {
       final controller = _quantityControllers[mat.materialId];
       if (controller != null) {
         final qty = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0.0;
         base += mat.materialCusto * qty;
-        
-        // REMOVIDO: Valor da sobra não entra mais no cálculo base
-        // O valor da sobra agora só é somado no valor sugerido
       }
     }
 
+    // Despesas adicionais
     for (final valorCtrl in _despesaValorControllers) {
       final valor = double.tryParse(valorCtrl.text.replaceAll(',', '.')) ?? 0.0;
       base += valor;
     }
 
+    // Opções extras não-percentuais (STRINGFLOAT + FLOATFLOAT)
     for (final opcao in _selectedProduto!.opcoesExtras) {
       final isEnabled = _opcoesExtrasEnabled[opcao.id] ?? false;
       if (!isEnabled) continue;
@@ -3189,21 +3268,24 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         final float1Ctrl = _opcaoExtraFloat1Controllers[opcao.id];
         final float2Ctrl = _opcaoExtraFloat2Controllers[opcao.id];
         if (float1Ctrl != null && float2Ctrl != null) {
-          final horas = double.tryParse(float1Ctrl.text.replaceAll(',', '.')) ?? 0.0;
-          final valorHora = double.tryParse(float2Ctrl.text.replaceAll(',', '.')) ?? 0.0;
-          base += horas * valorHora;
+          final v1 = double.tryParse(float1Ctrl.text.replaceAll(',', '.')) ?? 0.0;
+          final v2 = double.tryParse(float2Ctrl.text.replaceAll(',', '.')) ?? 0.0;
+          base += v1 * v2;
         }
       }
     }
 
+    // Sobras NÃO entram na base do percentual
     return base;
   }
 
   double _calculateTotal() {
     if (_selectedProduto == null) return 0.0;
 
+    // Base = materiais (sem sobras) + despesas + opções extras não-percentuais
     final basePercentual = _calcularBasePercentual();
 
+    // Percentuais calculados sobre a base
     double totalPercentuais = 0.0;
     for (final opcao in _selectedProduto!.opcoesExtras) {
       final isEnabled = _opcoesExtrasEnabled[opcao.id] ?? false;
@@ -3216,7 +3298,17 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       }
     }
 
-    return basePercentual + totalPercentuais;
+    // Total do orçamento (sem sobras) + sobras = Total Geral
+    final totalSobras = _calcularTotalSobras();
+    return basePercentual + totalPercentuais + totalSobras;
+  }
+
+  double _calcularTotalSobras() {
+    double total = 0.0;
+    for (final valor in _materialSobrasValor.values) {
+      total += valor;
+    }
+    return total;
   }
 
   void _adicionarDespesa() {
@@ -3874,6 +3966,9 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         materialUnidade: mat.materialUnidade,
         materialCusto: mat.materialCusto,
         quantidade: qtyValue,
+        altura: mat.altura,
+        largura: mat.largura,
+        comprimento: mat.comprimento,
         alturaSobra: alturaSobra,
         larguraSobra: larguraSobra,
         quantidadeSobra: quantidadeSobra,
@@ -4520,16 +4615,18 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       return const SizedBox();
     }
     
-    return Column(
+    return Opacity(
+      opacity: _isAprovado ? 0.4 : 1.0,
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.green.shade50,
+            color: theme.colorScheme.primary.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(color: Colors.green.shade200),
+            border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.3)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -4539,14 +4636,14 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                   Icon(
                     Icons.content_cut,
                     size: 20,
-                    color: Colors.green.shade700,
+                    color: theme.colorScheme.primary,
                   ),
                   const SizedBox(width: 8),
                   Text(
                     'Sobras de Materiais',
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: Colors.green.shade900,
+                      color: theme.colorScheme.primary,
                     ),
                   ),
                 ],
@@ -4557,11 +4654,18 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                 final isM2 = mat.materialUnidade.toLowerCase() == 'm²' || 
                              mat.materialUnidade.toLowerCase() == 'm2';
                 
+                final isMetroLinear = mat.materialUnidade.toLowerCase() == 'm/l' || 
+                                      mat.materialUnidade.toLowerCase() == 'ml' ||
+                                      mat.materialUnidade.toLowerCase() == 'metro linear';
+                
                 String sobraInfo;
                 if (isM2) {
                   final altura = _materialSobrasAltura[mat.materialId] ?? 0.0;
                   final largura = _materialSobrasLargura[mat.materialId] ?? 0.0;
                   sobraInfo = '${altura.toStringAsFixed(0)}mm × ${largura.toStringAsFixed(0)}mm';
+                } else if (isMetroLinear) {
+                  final quantidade = _materialSobrasQuantidade[mat.materialId] ?? 0.0;
+                  sobraInfo = '${quantidade.toStringAsFixed(0)} mm';
                 } else {
                   final quantidade = _materialSobrasQuantidade[mat.materialId] ?? 0.0;
                   sobraInfo = '${quantidade.toStringAsFixed(2)} ${mat.materialUnidade}';
@@ -4571,9 +4675,9 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: theme.colorScheme.surface,
                     borderRadius: BorderRadius.circular(AppRadius.sm),
-                    border: Border.all(color: Colors.green.shade200),
+                    border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.25)),
                   ),
                   child: Row(
                     children: [
@@ -4586,14 +4690,14 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                               mat.materialNome,
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 fontWeight: FontWeight.w600,
-                                color: Colors.green.shade900,
+                                color: theme.colorScheme.onSurface,
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'Quantidade de sobra: $sobraInfo',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: Colors.green.shade700,
+                                color: theme.colorScheme.primary,
                                 fontSize: 11,
                               ),
                             ),
@@ -4606,7 +4710,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                           currency.format(valorSobra),
                           style: theme.textTheme.bodyMedium?.copyWith(
                             fontWeight: FontWeight.bold,
-                            color: Colors.green.shade800,
+                            color: theme.colorScheme.primary,
                           ),
                           textAlign: TextAlign.right,
                         ),
@@ -4619,6 +4723,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
           ),
         ),
       ],
+    ),
     );
   }
 
@@ -5393,31 +5498,34 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                                                 return 'Sobra: ${_materialSobrasQuantidade[mat.materialId]} ${mat.materialUnidade}\nValor: ${currency.format(valorSobra ?? 0.0)}';
                                                                               }
                                                                             }(),
-                                                                            child: Container(
-                                                                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                                                              decoration: BoxDecoration(
-                                                                                color: Colors.green.shade100,
-                                                                                borderRadius: BorderRadius.circular(4),
-                                                                                border: Border.all(color: Colors.green.shade300),
-                                                                              ),
-                                                                              child: Row(
-                                                                                mainAxisSize: MainAxisSize.min,
-                                                                                children: [
-                                                                                  Icon(
-                                                                                    Icons.content_cut,
-                                                                                    size: 10,
-                                                                                    color: Colors.green.shade700,
-                                                                                  ),
-                                                                                  const SizedBox(width: 2),
-                                                                                  Text(
-                                                                                    'Sobra',
-                                                                                    style: TextStyle(
-                                                                                      fontSize: 9,
-                                                                                      fontWeight: FontWeight.w600,
-                                                                                      color: Colors.green.shade700,
+                                                                            child: Opacity(
+                                                                              opacity: _isAprovado ? 0.4 : 1.0,
+                                                                              child: Container(
+                                                                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                                                                decoration: BoxDecoration(
+                                                                                  color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                                                                                  borderRadius: BorderRadius.circular(4),
+                                                                                  border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.4)),
+                                                                                ),
+                                                                                child: Row(
+                                                                                  mainAxisSize: MainAxisSize.min,
+                                                                                  children: [
+                                                                                    Icon(
+                                                                                      Icons.content_cut,
+                                                                                      size: 10,
+                                                                                      color: theme.colorScheme.primary,
                                                                                     ),
-                                                                                  ),
-                                                                                ],
+                                                                                    const SizedBox(width: 2),
+                                                                                    Text(
+                                                                                      'Sobra',
+                                                                                      style: TextStyle(
+                                                                                        fontSize: 9,
+                                                                                        fontWeight: FontWeight.w600,
+                                                                                        color: theme.colorScheme.primary,
+                                                                                      ),
+                                                                                    ),
+                                                                                  ],
+                                                                                ),
                                                                               ),
                                                                             ),
                                                                           ),
@@ -5427,7 +5535,18 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                                     // Se for m² e tiver altura e largura, mostra dimensões
                                                                     if (mat.materialUnidade == 'm²' && mat.altura != null && mat.largura != null)
                                                                       Text(
-                                                                        '${currency.format(mat.materialCusto)} / ${mat.materialUnidade} • ${mat.altura}m × ${mat.largura}m',
+                                                                        '${currency.format(mat.materialCusto)} / ${mat.materialUnidade} • ${mat.altura}m × ${mat.largura}mm',
+                                                                        style: theme.textTheme.bodySmall?.copyWith(
+                                                                          fontSize: 10,
+                                                                          color: _isAprovado 
+                                                                              ? theme.colorScheme.onSurface.withValues(alpha: 0.3)
+                                                                              : theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                                                        ),
+                                                                      )
+                                                                    // Se for m/l e tiver comprimento, mostra o comprimento
+                                                                    else if (mat.materialUnidade == 'm/l' && mat.comprimento != null)
+                                                                      Text(
+                                                                        '${currency.format(mat.materialCusto)} / ${mat.materialUnidade} • ${mat.comprimento!.toStringAsFixed(0)}mm',
                                                                         style: theme.textTheme.bodySmall?.copyWith(
                                                                           fontSize: 10,
                                                                           color: _isAprovado 
@@ -5445,11 +5564,34 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                                               : theme.colorScheme.onSurface.withValues(alpha: 0.5),
                                                                         ),
                                                                       ),
+                                                                    // Aviso de quantidade insuficiente no estoque (lado esquerdo)
+                                                                    if (mat.materialEstoque != null && qty > 0 && qty > mat.materialEstoque!)
+  Padding(
+    padding: const EdgeInsets.only(top: 4),
+    child: Opacity(
+      opacity: _isAprovado ? 0.4 : 1.0,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.warning_amber_rounded, size: 11, color: Colors.orange),
+          const SizedBox(width: 3),
+          Text(
+            'Quantidade insuficiente no estoque',
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.orange,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    ),
+  ),
                                                                   ],
                                                                 ),
                                                               ),
+                                                              // Botão de sobra sempre à esquerda do aviso
                                                               if (temAviso) ...[
-                                                                const SizedBox(width: 6),
                                                                 Tooltip(
                                                                   message: avisosDoMaterial.map((a) => a.mensagem).join('\n'),
                                                                   decoration: BoxDecoration(
@@ -5471,31 +5613,43 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                                         : theme.colorScheme.secondary,
                                                                   ),
                                                                 ),
+                                                                const SizedBox(width: 6),
+                                                              ],
+                                                              if (!_isAprovado) ...[
+                                                                IconButton(
+                                                                  icon: Icon(
+                                                                    Icons.content_cut,
+                                                                    size: 18,
+                                                                    color: temSobra 
+                                                                        ? theme.colorScheme.primary 
+                                                                        : theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                                                                  ),
+                                                                  onPressed: () => _configurarSobraMaterial(mat),
+                                                                  tooltip: 'Configurar sobra',
+                                                                  padding: EdgeInsets.zero,
+                                                                  constraints: const BoxConstraints(),
+                                                                  visualDensity: VisualDensity.compact,
+                                                                ),
+                                                                const SizedBox(width: 8),
+                                                              ] else ...[
+                                                                IconButton(
+                                                                  icon: Icon(
+                                                                    Icons.content_cut,
+                                                                    size: 18,
+                                                                    color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
+                                                                  ),
+                                                                  onPressed: null,
+                                                                  padding: EdgeInsets.zero,
+                                                                  constraints: const BoxConstraints(),
+                                                                  visualDensity: VisualDensity.compact,
+                                                                ),
+                                                                const SizedBox(width: 8),
                                                               ],
                                                             ],
                                                           );
                                                         },
                                                       ),
                                                     ),
-                                                    const SizedBox(width: 8),
-                                                    // NOVO: Botão de sobra para TODOS os materiais
-                                                    if (!_isAprovado) ...[
-                                                      IconButton(
-                                                        icon: Icon(
-                                                          Icons.content_cut,
-                                                          size: 18,
-                                                          color: temSobra 
-                                                              ? Colors.green.shade700 
-                                                              : theme.colorScheme.onSurface.withValues(alpha: 0.4),
-                                                        ),
-                                                        onPressed: () => _configurarSobraMaterial(mat),
-                                                        tooltip: 'Configurar sobra',
-                                                        padding: EdgeInsets.zero,
-                                                        constraints: const BoxConstraints(),
-                                                        visualDensity: VisualDensity.compact,
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                    ],
                                                     SizedBox(
                                                       width: 70,
                                                       child: TextFormField(
@@ -5510,11 +5664,24 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                         ],
                                                         textAlign: TextAlign.center,
                                                         style: const TextStyle(fontSize: 12),
-                                                        decoration: const InputDecoration(
+                                                        decoration: InputDecoration(
                                                           labelText: 'Qtd',
                                                           isDense: true,
-                                                          contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                                                          contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                                                          enabledBorder: (mat.materialEstoque != null && qty > 0 && qty > mat.materialEstoque!)
+                                                              ? OutlineInputBorder(
+                                                                  borderRadius: BorderRadius.circular(6),
+                                                                  borderSide: BorderSide(color: Colors.orange, width: 1.5),
+                                                                )
+                                                              : null,
+                                                          focusedBorder: (mat.materialEstoque != null && qty > 0 && qty > mat.materialEstoque!)
+                                                              ? OutlineInputBorder(
+                                                                  borderRadius: BorderRadius.circular(6),
+                                                                  borderSide: BorderSide(color: Colors.orange, width: 2),
+                                                                )
+                                                              : null,
                                                         ),
+                                                        onChanged: (_) => setState(() {}),
                                                         validator: (v) {
                                                           if (!_isOrcamentoCompleto()) return null;
                                                           if (v == null || v.trim().isEmpty) {
@@ -5708,22 +5875,86 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                     ),
                                     child: Column(
                                       children: [
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              'Total do Orçamento',
-                                              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-                                            ),
-                                            Text(
-                                              currency.format(_calculateTotal()),
-                                              style: theme.textTheme.titleLarge?.copyWith(
-                                                fontWeight: FontWeight.bold,
-                                                color: theme.colorScheme.primary,
+                                        () {
+                                          final totalSobras = _calcularTotalSobras();
+                                          final totalGeral = _calculateTotal();
+                                          final totalBase = totalGeral - totalSobras;
+                                          return Column(
+                                            children: [
+                                              if (totalSobras > 0) ...[
+                                                Opacity(
+                                                  opacity: _isAprovado ? 0.4 : 1.0,
+                                                  child: Column(
+                                                    children: [
+                                                Row(
+                                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                  children: [
+                                                    Text(
+                                                      'Total do Orçamento',
+                                                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+                                                    ),
+                                                    Text(
+                                                      currency.format(totalBase),
+                                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                                        fontWeight: FontWeight.w600,
+                                                        color: theme.colorScheme.onSurface,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Row(
+                                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                  children: [
+                                                    Row(
+                                                      children: [
+                                                        Icon(Icons.content_cut, size: 14, color: theme.colorScheme.primary),
+                                                        const SizedBox(width: 4),
+                                                        Text(
+                                                          'Sobras',
+                                                          style: theme.textTheme.bodyMedium?.copyWith(
+                                                            fontWeight: FontWeight.w500,
+                                                            color: theme.colorScheme.primary,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    Text(
+                                                      currency.format(totalSobras),
+                                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                                        fontWeight: FontWeight.w600,
+                                                        color: theme.colorScheme.primary,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const Padding(
+                                                  padding: EdgeInsets.symmetric(vertical: 8),
+                                                  child: Divider(height: 1),
+                                                ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                              Row(
+                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                children: [
+                                                  Text(
+                                                    totalSobras > 0 ? 'Total Geral' : 'Total do Orçamento',
+                                                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                                                  ),
+                                                  Text(
+                                                    currency.format(totalGeral),
+                                                    style: theme.textTheme.titleLarge?.copyWith(
+                                                      fontWeight: FontWeight.bold,
+                                                      color: theme.colorScheme.primary,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                            ),
-                                          ],
-                                        ),
+                                            ],
+                                          );
+                                        }(),
                                         if (_valorSugeridoLocal != null) ...[
                                           const SizedBox(height: 12),
                                           Container(
@@ -5763,7 +5994,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                         ),
                                                       ),
                                                       Text(
-                                                        'Margem de ${_valorSugeridoLocal!['margem']}% aplicada',
+                                                        'Margem de ${_valorSugeridoLocal!['margem']}% aplicada ao valor total do orçamento',
                                                         style: theme.textTheme.bodySmall?.copyWith(
                                                           color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                                                           fontSize: 10,

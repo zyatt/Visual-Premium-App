@@ -10,7 +10,8 @@ class PdfService {
       throw new Error('Orçamento não encontrado');
     }
     
-    const dadosPdf = this._prepararDadosOrcamento(orcamento);
+    const valorSugerido = await orcamentoService.calcularValorSugerido(orcamento);
+    const dadosPdf = this._prepararDadosOrcamento(orcamento, valorSugerido);
     const pdfStream = pdfLayout.gerarDocumento(dadosPdf, 'orcamento');
     
     return {
@@ -26,7 +27,8 @@ class PdfService {
       throw new Error('Pedido não encontrado');
     }
     
-    const dadosPdf = this._prepararDadosPedido(pedido);
+    const valorSugerido = await pedidoService.calcularValorSugerido(pedido);
+    const dadosPdf = this._prepararDadosPedido(pedido, valorSugerido);
     const pdfStream = pdfLayout.gerarDocumento(dadosPdf, 'pedido');
     
     return {
@@ -35,11 +37,12 @@ class PdfService {
     };
   }
   
-  _prepararDadosOrcamento(orcamento) {
+  _prepararDadosOrcamento(orcamento, valorSugerido) {
     const totalMateriais = this._calcularTotalMateriais(orcamento.materiais);
     const totalDespesas = this._calcularTotalDespesas(orcamento.despesasAdicionais);
     const totalOpcoes = this._calcularTotalOpcoes(orcamento.opcoesExtras);
-    const totalGeral = totalMateriais + totalDespesas + totalOpcoes;
+    const totalSobras = this._calcularTotalSobras(orcamento.materiais);
+    const totalGeral = totalMateriais + totalDespesas + totalOpcoes + totalSobras;
     
     return {
       numero: orcamento.numero,
@@ -52,25 +55,18 @@ class PdfService {
       despesasAdicionais: this._formatarDespesas(orcamento.despesasAdicionais),
       opcoesExtras: this._formatarOpcoes(orcamento.opcoesExtras),
       total: totalGeral,
-      createdAt: orcamento.createdAt
+      totalSobras: totalSobras,
+      createdAt: orcamento.createdAt,
+      valorSugerido: valorSugerido
     };
   }
   
-  _prepararDadosPedido(pedido) {
+  _prepararDadosPedido(pedido, valorSugerido) {
     const totalMateriais = this._calcularTotalMateriais(pedido.materiais);
     const totalDespesas = this._calcularTotalDespesas(pedido.despesasAdicionais);
     const totalOpcoes = this._calcularTotalOpcoes(pedido.opcoesExtras);
-    const totalFrete = pedido.frete && pedido.freteValor ? pedido.freteValor : 0;
-    
-    let caminhaoMunckHorasConvertidas = 0;
-    let caminhaoMunckTotal = 0;
-    
-    if (pedido.caminhaoMunck && pedido.caminhaoMunckHoras && pedido.caminhaoMunckValorHora) {
-      caminhaoMunckHorasConvertidas = pedido.caminhaoMunckHoras / 60;
-      caminhaoMunckTotal = caminhaoMunckHorasConvertidas * pedido.caminhaoMunckValorHora;
-    }
-    
-    const totalGeral = totalMateriais + totalDespesas + totalOpcoes + totalFrete + caminhaoMunckTotal;
+    const totalSobras = this._calcularTotalSobras(pedido.materiais);
+    const totalGeral = totalMateriais + totalDespesas + totalOpcoes + totalSobras;
     
     return {
       numero: pedido.numero || 'S/N',
@@ -83,14 +79,9 @@ class PdfService {
       despesasAdicionais: this._formatarDespesas(pedido.despesasAdicionais),
       opcoesExtras: this._formatarOpcoes(pedido.opcoesExtras),
       total: totalGeral,
+      totalSobras: totalSobras,
       createdAt: pedido.createdAt,
-      frete: pedido.frete || false,
-      freteDesc: pedido.freteDesc,
-      freteValor: pedido.freteValor,
-      caminhaoMunck: pedido.caminhaoMunck || false,
-      caminhaoMunckHoras: caminhaoMunckHorasConvertidas,
-      caminhaoMunckValorHora: pedido.caminhaoMunckValorHora,
-      caminhaoMunckTotal: caminhaoMunckTotal
+      valorSugerido: valorSugerido
     };
   }
   
@@ -98,6 +89,13 @@ class PdfService {
     return materiais.reduce((sum, mat) => {
       const qty = parseFloat(mat.quantidade.toString().replace(',', '.'));
       return sum + (qty * mat.material.custo);
+    }, 0);
+  }
+  
+  _calcularTotalSobras(materiais) {
+    return materiais.reduce((sum, mat) => {
+      const valorSobra = parseFloat(mat.valorSobra) || 0;
+      return sum + valorSobra;
     }, 0);
   }
   
@@ -112,14 +110,12 @@ class PdfService {
     if (!opcoes || opcoes.length === 0) return 0;
     
     return opcoes.reduce((sum, opcao) => {
-      // Ignorar opções marcadas como "NÃO"
       if (opcao.valorString === '__NAO_SELECIONADO__') {
         return sum;
       }
       
       let valorOpcao = 0;
       
-      // ✅ CORRIGIDO: Acessar opcao.produtoOpcao.tipo em vez de opcao.tipo
       const tipo = opcao.produtoOpcao?.tipo || opcao.tipo;
       
       if (tipo === 'STRINGFLOAT') {
@@ -143,7 +139,10 @@ class PdfService {
       materialNome: m.material.nome,
       materialUnidade: m.material.unidade,
       materialCusto: m.material.custo,
-      quantidade: m.quantidade
+      quantidade: m.quantidade,
+      alturaSobra: m.alturaSobra || null,
+      larguraSobra: m.larguraSobra || null,
+      valorSobra: m.valorSobra || 0
     }));
   }
   

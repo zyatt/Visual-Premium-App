@@ -7,6 +7,7 @@ class AlmoxarifadoMaterialItem {
   final String materialUnidade;
   final double quantidade;
   final double custoRealizado;
+  final double? custoSobrasRealizado;
 
   const AlmoxarifadoMaterialItem({
     required this.id,
@@ -15,13 +16,18 @@ class AlmoxarifadoMaterialItem {
     required this.materialUnidade,
     required this.quantidade,
     required this.custoRealizado,
+    this.custoSobrasRealizado,
   });
 
-  Map<String, Object?> toMap() => {
-    'materialId': materialId,
-    'quantidade': quantidade,
-    'custoRealizado': custoRealizado,
-  };
+  Map<String, Object?> toMap() {
+    final map = <String, Object?>{
+      'materialId': materialId,
+      'quantidade': quantidade,
+      'custoRealizado': custoRealizado,
+    };
+    if (custoSobrasRealizado != null) map['custoSobrasRealizado'] = custoSobrasRealizado;
+    return map;
+  }
 
   static AlmoxarifadoMaterialItem? tryFromMap(Map<String, Object?> map) {
     try {
@@ -33,6 +39,14 @@ class AlmoxarifadoMaterialItem {
 
       if (id == null || materialId == null || quantidade == null || custoRealizado == null) {
         return null;
+      }
+
+      final custoSobrasRealizadoRaw = map['custoSobrasRealizado'];
+      double? custoSobrasRealizado;
+      if (custoSobrasRealizadoRaw != null) {
+        custoSobrasRealizado = (custoSobrasRealizadoRaw is int)
+            ? custoSobrasRealizadoRaw.toDouble()
+            : (custoSobrasRealizadoRaw is double ? custoSobrasRealizadoRaw : null);
       }
 
       String materialNome = '';
@@ -51,6 +65,7 @@ class AlmoxarifadoMaterialItem {
         materialUnidade: materialUnidade,
         quantidade: (quantidade is int) ? quantidade.toDouble() : (quantidade as double),
         custoRealizado: (custoRealizado is int) ? custoRealizado.toDouble() : (custoRealizado as double),
+        custoSobrasRealizado: custoSobrasRealizado,
       );
     } catch (e) {
       return null;

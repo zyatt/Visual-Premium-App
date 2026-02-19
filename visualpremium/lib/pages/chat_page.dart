@@ -293,16 +293,6 @@ class _ChatViewState extends State<_ChatView> {
     super.dispose();
   }
 
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
-  }
-
   Future<void> _enviarMensagem() async {
     final conteudo = _messageController.text.trim();
     if (conteudo.isEmpty || _isSending) return;
@@ -313,10 +303,6 @@ class _ChatViewState extends State<_ChatView> {
     try {
       final chatProvider = Provider.of<ChatProvider>(context, listen: false);
       await chatProvider.enviarMensagem(widget.usuarioId, conteudo);
-      
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottom();
-      });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -344,10 +330,6 @@ class _ChatViewState extends State<_ChatView> {
       (c) => c.usuario.id == widget.usuarioId,
       orElse: () => chatProvider.conversas.first,
     );
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollToBottom();
-    });
 
     return Container(
       decoration: BoxDecoration(
@@ -401,10 +383,11 @@ class _ChatViewState extends State<_ChatView> {
                   )
                 : ListView.builder(
                     controller: _scrollController,
+                    reverse: true,
                     padding: const EdgeInsets.all(20),
                     itemCount: mensagens.length,
                     itemBuilder: (context, index) {
-                      final mensagem = mensagens[index];
+                      final mensagem = mensagens[mensagens.length - 1 - index];
                       final isFromMe = mensagem.remetenteId == authProvider.currentUser?.id;
                       
                       return _MessageBubble(

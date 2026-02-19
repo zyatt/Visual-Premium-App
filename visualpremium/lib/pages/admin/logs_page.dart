@@ -14,10 +14,12 @@ class LogsPage extends StatefulWidget {
 
 class _LogsPageState extends State<LogsPage> {
   final _repository = LogsRepository();
+  final _scrollController = ScrollController();
+  bool _showScrollToTopButton = false;
   List<LogItem> _logs = [];
   bool _isLoading = true;
   String? _error;
-  
+
   String? _filtroEntidade;
   String? _filtroAcao;
   int _currentPage = 1;
@@ -27,6 +29,14 @@ class _LogsPageState extends State<LogsPage> {
   void initState() {
     super.initState();
     _carregarLogs();
+
+    _scrollController.addListener(() {
+      if (_scrollController.offset >= 300 && !_showScrollToTopButton) {
+        setState(() => _showScrollToTopButton = true);
+      } else if (_scrollController.offset < 300 && _showScrollToTopButton) {
+        setState(() => _showScrollToTopButton = false);
+      }
+    });
   }
 
   Future<void> _carregarLogs() async {
@@ -71,6 +81,95 @@ class _LogsPageState extends State<LogsPage> {
     _carregarLogs();
   }
 
+  Future<void> _deletarLog(LogItem log) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Excluir log'),
+        content: Text('Deseja excluir o log "${log.descricao}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Excluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+
+    try {
+      await _repository.deleteLog(log.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Log excluído com sucesso'),
+          behavior: SnackBarBehavior.floating),
+        );
+        _carregarLogs();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao excluir log: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deletarTodosLogs() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Excluir todos os logs'),
+        content: const Text(
+          'Tem certeza que deseja excluir TODOS os logs? Esta ação não pode ser desfeita.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Excluir Todos'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+
+    try {
+      await _repository.deleteAllLogs();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Todos os logs foram excluídos'),
+          behavior: SnackBarBehavior.floating),
+        );
+        setState(() => _currentPage = 1);
+        _carregarLogs();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao excluir logs: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -104,12 +203,6 @@ class _LogsPageState extends State<LogsPage> {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: _isLoading ? null : _carregarLogs,
-                        icon: const Icon(Icons.refresh),
-                        tooltip: 'Atualizar',
-                      ),
                       const SizedBox(width: 12),
                       _buildFiltroDropdown(
                         label: 'Entidade',
@@ -137,6 +230,20 @@ class _LogsPageState extends State<LogsPage> {
                           icon: const Icon(Icons.clear),
                           label: const Text('Limpar'),
                         ),
+                      const SizedBox(width: 12),
+                      // Botão Excluir Todos
+                      if (_logs.isNotEmpty && !_isLoading)
+                        OutlinedButton.icon(
+                          onPressed: _deletarTodosLogs,
+                          icon: const Icon(Icons.delete_sweep_outlined, color: Colors.red),
+                          label: const Text(
+                            'Excluir Todos',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.red),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -160,6 +267,36 @@ class _LogsPageState extends State<LogsPage> {
                 ),
             ],
           ),
+          Positioned(
+            top: 32,
+            right: 32,
+            child: IconButton(
+              onPressed: _isLoading ? null : _carregarLogs,
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Atualizar',
+            ),
+          ),
+          if (_showScrollToTopButton)
+            Positioned(
+              right: 24,
+              bottom: 100,
+              child: AnimatedOpacity(
+                opacity: _showScrollToTopButton ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: FloatingActionButton(
+                  mini: false,
+                  onPressed: () => _scrollController.animateTo(
+                    0,
+                    duration: const Duration(milliseconds: 500),
+                    curve: Curves.easeInOut,
+                  ),
+                  tooltip: 'Voltar ao topo',
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  child: const Icon(Icons.arrow_upward),
+                ),
+              ),
+            ),
           if (_isLoading)
             Positioned(
               top: 0,
@@ -209,11 +346,15 @@ class _LogsPageState extends State<LogsPage> {
 
   Widget _buildLogsList(ThemeData theme) {
     return ListView.builder(
+      controller: _scrollController,
       padding: const EdgeInsets.symmetric(horizontal: 32),
       itemCount: _logs.length,
       itemBuilder: (context, index) {
         final log = _logs[index];
-        return _LogCard(log: log);
+        return _LogCard(
+          log: log,
+          onDelete: () => _deletarLog(log),
+        );
       },
     );
   }
@@ -254,8 +395,9 @@ class _LogsPageState extends State<LogsPage> {
 
 class _LogCard extends StatelessWidget {
   final LogItem log;
+  final VoidCallback onDelete;
 
-  const _LogCard({required this.log});
+  const _LogCard({required this.log, required this.onDelete});
 
   Color _getAcaoColor() {
     switch (log.acao) {
@@ -313,7 +455,7 @@ class _LogCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          
+
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -334,7 +476,7 @@ class _LogCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    
+
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -353,7 +495,7 @@ class _LogCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    
+
                     Text(
                       log.entidadeFormatada,
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -363,7 +505,7 @@ class _LogCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 4),
-                
+
                 Text(
                   log.descricao,
                   style: theme.textTheme.bodyMedium,
@@ -371,7 +513,7 @@ class _LogCard extends StatelessWidget {
               ],
             ),
           ),
-          
+
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -388,6 +530,19 @@ class _LogCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+
+          const SizedBox(width: 8),
+
+          // Botão excluir log individual
+          IconButton(
+            onPressed: onDelete,
+            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Excluir log',
+            color: Colors.red.withValues(alpha: 0.7),
+            style: IconButton.styleFrom(
+              hoverColor: Colors.red.withValues(alpha: 0.1),
+            ),
           ),
         ],
       ),

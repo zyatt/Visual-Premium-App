@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:visualpremium/data/materials_repository.dart';
 import 'package:visualpremium/data/orcamentos_repository.dart';
+import 'package:visualpremium/models/material_item.dart';
 import 'package:visualpremium/models/pedido_item.dart';
 import '../../../theme.dart';
 
@@ -13,6 +15,8 @@ class AlmoxarifadoPage extends StatefulWidget {
 
 class _AlmoxarifadoPageState extends State<AlmoxarifadoPage> {
   final _api = OrcamentosApiRepository();
+  final _scrollController = ScrollController();
+  bool _showScrollToTopButton = false;
   bool _loading = true;
   List<PedidoItem> _pedidosConcluidos = [];
   Map<int, String> _statusAlmoxarifado = {};
@@ -22,6 +26,14 @@ class _AlmoxarifadoPageState extends State<AlmoxarifadoPage> {
   void initState() {
     super.initState();
     _loadPedidosConcluidos();
+
+    _scrollController.addListener(() {
+      if (_scrollController.offset >= 300 && !_showScrollToTopButton) {
+        setState(() => _showScrollToTopButton = true);
+      } else if (_scrollController.offset < 300 && _showScrollToTopButton) {
+        setState(() => _showScrollToTopButton = false);
+      }
+    });
   }
 
   Future<void> _loadPedidosConcluidos() async {
@@ -101,14 +113,17 @@ class _AlmoxarifadoPageState extends State<AlmoxarifadoPage> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: RefreshIndicator(
-        onRefresh: _loadPedidosConcluidos,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      body: Stack(
+        children: [
+          RefreshIndicator(
+            onRefresh: _loadPedidosConcluidos,
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(32.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -136,13 +151,6 @@ class _AlmoxarifadoPageState extends State<AlmoxarifadoPage> {
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Registre os custos efetivos dos materiais e despesas',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
               ),
               const SizedBox(height: 32),
               Container(
@@ -199,9 +207,32 @@ class _AlmoxarifadoPageState extends State<AlmoxarifadoPage> {
                     );
                   },
                 ),
-            ],
+                ],
+              ),
+            ),
           ),
-        ),
+          if (_showScrollToTopButton)
+            Positioned(
+              right: 24,
+              bottom: 100,
+              child: AnimatedOpacity(
+                opacity: _showScrollToTopButton ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: FloatingActionButton(
+                  mini: false,
+                  onPressed: () => _scrollController.animateTo(
+                    0,
+                    duration: const Duration(milliseconds: 500),
+                    curve: Curves.easeInOut,
+                  ),
+                  tooltip: 'Voltar ao topo',
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  child: const Icon(Icons.arrow_upward),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -404,28 +435,49 @@ class _AlmoxarifadoEditorDialog extends StatefulWidget {
 
 class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
   final _api = OrcamentosApiRepository();
+  final _materiaisApi = MaterialsApiRepository();
   final _formKey = GlobalKey<FormState>();
   final FocusNode _dialogFocusNode = FocusNode();
   
+  // Custo realizado por índice de material
   final Map<int, TextEditingController> _materialControllers = {};
   final Map<int, FocusNode> _materialFocusNodes = {};
+
+  // ─── NOVO: custo da sobra realizada por índice de material ───────────────
+  // Só criado para materiais que possuem valorSobra no pedido (>0)
+  final Map<int, TextEditingController> _sobraControllers = {};
+  final Map<int, FocusNode> _sobraFocusNodes = {};
+  // Erros manuais: custo obrigatório quando sobra preenchida
+  final Map<int, String?> _sobraErrors = {};
+  // ─────────────────────────────────────────────────────────────────────────
   
   final Map<int, TextEditingController> _despesaControllers = {};
   final Map<int, FocusNode> _despesaFocusNodes = {};
   
   final Map<int, Map<String, TextEditingController>> _opcaoExtraControllers = {};
   final Map<int, Map<String, FocusNode>> _opcaoExtraFocusNodes = {};
+
+  // Materiais avulsos
+  List<MaterialItem> _todosOsMateriais = [];
+  final List<_MaterialAvulsoEntry> _materiaisAvulsos = [];
   
   bool _saving = false;
   bool _hasChanges = false;
   bool _isShowingDiscardDialog = false;
   bool _loadingData = false;
 
+  // Helper: retorna true se o material no índice [i] tem sobra no pedido
+  bool _materialTemSobra(int index) {
+    final material = widget.pedido.materiais[index];
+    return (material.valorSobra != null && material.valorSobra! > 0);
+  }
+
   @override
   void initState() {
     super.initState();
     _initControllers();
     _loadAlmoxarifadoData();
+    _loadTodosOsMateriais();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _dialogFocusNode.requestFocus();
     });
@@ -435,6 +487,12 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
     for (var i = 0; i < widget.pedido.materiais.length; i++) {
       _materialControllers[i] = TextEditingController();
       _materialFocusNodes[i] = FocusNode();
+
+      // ── NOVO: cria controller de sobra apenas se o material tem sobra ──
+      if (_materialTemSobra(i)) {
+        _sobraControllers[i] = TextEditingController();
+        _sobraFocusNodes[i] = FocusNode();
+      }
     }
 
     for (var i = 0; i < widget.pedido.despesasAdicionais.length; i++) {
@@ -442,11 +500,9 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
       _despesaFocusNodes[i] = FocusNode();
     }
 
-
     for (var i = 0; i < widget.pedido.opcoesExtras.length; i++) {
       final opcao = widget.pedido.opcoesExtras[i];
       
-      // Pular opções extras que foram marcadas como "Não"
       if (opcao.valorString == '__NAO_SELECIONADO__') {
         continue;
       }
@@ -470,6 +526,15 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
           break;
       }
     }
+  }
+
+  Future<void> _loadTodosOsMateriais() async {
+    try {
+      final materiais = await _materiaisApi.fetchMaterials();
+      if (mounted) {
+        setState(() => _todosOsMateriais = materiais);
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadAlmoxarifadoData() async {
@@ -497,6 +562,14 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
             final custo = materialData['custoRealizado'];
             if (custo != null) {
               _materialControllers[i]!.text = custo.toString().replaceAll('.', ',');
+            }
+
+            // ── NOVO: carregar custo da sobra realizada ──
+            if (_materialTemSobra(i) && _sobraControllers[i] != null) {
+              final custoSobra = materialData['custoSobrasRealizado'];
+              if (custoSobra != null) {
+                _sobraControllers[i]!.text = custoSobra.toString().replaceAll('.', ',');
+              }
             }
           }
         }
@@ -547,6 +620,36 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
         }
       }
 
+      // Carregar materiais avulsos
+      final materiaisAvulsosData = almoxData['materiaisAvulsos'] as List?;
+      if (materiaisAvulsosData != null && mounted) {
+        for (final entry in _materiaisAvulsos) {
+          entry.dispose();
+        }
+        _materiaisAvulsos.clear();
+
+        for (final avulso in materiaisAvulsosData) {
+          if (avulso is Map) {
+            final materialId = avulso['materialId'];
+            final materialMap = avulso['material'] as Map?;
+            final quantidade = avulso['quantidade'];
+            final custoRealizado = avulso['custoRealizado'];
+            if (materialId != null && materialMap != null) {
+              final entry = _MaterialAvulsoEntry(
+                materialId: int.parse(materialId.toString()),
+                materialNome: materialMap['nome'] as String? ?? '',
+                materialUnidade: materialMap['unidade'] as String? ?? '',
+              );
+              entry.quantidadeController.text =
+                (quantidade ?? '').toString().replaceAll('.', ',');
+              entry.custoController.text =
+                (custoRealizado ?? '').toString().replaceAll('.', ',');
+              _materiaisAvulsos.add(entry);
+            }
+          }
+        }
+      }
+
       if (mounted) {
         setState(() => _loadingData = false);
       }
@@ -561,6 +664,11 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
   void dispose() {
     _materialControllers.forEach((_, controller) => controller.dispose());
     _materialFocusNodes.forEach((_, node) => node.dispose());
+
+    // ── NOVO: dispose controllers de sobra ──
+    _sobraControllers.forEach((_, controller) => controller.dispose());
+    _sobraFocusNodes.forEach((_, node) => node.dispose());
+
     _despesaControllers.forEach((_, controller) => controller.dispose());
     _despesaFocusNodes.forEach((_, node) => node.dispose());
     
@@ -570,6 +678,10 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
     _opcaoExtraFocusNodes.forEach((_, nodes) {
       nodes.forEach((_, node) => node.dispose());
     });
+    
+    for (final entry in _materiaisAvulsos) {
+      entry.dispose();
+    }
     
     _dialogFocusNode.dispose();
     super.dispose();
@@ -626,7 +738,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
 
   // Verifica se todos os campos obrigatórios estão preenchidos
   bool _todosOsCamposPreenchidos() {
-    // Verificar materiais
+    // Verificar materiais (custo obrigatório; sobra é opcional)
     for (var i = 0; i < widget.pedido.materiais.length; i++) {
       final controller = _materialControllers[i];
       if (controller == null || controller.text.trim().isEmpty) {
@@ -654,7 +766,6 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
     for (var i = 0; i < widget.pedido.opcoesExtras.length; i++) {
       final opcao = widget.pedido.opcoesExtras[i];
       
-      // Pular opções extras que foram marcadas como "Não"
       if (opcao.valorString == '__NAO_SELECIONADO__') {
         continue;
       }
@@ -696,27 +807,80 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
       }
     }
 
+    // Verificar materiais avulsos — apenas custo deve estar preenchido
+    for (final entry in _materiaisAvulsos) {
+      final custo = double.tryParse(entry.custoController.text.replaceAll(',', '.'));
+      if (custo == null || custo < 0) return false;
+      if (entry.custoController.text.trim().isEmpty) return false;
+    }
+
     return true;
   }
 
+  // ── Monta a lista de materiais para envio ao backend ──────────────────────
+  List<Map<String, dynamic>> _buildMateriaisPayload() {
+    final materiais = <Map<String, dynamic>>[];
+    for (var i = 0; i < widget.pedido.materiais.length; i++) {
+      final material = widget.pedido.materiais[i];
+      final controller = _materialControllers[i];
+      if (controller != null && controller.text.isNotEmpty) {
+        final valor = double.tryParse(controller.text.replaceAll(',', '.'));
+        if (valor != null) {
+          final entry = <String, dynamic>{
+            'materialId': material.materialId,
+            'custoRealizado': valor,
+          };
+
+          // ── NOVO: inclui custo da sobra se o material tem sobra e o campo foi preenchido ──
+          if (_materialTemSobra(i)) {
+            final sobraController = _sobraControllers[i];
+            if (sobraController != null && sobraController.text.trim().isNotEmpty) {
+              final valorSobra = double.tryParse(sobraController.text.replaceAll(',', '.'));
+              if (valorSobra != null && valorSobra >= 0) {
+                entry['custoSobrasRealizado'] = valorSobra;
+              }
+            }
+          }
+
+          materiais.add(entry);
+        }
+      }
+    }
+    return materiais;
+  }
+
+  // Verifica se algum material tem sobra preenchida sem custo.
+  // Preenche _sobraErrors e retorna true se há bloqueio.
+  bool _validarParSobraCusto() {
+    bool temErro = false;
+    for (var i = 0; i < widget.pedido.materiais.length; i++) {
+      if (!_materialTemSobra(i)) continue;
+      final sobraController = _sobraControllers[i];
+      final custoController = _materialControllers[i];
+      final sobraPreenchida = sobraController != null &&
+          sobraController.text.trim().isNotEmpty;
+      final custoVazio = custoController == null ||
+          custoController.text.trim().isEmpty;
+      if (sobraPreenchida && custoVazio) {
+        _sobraErrors[i] = 'Preencha o custo do material para salvar';
+        temErro = true;
+      } else {
+        _sobraErrors[i] = null;
+      }
+    }
+    return temErro;
+  }
+
   Future<void> _salvar() async {
+    if (_validarParSobraCusto()) {
+      setState(() {});
+      return;
+    }
+
     setState(() => _saving = true);
 
     try {
-      final materiais = <Map<String, dynamic>>[];
-      for (var i = 0; i < widget.pedido.materiais.length; i++) {
-        final material = widget.pedido.materiais[i];
-        final controller = _materialControllers[i];
-        if (controller != null && controller.text.isNotEmpty) {
-          final valor = double.tryParse(controller.text.replaceAll(',', '.'));
-          if (valor != null) {
-            materiais.add({
-              'materialId': material.materialId,
-              'custoRealizado': valor,
-            });
-          }
-        }
-      }
+      final materiais = _buildMateriaisPayload();
 
       final despesas = <Map<String, dynamic>>[];
       for (var i = 0; i < widget.pedido.despesasAdicionais.length; i++) {
@@ -737,7 +901,6 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
       for (var i = 0; i < widget.pedido.opcoesExtras.length; i++) {
         final opcao = widget.pedido.opcoesExtras[i];
         
-        // Pular opções extras que foram marcadas como "Não"
         if (opcao.valorString == '__NAO_SELECIONADO__') {
           continue;
         }
@@ -779,17 +942,22 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
             break;
         }
 
-        // Só adiciona a opção extra se o usuário preencheu algum valor
         if (hasValue) {
           opcoesExtras.add(opcaoData);
         }
       }
+
+      final avulsosPayload = _materiaisAvulsos.map((e) {
+        final custo = double.tryParse(e.custoController.text.replaceAll(',', '.')) ?? 0;
+        return {'materialId': e.materialId, 'quantidade': 1, 'custoRealizado': custo};
+      }).toList();
 
       await _api.salvarAlmoxarifado(
         widget.pedido.id,
         materiais,
         despesas,
         opcoesExtras,
+        materiaisAvulsos: avulsosPayload,
       );
 
       if (!mounted) return;
@@ -799,15 +967,17 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
         _saving = false;
       });
 
+      final numeroPedido = widget.pedido.numero != null
+          ? '#${widget.pedido.numero}'
+          : '(ID: ${widget.pedido.id})';
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Dados salvos!'),
-          backgroundColor: Colors.blue,
+        SnackBar(
+          content: Text('Almoxarifado - Pedido "$numeroPedido" salvo!'),
+          backgroundColor: Colors.white,
+          behavior: SnackBarBehavior.floating,
         ),
       );
-
-      // Recarregar os dados salvos
-      await _loadAlmoxarifadoData();
     } catch (e) {
       if (!mounted) return;
 
@@ -827,18 +997,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
     setState(() => _saving = true);
 
     try {
-      final materiais = <Map<String, dynamic>>[];
-      for (var i = 0; i < widget.pedido.materiais.length; i++) {
-        final material = widget.pedido.materiais[i];
-        final controller = _materialControllers[i];
-        if (controller != null && controller.text.isNotEmpty) {
-          final valor = double.parse(controller.text.replaceAll(',', '.'));
-          materiais.add({
-            'materialId': material.materialId,
-            'custoRealizado': valor,
-          });
-        }
-      }
+      final materiais = _buildMateriaisPayload();
 
       final despesas = <Map<String, dynamic>>[];
       for (var i = 0; i < widget.pedido.despesasAdicionais.length; i++) {
@@ -853,12 +1012,10 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
         }
       }
 
-
       final opcoesExtras = <Map<String, dynamic>>[];
       for (var i = 0; i < widget.pedido.opcoesExtras.length; i++) {
         final opcao = widget.pedido.opcoesExtras[i];
         
-        // Pular opções extras que foram marcadas como "Não"
         if (opcao.valorString == '__NAO_SELECIONADO__') {
           continue;
         }
@@ -904,21 +1061,32 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
         opcoesExtras.add(opcaoData);
       }
 
+      final avulsosPayloadFinal = _materiaisAvulsos.map((e) {
+        final custo = double.tryParse(e.custoController.text.replaceAll(',', '.')) ?? 0;
+        return {'materialId': e.materialId, 'quantidade': 1, 'custoRealizado': custo};
+      }).toList();
+
       await _api.salvarAlmoxarifado(
         widget.pedido.id,
         materiais,
         despesas,
         opcoesExtras,
+        materiaisAvulsos: avulsosPayloadFinal,
       );
 
       await _api.finalizarAlmoxarifado(widget.pedido.id);
 
       if (!mounted) return;
 
+      final numeroPedido = widget.pedido.numero != null
+          ? '#${widget.pedido.numero}'
+          : '(ID: ${widget.pedido.id})';
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Almoxarifado finalizado!'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: Text('Almoxarifado - Pedido "$numeroPedido" finalizado!'),
+          backgroundColor: Colors.white,
+          behavior: SnackBarBehavior.floating,
         ),
       );
 
@@ -979,6 +1147,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
               ),
           child: Column(
             children: [
+              // ── Header ──
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -1027,6 +1196,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                 ),
               ),
 
+              // ── Body ──
               Expanded(
                 child: _loadingData
                   ? const Center(
@@ -1035,15 +1205,14 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                   : Form(
                   key: _formKey,
                   onChanged: () {
-                    if (!_hasChanges) {
-                      setState(() => _hasChanges = true);
-                    }
+                    setState(() => _hasChanges = true);
                   },
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Banner de finalizado
                         if (widget.isRealizado)
                           Container(
                             padding: const EdgeInsets.all(12),
@@ -1057,7 +1226,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                             ),
                             child: Row(
                               children: [
-                                Icon(
+                                const Icon(
                                   Icons.lock_outline,
                                   size: 20,
                                   color: Colors.orange,
@@ -1104,6 +1273,7 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                           ),
                         const SizedBox(height: 24),
 
+                        // ── Materiais ──────────────────────────────────────
                         if (widget.pedido.materiais.isNotEmpty) ...[
                           Text(
                             'Materiais',
@@ -1121,6 +1291,10 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                             if (controller == null || focusNode == null) {
                               return const SizedBox();
                             }
+
+                            final temSobra = _materialTemSobra(index);
+                            final sobraController = _sobraControllers[index];
+                            final sobraFocusNode = _sobraFocusNodes[index];
                             
                             return Container(
                               margin: const EdgeInsets.only(bottom: 12),
@@ -1135,56 +1309,138 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          material.materialNome,
-                                          style: theme.textTheme.titleSmall?.copyWith(
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                                  // Nome e unidade
+                                  Text(
+                                    material.materialNome,
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  Text(
+                                    material.materialUnidade,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                    ),
                                   ),
                                   const SizedBox(height: 12),
-                                  TextFormField(
-                                    controller: controller,
-                                    focusNode: focusNode,
-                                    enabled: !widget.isRealizado,
-                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                    inputFormatters: [
-                                      FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                    ],
-                                    decoration: const InputDecoration(
-                                      labelText: 'Custo',
-                                      isDense: true,
-                                      prefixText: 'R\$ ',
-                                      contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 10,
+
+                                  // Campos: custo e, se aplicável, custo da sobra
+                                  if (temSobra)
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        // Campo custo principal
+                                        Expanded(
+                                          child: TextFormField(
+                                            controller: controller,
+                                            focusNode: focusNode,
+                                            enabled: !widget.isRealizado,
+                                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                            inputFormatters: [
+                                              FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                            ],
+                                            decoration: InputDecoration(
+                                              labelText: 'Custo',
+                                              isDense: true,
+                                              prefixText: 'R\$ ',
+                                              contentPadding: const EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                                vertical: 10,
+                                              ),
+                                              // Erro manual: aparece só quando sobra preenchida sem custo
+                                              errorText: _sobraErrors[index],
+                                              errorStyle: const TextStyle(fontSize: 11),
+                                            ),
+                                            validator: (v) {
+                                              if (widget.isRealizado) return null;
+                                              if (v != null && v.trim().isNotEmpty) {
+                                                final value = double.tryParse(v.replaceAll(',', '.'));
+                                                if (value == null || value < 0) return 'Valor inválido';
+                                              }
+                                              return null;
+                                            },
+                                            onChanged: (_) {
+                                              // Limpa o erro manual ao digitar
+                                              if (_sobraErrors[index] != null) {
+                                                setState(() => _sobraErrors[index] = null);
+                                              } else {
+                                                setState(() {});
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        // Campo custo da sobra
+                                        Expanded(
+                                          child: TextFormField(
+                                            controller: sobraController,
+                                            focusNode: sobraFocusNode,
+                                            enabled: !widget.isRealizado,
+                                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                            inputFormatters: [
+                                              FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                            ],
+                                            decoration: InputDecoration(
+                                              labelText: 'Custo da Sobra',
+                                              isDense: true,
+                                              prefixText: 'R\$ ',
+                                              contentPadding: const EdgeInsets.symmetric(
+                                                horizontal: 12,
+                                                vertical: 10,
+                                              ),
+                                              helperStyle: TextStyle(
+                                                fontSize: 10,
+                                                color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
+                                              ),
+                                            ),
+                                            validator: (v) {
+                                              if (widget.isRealizado) return null;
+                                              if (v != null && v.trim().isNotEmpty) {
+                                                final value = double.tryParse(v.replaceAll(',', '.'));
+                                                if (value == null || value < 0) return 'Valor inválido';
+                                              }
+                                              return null;
+                                            },
+                                            onChanged: (_) => setState(() {}),
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  else
+                                    // Material sem sobra: apenas o campo de custo
+                                    TextFormField(
+                                      controller: controller,
+                                      focusNode: focusNode,
+                                      enabled: !widget.isRealizado,
+                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                      ],
+                                      decoration: const InputDecoration(
+                                        labelText: 'Custo',
+                                        isDense: true,
+                                        prefixText: 'R\$ ',
+                                        contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 10,
+                                        ),
                                       ),
+                                      validator: (v) {
+                                        if (widget.isRealizado) return null;
+                                        if (v == null || v.trim().isEmpty) return 'Informe o custo';
+                                        final value = double.tryParse(v.replaceAll(',', '.'));
+                                        if (value == null || value < 0) return 'Valor inválido';
+                                        return null;
+                                      },
+                                      onChanged: (_) => setState(() {}),
                                     ),
-                                    validator: (v) {
-                                      if (widget.isRealizado) return null;
-                                      if (v == null || v.trim().isEmpty) {
-                                        return 'Informe o custo';
-                                      }
-                                      final value = double.tryParse(v.replaceAll(',', '.'));
-                                      if (value == null || value < 0) {
-                                        return 'Valor inválido';
-                                      }
-                                      return null;
-                                    },
-                                    onChanged: (_) => setState(() {}),
-                                  ),
                                 ],
                               ),
                             );
                           }),
                         ],
 
+                        // ── Despesas Adicionais ────────────────────────────
                         if (widget.pedido.despesasAdicionais.isNotEmpty) ...[
                           const SizedBox(height: 24),
                           Text(
@@ -1223,7 +1479,6 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
-
                                   const SizedBox(height: 12),
                                   TextFormField(
                                     controller: controller,
@@ -1244,13 +1499,9 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                                     ),
                                     validator: (v) {
                                       if (widget.isRealizado) return null;
-                                      if (v == null || v.trim().isEmpty) {
-                                        return 'Informe o custo';
-                                      }
+                                      if (v == null || v.trim().isEmpty) return 'Informe o custo';
                                       final value = double.tryParse(v.replaceAll(',', '.'));
-                                      if (value == null || value < 0) {
-                                        return 'Custo inválido';
-                                      }
+                                      if (value == null || value < 0) return 'Custo inválido';
                                       return null;
                                     },
                                   ),
@@ -1260,232 +1511,290 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                           }),
                         ],
 
-                        if (widget.pedido.opcoesExtras.isNotEmpty) ...[
-
-                        if (widget.pedido.opcoesExtras.any((o) => 
-                            o.valorString != '__NAO_SELECIONADO__')) ...[
-                          const SizedBox(height: 24),
-                          Text(
-                            'Outros',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                        // ── Materiais Avulsos ──────────────────────────────
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Materiais Adicionais',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 16),
-                          ...List.generate(widget.pedido.opcoesExtras.length, (index) {
-                            final opcao = widget.pedido.opcoesExtras[index];
-                            
-                            // Pular opções extras que foram marcadas como "Não"
-                            if (opcao.valorString == '__NAO_SELECIONADO__') {
-                              return const SizedBox();
-                            }
-                            
-                            final controllers = _opcaoExtraControllers[index];
-                            final focusNodes = _opcaoExtraFocusNodes[index];
-                            
-                            if (controllers == null || focusNodes == null) {
-                              return const SizedBox();
-                            }
-                            
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                                borderRadius: BorderRadius.circular(AppRadius.md),
-                                border: Border.all(
-                                  color: theme.dividerColor.withValues(alpha: 0.1),
+                            if (!widget.isRealizado)
+                              ExcludeFocus(
+                                child: TextButton.icon(
+                                  onPressed: () async {
+                                    final excluirIds = _materiaisAvulsos
+                                        .map((e) => e.materialId)
+                                        .toSet();
+                                    final material = await showDialog<MaterialItem>(
+                                      context: context,
+                                      builder: (_) => _BuscarMaterialDialog(
+                                        materiais: _todosOsMateriais,
+                                        excluirIds: excluirIds,
+                                      ),
+                                    );
+                                    if (material != null) {
+                                      setState(() {
+                                        _materiaisAvulsos.add(_MaterialAvulsoEntry(
+                                          materialId: int.parse(material.id),
+                                          materialNome: material.name,
+                                          materialUnidade: material.unit,
+                                        ));
+                                        _hasChanges = true;
+                                      });
+                                    }
+                                  },
+                                  icon: const Icon(Icons.add, size: 18),
+                                  label: const Text('Adicionar'),
                                 ),
                               ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    opcao.nome,
-                                    style: theme.textTheme.titleSmall?.copyWith(
-                                      fontWeight: FontWeight.w600,
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        if (_materiaisAvulsos.isEmpty && !widget.isRealizado)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Text(
+                              'Nenhum material adicional adicionado',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                              ),
+                            ),
+                          ),
+                        ...List.generate(_materiaisAvulsos.length, (index) {
+                          final entry = _materiaisAvulsos[index];
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                              border: Border.all(
+                                color: theme.colorScheme.primary.withValues(alpha: 0.2),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            entry.materialNome,
+                                            style: theme.textTheme.titleSmall?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          Text(
+                                            entry.materialUnidade,
+                                            style: theme.textTheme.bodySmall?.copyWith(
+                                              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
+                                    if (!widget.isRealizado)
+                                      ExcludeFocus(
+                                        child: IconButton(
+                                          icon: const Icon(Icons.delete_outline, size: 20),
+                                          color: Colors.red.withValues(alpha: 0.7),
+                                          onPressed: () => setState(() {
+                                            _materiaisAvulsos[index].dispose();
+                                            _materiaisAvulsos.removeAt(index);
+                                            _hasChanges = true;
+                                          }),
+                                          padding: EdgeInsets.zero,
+                                          visualDensity: VisualDensity.compact,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                TextFormField(
+                                  controller: entry.custoController,
+                                  enabled: !widget.isRealizado,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                  ],
+                                  decoration: const InputDecoration(
+                                    labelText: 'Custo',
+                                    isDense: true,
+                                    prefixText: 'R\$ ',
+                                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                   ),
-                                  const SizedBox(height: 12),
-                                  
-                                  if (opcao.tipo == TipoOpcaoExtra.stringFloat) ...[
-                                    if (opcao.valorString != null)
-                                      Padding(
-                                        padding: const EdgeInsets.only(bottom: 8),
-                                        child: Text(
-                                          opcao.valorString!,
-                                          style: theme.textTheme.bodySmall?.copyWith(
-                                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                  onChanged: (_) => setState(() => _hasChanges = true),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+
+                        // ── Opções Extras ──────────────────────────────────
+                        if (widget.pedido.opcoesExtras.isNotEmpty) ...[
+                          if (widget.pedido.opcoesExtras.any((o) => 
+                              o.valorString != '__NAO_SELECIONADO__')) ...[
+                            const SizedBox(height: 24),
+                            Text(
+                              'Outros',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            ...List.generate(widget.pedido.opcoesExtras.length, (index) {
+                              final opcao = widget.pedido.opcoesExtras[index];
+                              
+                              if (opcao.valorString == '__NAO_SELECIONADO__') {
+                                return const SizedBox();
+                              }
+                              
+                              final controllers = _opcaoExtraControllers[index];
+                              final focusNodes = _opcaoExtraFocusNodes[index];
+                              
+                              if (controllers == null || focusNodes == null) {
+                                return const SizedBox();
+                              }
+                              
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                                  borderRadius: BorderRadius.circular(AppRadius.md),
+                                  border: Border.all(
+                                    color: theme.dividerColor.withValues(alpha: 0.1),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      opcao.nome,
+                                      style: theme.textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    if (opcao.tipo == TipoOpcaoExtra.stringFloat) ...[
+                                      if (opcao.valorString != null)
+                                        Padding(
+                                          padding: const EdgeInsets.only(bottom: 8),
+                                          child: Text(
+                                            opcao.valorString!,
+                                            style: theme.textTheme.bodySmall?.copyWith(
+                                              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                    TextFormField(
-                                      controller: controllers['valorFloat1'],
-                                      focusNode: focusNodes['valorFloat1'],
-                                      enabled: !widget.isRealizado,
-                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                      ],
-                                      decoration: const InputDecoration(
-                                        labelText: 'Custo',
-                                        isDense: true,
-                                        prefixText: 'R\$ ',
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 10,
+                                      TextFormField(
+                                        controller: controllers['valorFloat1'],
+                                        focusNode: focusNodes['valorFloat1'],
+                                        enabled: !widget.isRealizado,
+                                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                        inputFormatters: [
+                                          FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                        ],
+                                        decoration: const InputDecoration(
+                                          labelText: 'Custo',
+                                          isDense: true,
+                                          prefixText: 'R\$ ',
+                                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                         ),
+                                        validator: (v) {
+                                          if (widget.isRealizado) return null;
+                                          if (v == null || v.trim().isEmpty) return 'Informe o valor';
+                                          final value = double.tryParse(v.replaceAll(',', '.'));
+                                          if (value == null || value < 0) return 'Valor inválido';
+                                          return null;
+                                        },
+                                        onChanged: (_) => setState(() {}),
                                       ),
-                                      validator: (v) {
-                                        if (widget.isRealizado) return null;
-                                        if (v == null || v.trim().isEmpty) {
-                                          return 'Informe o custo';
-                                        }
-                                        final value = double.tryParse(v.replaceAll(',', '.'));
-                                        if (value == null || value < 0) {
-                                          return 'Custo inválido';
-                                        }
-                                        return null;
-                                      },
-                                    ),
-                                  ] else if (opcao.tipo == TipoOpcaoExtra.floatFloat) ...[
-                                    TextFormField(
-                                      controller: controllers['valorFloat1'],
-                                      focusNode: focusNodes['valorFloat1'],
-                                      enabled: !widget.isRealizado,
-                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                      ],
-                                      decoration: const InputDecoration(
-                                        labelText: 'Tempo',
-                                        isDense: true,
-                                        suffixText: 'h',
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 10,
-                                        ),
+                                    ] else if (opcao.tipo == TipoOpcaoExtra.floatFloat ||
+                                               opcao.tipo == TipoOpcaoExtra.percentFloat) ...[
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: TextFormField(
+                                              controller: controllers['valorFloat1'],
+                                              focusNode: focusNodes['valorFloat1'],
+                                              enabled: !widget.isRealizado,
+                                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                              inputFormatters: [
+                                                FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                              ],
+                                              decoration: InputDecoration(
+                                                labelText: opcao.tipo == TipoOpcaoExtra.percentFloat ? 'Percentual (%)' : 'Hora',
+                                                isDense: true,
+                                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                              ),
+                                              validator: (v) {
+                                                if (widget.isRealizado) return null;
+                                                if (v == null || v.trim().isEmpty) return 'Obrigatório';
+                                                final value = double.tryParse(v.replaceAll(',', '.'));
+                                                if (value == null || value < 0) return 'Inválido';
+                                                return null;
+                                              },
+                                              onChanged: (_) => setState(() {}),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: TextFormField(
+                                              controller: controllers['valorFloat2'],
+                                              focusNode: focusNodes['valorFloat2'],
+                                              enabled: !widget.isRealizado,
+                                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                              inputFormatters: [
+                                                FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+                                              ],
+                                              decoration: InputDecoration(
+                                                labelText: opcao.tipo == TipoOpcaoExtra.percentFloat ? 'Total do orçamento (R\$)' : 'Custo',
+                                                
+                                                isDense: true,
+                                                prefixText: 'R\$ ',
+                                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                              ),
+                                              validator: (v) {
+                                                if (widget.isRealizado) return null;
+                                                if (v == null || v.trim().isEmpty) return 'Obrigatório';
+                                                final value = double.tryParse(v.replaceAll(',', '.'));
+                                                if (value == null || value < 0) return 'Inválido';
+                                                return null;
+                                              },
+                                              onChanged: (_) => setState(() {}),
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                      validator: (v) {
-                                        if (widget.isRealizado) return null;
-                                        if (v == null || v.trim().isEmpty) {
-                                          return 'Informe a quantidade';
-                                        }
-                                        final value = double.tryParse(v.replaceAll(',', '.'));
-                                        if (value == null || value < 0) {
-                                          return 'Custo inválido';
-                                        }
-                                        return null;
-                                      },
-                                    ),
-                                    const SizedBox(height: 12),
-                                    TextFormField(
-                                      controller: controllers['valorFloat2'],
-                                      focusNode: focusNodes['valorFloat2'],
-                                      enabled: !widget.isRealizado,
-                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                      ],
-                                      decoration: const InputDecoration(
-                                        labelText: 'Custo',
-                                        isDense: true,
-                                        prefixText: 'R\$ ',
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 10,
-                                        ),
-                                      ),
-                                      validator: (v) {
-                                        if (widget.isRealizado) return null;
-                                        if (v == null || v.trim().isEmpty) {
-                                          return 'Informe o custo';
-                                        }
-                                        final value = double.tryParse(v.replaceAll(',', '.'));
-                                        if (value == null || value < 0) {
-                                          return 'Custo inválido';
-                                        }
-                                        return null;
-                                      },
-                                    ),
-                                  ] else if (opcao.tipo == TipoOpcaoExtra.percentFloat) ...[
-                                    TextFormField(
-                                      controller: controllers['valorFloat1'],
-                                      focusNode: focusNodes['valorFloat1'],
-                                      enabled: !widget.isRealizado,
-                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                      ],
-                                      decoration: const InputDecoration(
-                                        labelText: 'Percentual',
-                                        isDense: true,
-                                        suffixText: '%',
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 10,
-                                        ),
-                                      ),
-                                      validator: (v) {
-                                        if (widget.isRealizado) return null;
-                                        if (v == null || v.trim().isEmpty) {
-                                          return 'Informe o percentual';
-                                        }
-                                        final value = double.tryParse(v.replaceAll(',', '.'));
-                                        if (value == null || value < 0) {
-                                          return 'Custo inválido';
-                                        }
-                                        return null;
-                                      },
-                                    ),
-                                    const SizedBox(height: 12),
-                                    TextFormField(
-                                      controller: controllers['valorFloat2'],
-                                      focusNode: focusNodes['valorFloat2'],
-                                      enabled: !widget.isRealizado,
-                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                      ],
-                                      decoration: const InputDecoration(
-                                        labelText: 'Base de Cálculo',
-                                        isDense: true,
-                                        prefixText: 'R\$ ',
-                                        contentPadding: EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 10,
-                                        ),
-                                      ),
-                                      validator: (v) {
-                                        if (widget.isRealizado) return null;
-                                        if (v == null || v.trim().isEmpty) {
-                                          return 'Informe a base de cálculo';
-                                        }
-                                        final value = double.tryParse(v.replaceAll(',', '.'));
-                                        if (value == null || value < 0) {
-                                          return 'Custo inválido';
-                                        }
-                                        return null;
-                                      },
-                                    ),
+                                    ],
                                   ],
-                                ],
-                              ),
-                            );
+                                ),
+                              );
                             }),
                           ],
                         ],
-                      ]
+                      ],
                     ),
                   ),
                 ),
               ),
 
+              // ── Footer ──
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(AppRadius.lg)),
                   border: Border(
                     top: BorderSide(
                       color: theme.dividerColor.withValues(alpha: 0.1),
@@ -1509,62 +1818,196 @@ class _AlmoxarifadoEditorDialogState extends State<_AlmoxarifadoEditorDialog> {
                     ),
                     if (!widget.isRealizado) ...[
                       const SizedBox(width: 12),
-                      if (!todosPreenchidos)
-                        Expanded(
-                          child: ExcludeFocus(
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                  backgroundColor: theme.colorScheme.primary,
-                                  foregroundColor: theme.colorScheme.onPrimary,
-                                ),
-                              onPressed: _saving ? null : _salvar,
-                              icon: _saving
-                                ? const SizedBox(
-                                  
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Icon(Icons.save),
-                              label: Text(_saving ? 'Salvando...' : 'Salvar'),
+                      Expanded(
+                        child: ExcludeFocus(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: theme.colorScheme.secondary,
+                              foregroundColor: theme.colorScheme.onSecondary,
+                              overlayColor: theme.colorScheme.onSecondary.withValues(alpha: 0.15),
                             ),
-                          ),
-                        )
-                      else
-                        Expanded(
-                          child: ExcludeFocus(
-                            child: ElevatedButton.icon(
-                              onPressed: _saving ? null : _finalizar,
-                              icon: _saving
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Icon(Icons.check),
-                              label: Text(_saving ? 'Finalizando...' : 'Finalizar'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: theme.colorScheme.primary,
-                                foregroundColor: theme.colorScheme.onPrimary,
-                              ),
-                            ),
+                            onPressed: _saving ? null : () async {
+                              await _salvar();
+                            },
+                            icon: _saving
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.save),
+                            label: Text(_saving ? 'Salvando...' : 'Salvar'),
                           ),
                         ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ExcludeFocus(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: theme.colorScheme.primary,
+                              foregroundColor: theme.colorScheme.onPrimary,
+                              overlayColor: theme.colorScheme.onPrimary.withValues(alpha: 0.15),
+                              disabledBackgroundColor: theme.colorScheme.primary.withValues(alpha: 0.4),
+                              disabledForegroundColor: theme.colorScheme.onPrimary.withValues(alpha: 0.6),
+                            ),
+                            onPressed: (_saving || !todosPreenchidos) ? null : _finalizar,
+                            icon: _saving
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.check_circle_outline),
+                            label: Text(_saving ? 'Finalizando...' : 'Finalizar'),
+                          ),
+                        ),
+                      ),
                     ],
                   ],
                 ),
               ),
             ],
           ),
-        ),
+            ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ===== HELPER CLASSES =====
+
+class _MaterialAvulsoEntry {
+  final int materialId;
+  final String materialNome;
+  final String materialUnidade;
+  final TextEditingController quantidadeController = TextEditingController();
+  final TextEditingController custoController = TextEditingController();
+
+  _MaterialAvulsoEntry({
+    required this.materialId,
+    required this.materialNome,
+    required this.materialUnidade,
+  });
+
+  void dispose() {
+    quantidadeController.dispose();
+    custoController.dispose();
+  }
+}
+
+class _BuscarMaterialDialog extends StatefulWidget {
+  final List<MaterialItem> materiais;
+  final Set<int> excluirIds;
+  const _BuscarMaterialDialog({
+    required this.materiais,
+    this.excluirIds = const {},
+  });
+
+  @override
+  State<_BuscarMaterialDialog> createState() => _BuscarMaterialDialogState();
+}
+
+class _BuscarMaterialDialogState extends State<_BuscarMaterialDialog> {
+  String _query = '';
+
+  List<MaterialItem> get _filtered {
+    return widget.materiais.where((m) {
+      if (widget.excluirIds.contains(int.tryParse(m.id))) return false;
+      if (_query.isEmpty) return true;
+      final q = _query.toLowerCase();
+      return m.name.toLowerCase().contains(q) || m.unit.toLowerCase().contains(q);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final filtered = _filtered;
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 480, maxHeight: 520),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Selecionar Material',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              autofocus: true,
+              onChanged: (v) => setState(() => _query = v),
+              decoration: InputDecoration(
+                hintText: 'Buscar material...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                isDense: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: filtered.isEmpty
+                ? Center(
+                    child: Text(
+                      'Nenhum material encontrado',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final material = filtered[index];
+                      return ListTile(
+                        dense: true,
+                        title: Text(
+                          material.name,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        subtitle: Text(material.unit),
+                        trailing: Icon(
+                          Icons.add_circle_outline,
+                          size: 20,
+                          color: theme.colorScheme.primary,
+                        ),
+                        onTap: () => Navigator.of(context).pop(material),
+                      );
+                    },
+                  ),
+            ),
+          ],
         ),
       ),
     );

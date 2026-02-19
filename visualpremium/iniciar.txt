@@ -21,5 +21,5 @@ $env:NODE_ENV="prod"; npx prisma db seed --- ambiente prod
 # flutter clean
 # flutter pub get
 
-flutter build windows -t lib/main_dev.dart - dev
+flutter build windows -t lib/main_dev.dart - dev (obrigatório para testes de atualização)
 flutter build windows -t lib/main.dart - prod

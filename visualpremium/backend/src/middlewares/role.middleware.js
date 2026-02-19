@@ -20,7 +20,7 @@ function adminOnly(req, res, next) {
 }
 
 function almoxarifadoAccess(req, res, next) {
-  return roleMiddleware(['admin', 'almoxarife'])(req, res, next);
+  return roleMiddleware(['admin', 'compras'])(req, res, next);
 }
 
 module.exports = {

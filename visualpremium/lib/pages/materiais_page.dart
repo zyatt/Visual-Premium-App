@@ -520,8 +520,7 @@ class _MaterialsPageState extends State<MaterialsPage> {
       body: Stack(
         children: [
           RefreshIndicator(
-            onRefresh: _load,
-            child: SingleChildScrollView(
+            onRefresh: _load,            child: SingleChildScrollView(
               controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(32.0),
@@ -553,14 +552,6 @@ class _MaterialsPageState extends State<MaterialsPage> {
                             ),
                             Row(
                               children: [
-                                ExcludeFocus(
-                                  child: IconButton(
-                                    onPressed: _load,
-                                    icon: const Icon(Icons.refresh),
-                                    tooltip: 'Atualizar',
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
                                 ExcludeFocus(
                                   child: ElevatedButton.icon(
                                     onPressed: () => _showMaterialEditor(null),
@@ -776,6 +767,17 @@ class _MaterialsPageState extends State<MaterialsPage> {
               ),
             ),
           ),
+          Positioned(
+            top: 32,
+            right: 32,
+            child: ExcludeFocus(
+              child: IconButton(
+                onPressed: _loading ? null : _load,
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Atualizar',
+              ),
+            ),
+          ),
           if (_loading)
             Positioned(
               top: 0,
@@ -793,17 +795,17 @@ class _MaterialsPageState extends State<MaterialsPage> {
             ),
             if (_showScrollToTopButton)
             Positioned(
-              right: 32,
-              bottom: 32,
+              right: 24,
+              bottom: 100, 
               child: AnimatedOpacity(
                 opacity: _showScrollToTopButton ? 1.0 : 0.0,
                 duration: const Duration(milliseconds: 200),
                 child: FloatingActionButton(
+                  mini: false,
                   onPressed: _scrollToTop,
                   tooltip: 'Voltar ao topo',
                   backgroundColor: theme.colorScheme.primary,
                   foregroundColor: theme.colorScheme.onPrimary,
-                  elevation: 4,
                   child: const Icon(Icons.arrow_upward),
                 ),
               ),
@@ -1149,7 +1151,7 @@ class _FilterPanel extends StatelessWidget {
     final theme = Theme.of(context);
     
     return Container(
-      width: 280,
+      width: 240,
       margin: const EdgeInsets.only(top: 72),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1557,13 +1559,11 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
   @override
   void initState() {
     super.initState();
-    final currency = NumberFormat.simpleCurrency(locale: 'pt_BR');
-    
     _initialName = widget.initial?.name ?? '';
     final initialUnit = widget.initial?.unit.trim();
     _initialUnit = (initialUnit != null && _unitOptions.contains(initialUnit)) ? initialUnit : null;
     _initialQuantity = widget.initial?.quantity ?? '';
-    _initialCost = widget.initial == null ? '' : currency.format(widget.initial!.costCents / 100.0);
+    _initialCost = widget.initial == null ? '' : NumberFormat('#,##0.00', 'pt_BR').format(widget.initial!.costCents / 100.0);
     // NOVOS INICIAIS
     _initialAltura = widget.initial?.altura?.toString() ?? '';
     _initialLargura = widget.initial?.largura?.toString() ?? '';
@@ -1985,7 +1985,10 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
                               focusNode: _costFocusNode,
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
                               inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9R\$\s\.,]'))],
-                              decoration: const InputDecoration(labelText: 'Custo (R\$)'),
+                              decoration: InputDecoration(
+                                labelText: 'Custo',
+                                prefixText: 'R\$',
+                              ),
                               validator: (v) => _parseCostToCents(v ?? '') == null ? 'Informe um custo válido' : null,
                               onFieldSubmitted: (_) => _handleSave(),
                             ),

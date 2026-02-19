@@ -16,6 +16,8 @@ class RelatorioPage extends StatefulWidget {
 
 class _RelatoriosPageState extends State<RelatorioPage> {
   final _api = OrcamentosApiRepository();
+  final _scrollController = ScrollController();
+  bool _showScrollToTopButton = false;
   bool _loading = true;
   List<Map<String, dynamic>> _relatorios = [];
   String _searchQuery = '';
@@ -25,6 +27,14 @@ class _RelatoriosPageState extends State<RelatorioPage> {
   void initState() {
     super.initState();
     _loadRelatorios();
+
+    _scrollController.addListener(() {
+      if (_scrollController.offset >= 300 && !_showScrollToTopButton) {
+        setState(() => _showScrollToTopButton = true);
+      } else if (_scrollController.offset < 300 && _showScrollToTopButton) {
+        setState(() => _showScrollToTopButton = false);
+      }
+    });
   }
 
   Future<void> _loadRelatorios() async {
@@ -164,6 +174,12 @@ class _RelatoriosPageState extends State<RelatorioPage> {
   }
 
   @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final currency = NumberFormat.simpleCurrency(locale: 'pt_BR');
@@ -176,6 +192,7 @@ class _RelatoriosPageState extends State<RelatorioPage> {
           RefreshIndicator(
             onRefresh: _loadRelatorios,
             child: SingleChildScrollView(
+              controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(32.0),
               child: Column(
@@ -216,13 +233,6 @@ class _RelatoriosPageState extends State<RelatorioPage> {
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Análise comparativa entre valores orçados e realizados',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                    ),
                   ),
                   const SizedBox(height: 32),
                   Container(
@@ -283,6 +293,27 @@ class _RelatoriosPageState extends State<RelatorioPage> {
               ),
             ),
           ),
+          if (_showScrollToTopButton)
+            Positioned(
+              right: 24,
+              bottom: 100,
+              child: AnimatedOpacity(
+                opacity: _showScrollToTopButton ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: FloatingActionButton(
+                  mini: false,
+                  onPressed: () => _scrollController.animateTo(
+                    0,
+                    duration: const Duration(milliseconds: 500),
+                    curve: Curves.easeInOut,
+                  ),
+                  tooltip: 'Voltar ao topo',
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  child: const Icon(Icons.arrow_upward),
+                ),
+              ),
+            ),
           if (_loading)
             Positioned(
               top: 0,
@@ -628,6 +659,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
     
     final analiseDetalhada = relatorio['analiseDetalhada'] as Map<String, dynamic>? ?? {};
     final materiais = (analiseDetalhada['materiais'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final materiaisAvulsos = (analiseDetalhada['materiaisAvulsos'] as List?)?.cast<Map<String, dynamic>>() ?? [];
     final despesas = (analiseDetalhada['despesas'] as List?)?.cast<Map<String, dynamic>>() ?? [];
     final opcoesExtrasRaw = (analiseDetalhada['opcoesExtras'] as List?)?.cast<Map<String, dynamic>>() ?? [];
     
@@ -719,6 +751,39 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                       ),
                       const SizedBox(height: 16),
                       ...materiais.map((m) => _buildMaterialCard(theme, m)),
+                      const SizedBox(height: 24),
+                    ],
+
+                    if (materiaisAvulsos.isNotEmpty) ...[
+                      Text(
+                        'Materiais Adicionais',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withValues(alpha: 0.07),
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                          border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline, size: 14, color: Colors.blue.shade600),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Itens não previstos no orçamento original',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: Colors.blue.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ...materiaisAvulsos.map((m) => _buildMaterialAvulsoCard(theme, m)),
                       const SizedBox(height: 24),
                     ],
                     
@@ -895,6 +960,96 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
     );
   }
 
+  Widget _buildMaterialAvulsoCard(ThemeData theme, Map<String, dynamic> material) {
+    final nome = material['materialNome'] as String? ?? 'N/A';
+    final unidade = material['unidade'] as String? ?? '';
+    final quantidade = (material['quantidade'] as num?)?.toDouble() ?? 0.0;
+    final custoRealizado = (material['custoRealizado'] as num?)?.toDouble() ?? 0.0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: Colors.blue.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  nome,
+                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'Adicional',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: Colors.blue.shade700,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Qtd', style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    )),
+                    Text('$quantidade $unidade', style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    )),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Custo Realizado', style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    )),
+                    Text(_formatCurrency(custoRealizado), style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    )),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Orçado', style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    )),
+                    Text('–', style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                    )),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMaterialCard(ThemeData theme, Map<String, dynamic> material) {
     final nome = material['materialNome'] as String? ?? 'N/A';
     final valorOrcado = (material['valorOrcado'] as num?)?.toDouble() ?? 0.0;
@@ -902,8 +1057,14 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
     final diferenca = (material['diferenca'] as num?)?.toDouble() ?? 0.0;
     final percentual = (material['percentual'] as num?)?.toDouble() ?? 0.0;
     final status = material['status'] as String? ?? 'igual';
-    
+
+    // Sobras
+    final valorSobraOrcado = (material['valorSobraOrcado'] as num?)?.toDouble();
+    final custoSobrasRealizado = (material['custoSobrasRealizado'] as num?)?.toDouble();
+    final temSobra = valorSobraOrcado != null || custoSobrasRealizado != null;
+
     final statusColor = status == 'abaixo' ? Colors.green : status == 'acima' ? Colors.red : Colors.grey;
+    const sobraColor = Color(0xFF7C3AED);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -918,6 +1079,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Cabeçalho: nome + badge
           Row(
             children: [
               Expanded(
@@ -933,9 +1095,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    color: statusColor.withValues(alpha: 0.3),
-                  ),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -959,23 +1119,22 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
+
+          // Linha principal: Orçado / Realizado / Diferença
           Row(
             children: [
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Orçado',
+                    Text('Orçado',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                       ),
                     ),
                     Text(
                       _formatCurrency(valorOrcado),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
@@ -984,17 +1143,14 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Realizado',
+                    Text('Realizado',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                       ),
                     ),
                     Text(
                       _formatCurrency(custoRealizado),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
@@ -1003,8 +1159,7 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Diferença',
+                    Text('Diferença',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                       ),
@@ -1021,10 +1176,122 @@ class _RelatorioDetalhadoDialog extends StatelessWidget {
               ),
             ],
           ),
+
+          // Linha de sobras (somente quando houver dados)
+          if (temSobra) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: sobraColor.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: sobraColor.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.content_cut, size: 13, color: sobraColor),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Sobras',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: sobraColor,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                  // Orçado sobra
+                  SizedBox(
+                    width: 90,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Orçado',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontSize: 10,
+                            color: sobraColor.withValues(alpha: 0.6),
+                          ),
+                        ),
+                        Text(
+                          valorSobraOrcado != null ? _formatCurrency(valorSobraOrcado) : '–',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                            color: sobraColor.withValues(alpha: 0.8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Realizado sobra
+                  SizedBox(
+                    width: 90,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Realizado',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontSize: 10,
+                            color: sobraColor.withValues(alpha: 0.6),
+                          ),
+                        ),
+                        Text(
+                          custoSobrasRealizado != null ? _formatCurrency(custoSobrasRealizado) : '–',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                            color: sobraColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Diferença sobra (só se ambos presentes)
+                  if (valorSobraOrcado != null && custoSobrasRealizado != null)
+                    Builder(builder: (ctx) {
+                      final dif = custoSobrasRealizado - valorSobraOrcado;
+                      final difColor = dif < 0 ? Colors.green : dif > 0 ? Colors.red : Colors.grey;
+                      final pct = valorSobraOrcado != 0 ? (dif / valorSobraOrcado) * 100 : 0.0;
+                      return SizedBox(
+                        width: 80,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Diferença',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontSize: 10,
+                                color: sobraColor.withValues(alpha: 0.6),
+                              ),
+                            ),
+                            Text(
+                              _formatCurrency(dif.abs()),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 11,
+                                color: difColor,
+                              ),
+                            ),
+                            Text(
+                              '${pct.abs().toStringAsFixed(1)}%',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontSize: 10,
+                                color: difColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
+
 
   Widget _buildDespesaCard(ThemeData theme, Map<String, dynamic> despesa) {
     final descricao = despesa['descricao'] as String? ?? 'N/A';

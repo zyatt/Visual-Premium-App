@@ -66,6 +66,7 @@ class PdfRelatorioService {
       diferencaTotal: relatorio.diferencaTotal || 0,
       percentualTotal: relatorio.percentualTotal || 0,
       materiais: this._formatarMateriais(analise.materiais || []),
+      materiaisAvulsos: this._formatarMateriaisAvulsos(analise.materiaisAvulsos || []),
       despesas: this._formatarDespesas(analise.despesas || []),
       opcoesExtras: this._formatarOpcoesExtras(analise.opcoesExtras || []),
       createdAt: relatorio.createdAt
@@ -79,7 +80,18 @@ class PdfRelatorioService {
       custoRealizadoTotal: m.custoRealizadoTotal || 0,
       diferenca: m.diferenca || 0,
       percentual: m.percentual || 0,
-      status: m.status || 'igual'
+      status: m.status || 'igual',
+      custoSobrasRealizado: m.custoSobrasRealizado != null ? m.custoSobrasRealizado : null,
+      valorSobraOrcado: m.valorSobraOrcado != null ? m.valorSobraOrcado : null,
+    }));
+  }
+  
+  _formatarMateriaisAvulsos(materiaisAvulsos) {
+    return materiaisAvulsos.map(m => ({
+      materialNome: m.materialNome || 'N/A',
+      unidade: m.unidade || '',
+      quantidade: m.quantidade || 0,
+      custoRealizado: m.custoRealizado || 0,
     }));
   }
   

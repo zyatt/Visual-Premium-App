@@ -42,10 +42,6 @@ class _SobraMaterialDialogState extends State<SobraMaterialDialog> {
     return unit == 'm/l' || unit == 'ml' || unit == 'metro linear';
   }
   
-  bool get _isQuantidade {
-    return !_isM2 && !_isMetroLinear;
-  }
-
   @override
   void initState() {
     super.initState();
@@ -172,8 +168,11 @@ class _SobraMaterialDialogState extends State<SobraMaterialDialog> {
     // Custo por unidade do material
     final custoPorUnidade = widget.material.costCents / 100.0;
     
+    // Para metro linear: entrada em mm, converter para metros para o cálculo de custo
+    final quantidadeParaCalculo = _isMetroLinear ? quantidade / 1000.0 : quantidade;
+    
     // Valor bruto da sobra
-    final valorSobraBruto = quantidade * custoPorUnidade;
+    final valorSobraBruto = quantidadeParaCalculo * custoPorUnidade;
     
     // Aplicar imposto
     final divisor = (100 - _percentualImposto) / 100;
@@ -230,7 +229,7 @@ class _SobraMaterialDialogState extends State<SobraMaterialDialog> {
     if (_isM2) {
       return 'Dimensões da Sobra (em milímetros)';
     } else if (_isMetroLinear) {
-      return 'Comprimento da Sobra';
+      return 'Comprimento da Sobra (em milímetros)';
     } else {
       return 'Quantidade da Sobra';
     }
@@ -238,25 +237,11 @@ class _SobraMaterialDialogState extends State<SobraMaterialDialog> {
   
   String _getLabelQuantidade() {
     if (_isMetroLinear) {
-      return 'Comprimento (metros)';
+      return 'Comprimento (mm)';
     }
     return 'Quantidade (${widget.material.unit})';
   }
   
-  String _getHintQuantidade() {
-    if (_isMetroLinear) {
-      return 'Ex: 2.5';
-    }
-    final unit = widget.material.unit.toLowerCase();
-    if (unit.contains('kg')) {
-      return 'Ex: 1.5';
-    }
-    if (unit.contains('l') || unit.contains('litro')) {
-      return 'Ex: 3.0';
-    }
-    return 'Ex: 5';
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -409,7 +394,6 @@ class _SobraMaterialDialogState extends State<SobraMaterialDialog> {
                     ],
                     decoration: InputDecoration(
                       labelText: _getLabelQuantidade(),
-                      hintText: _getHintQuantidade(),
                       prefixIcon: Icon(
                         _isMetroLinear ? Icons.straighten : Icons.inventory_2_outlined,
                         color: theme.colorScheme.primary.withValues(alpha: 0.7),
@@ -433,22 +417,22 @@ class _SobraMaterialDialogState extends State<SobraMaterialDialog> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.green.shade50,
+                      color: theme.colorScheme.primary.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(AppRadius.md),
-                      border: Border.all(color: Colors.green.shade200),
+                      border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.3)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.calculate, color: Colors.green.shade700, size: 20),
+                            Icon(Icons.calculate, color: theme.colorScheme.primary, size: 20),
                             const SizedBox(width: 8),
                             Text(
                               'Cálculo da Sobra',
                               style: theme.textTheme.titleSmall?.copyWith(
                                 fontWeight: FontWeight.w600,
-                                color: Colors.green.shade900,
+                                color: theme.colorScheme.primary,
                               ),
                             ),
                           ],
@@ -460,13 +444,13 @@ class _SobraMaterialDialogState extends State<SobraMaterialDialog> {
                                 '• Custo do material: R\$ ${(widget.material.costCents / 100).toStringAsFixed(2)}/m²\n'
                                 '• Imposto: $_percentualImposto%\n'
                                 '• Valor da sobra: R\$ ${_valorSobraCalculado!.toStringAsFixed(2)}'
-                              : '• Quantidade: ${_quantidadeSobraCtrl.text.replaceAll(',', '.')} ${widget.material.unit}\n'
+                              : '• Quantidade: ${_quantidadeSobraCtrl.text.replaceAll(',', '.')} ${_isMetroLinear ? 'mm' : widget.material.unit}\n'
                                 '• Custo do material: R\$ ${(widget.material.costCents / 100).toStringAsFixed(2)}/${widget.material.unit}\n'
-                                '• Valor bruto: R\$ ${(double.parse(_quantidadeSobraCtrl.text.replaceAll(',', '.')) * (widget.material.costCents / 100)).toStringAsFixed(2)}\n'
+                                '• Valor bruto: R\$ ${(_isMetroLinear ? (double.parse(_quantidadeSobraCtrl.text.replaceAll(',', '.')) / 1000.0) : double.parse(_quantidadeSobraCtrl.text.replaceAll(',', '.'))) * (widget.material.costCents / 100) > 0 ? ((_isMetroLinear ? (double.parse(_quantidadeSobraCtrl.text.replaceAll(',', '.')) / 1000.0) : double.parse(_quantidadeSobraCtrl.text.replaceAll(',', '.'))) * (widget.material.costCents / 100)).toStringAsFixed(2) : "0.00"}\n'
                                 '• Imposto: $_percentualImposto%\n'
                                 '• Valor da sobra: R\$ ${_valorSobraCalculado!.toStringAsFixed(2)}',
                           style: TextStyle(
-                            color: Colors.green.shade800,
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
                             fontSize: 13,
                           ),
                         ),
@@ -493,6 +477,10 @@ class _SobraMaterialDialogState extends State<SobraMaterialDialog> {
                     if (hasValorInicial) const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: theme.colorScheme.primary,
+                          foregroundColor: theme.colorScheme.onPrimary,
+                        ),
                         onPressed: _salvar,
                         child: const Text('Salvar Sobra'),
                       ),
