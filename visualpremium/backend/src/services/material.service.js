@@ -7,7 +7,7 @@ class MaterialService {
   }
 
   async criar(data, user) {
-    const { nome, custo, unidade, quantidade, altura, largura, comprimento } = data;
+    const { nome, custo, unidade, quantidade, altura, largura, comprimento, sobras } = data;
     
     if (nome === undefined || nome === null || 
         custo === undefined || custo === null || 
@@ -20,30 +20,8 @@ class MaterialService {
       throw new Error('Nome não pode estar vazio');
     }
 
-    // VALIDAÇÃO PARA m²
-    if (unidade === 'm²' || unidade === 'm2') {
-      if (!altura || !largura) {
-        throw new Error('Altura e largura são obrigatórios para unidade m²');
-      }
-      const alturaNum = parseFloat(altura);
-      const larguraNum = parseFloat(largura);
-      if (isNaN(alturaNum) || alturaNum <= 0 || isNaN(larguraNum) || larguraNum <= 0) {
-        throw new Error('Altura e largura devem ser números positivos');
-      }
-    }
+    // altura, largura (m²) e comprimento (m/l) são opcionais — preenchidos depois no orçamento
 
-    // VALIDAÇÃO PARA m/l (metro linear)
-    if (unidade === 'm/l' || unidade === 'ml') {
-      if (!comprimento) {
-        throw new Error('Comprimento é obrigatório para unidade m/l');
-      }
-      const comprimentoNum = parseFloat(comprimento);
-      if (isNaN(comprimentoNum) || comprimentoNum <= 0) {
-        throw new Error('Comprimento deve ser um número positivo (em mm)');
-      }
-    }
-
-    const nomeNormalizado = nome.trim().toLowerCase();
     const existente = await prisma.material.findFirst({
       where: {
         nome: {
@@ -72,17 +50,21 @@ class MaterialService {
       custo: custoNum,
       unidade,
       quantidade: quantidadeNum,
+      sobras: sobras === true || sobras === 'true',
     };
 
-    // Adiciona altura e largura apenas se for m²
-    if (unidade === 'm²' || unidade === 'm2') {
-      materialData.altura = parseFloat(altura);
-      materialData.largura = parseFloat(largura);
+    // Adiciona altura e largura se fornecidos (m²)
+    if ((unidade === 'm²' || unidade === 'm2') && altura && largura) {
+      const alturaNum = parseFloat(altura);
+      const larguraNum = parseFloat(largura);
+      if (!isNaN(alturaNum) && alturaNum > 0) materialData.altura = alturaNum;
+      if (!isNaN(larguraNum) && larguraNum > 0) materialData.largura = larguraNum;
     }
 
-    // Adiciona comprimento apenas se for m/l
-    if (unidade === 'm/l' || unidade === 'ml') {
-      materialData.comprimento = parseFloat(comprimento);
+    // Adiciona comprimento se fornecido (m/l)
+    if ((unidade === 'm/l' || unidade === 'ml') && comprimento) {
+      const comprimentoNum = parseFloat(comprimento);
+      if (!isNaN(comprimentoNum) && comprimentoNum > 0) materialData.comprimento = comprimentoNum;
     }
 
     const material = await prisma.material.create({
@@ -103,7 +85,7 @@ class MaterialService {
   }
 
   async atualizar(id, data, user) {
-    const { nome, custo, unidade, quantidade, altura, largura, comprimento } = data;
+    const { nome, custo, unidade, quantidade, altura, largura, comprimento, sobras } = data;
 
     const materialAntigo = await prisma.material.findUnique({
       where: { id }
@@ -113,37 +95,9 @@ class MaterialService {
       throw new Error('Material não encontrado');
     }
 
-    // VALIDAÇÃO PARA m²
-    const unidadeAtualizada = unidade || materialAntigo.unidade;
-    if (unidadeAtualizada === 'm²' || unidadeAtualizada === 'm2') {
-      const alturaFinal = altura !== undefined ? altura : materialAntigo.altura;
-      const larguraFinal = largura !== undefined ? largura : materialAntigo.largura;
-      
-      if (!alturaFinal || !larguraFinal) {
-        throw new Error('Altura e largura são obrigatórios para unidade m²');
-      }
-      const alturaNum = parseFloat(alturaFinal);
-      const larguraNum = parseFloat(larguraFinal);
-      if (isNaN(alturaNum) || alturaNum <= 0 || isNaN(larguraNum) || larguraNum <= 0) {
-        throw new Error('Altura e largura devem ser números positivos');
-      }
-    }
-
-    // VALIDAÇÃO PARA m/l (metro linear)
-    if (unidadeAtualizada === 'm/l' || unidadeAtualizada === 'ml') {
-      const comprimentoFinal = comprimento !== undefined ? comprimento : materialAntigo.comprimento;
-      
-      if (!comprimentoFinal) {
-        throw new Error('Comprimento é obrigatório para unidade m/l');
-      }
-      const comprimentoNum = parseFloat(comprimentoFinal);
-      if (isNaN(comprimentoNum) || comprimentoNum <= 0) {
-        throw new Error('Comprimento deve ser um número positivo (em mm)');
-      }
-    }
+    // altura, largura (m²) e comprimento (m/l) são opcionais — preenchidos depois no orçamento
 
     if (nome) {
-      const nomeNormalizado = nome.trim().toLowerCase();
       const existente = await prisma.material.findFirst({
         where: {
           nome: {
@@ -177,27 +131,40 @@ class MaterialService {
       }
     }
 
+    const unidadeAtualizada = unidade || materialAntigo.unidade;
+
     const updateData = {
       nome: nome ? nome.trim() : undefined,
       custo: custoNum !== undefined ? custoNum : undefined,
       unidade,
       quantidade: quantidadeNum,
+      sobras: sobras !== undefined ? (sobras === true || sobras === 'true') : undefined,
     };
 
-    // Adiciona ou limpa altura/largura baseado na unidade
+    // Gerencia campos dimensionais conforme a unidade
     if (unidadeAtualizada === 'm²' || unidadeAtualizada === 'm2') {
-      if (altura !== undefined) updateData.altura = parseFloat(altura);
-      if (largura !== undefined) updateData.largura = parseFloat(largura);
-      // Limpa comprimento se mudar para m²
+      // Salva altura/largura se fornecidos, senão mantém o valor anterior
+      if (altura !== undefined) {
+        const alturaNum = parseFloat(altura);
+        updateData.altura = (!isNaN(alturaNum) && alturaNum > 0) ? alturaNum : null;
+      }
+      if (largura !== undefined) {
+        const larguraNum = parseFloat(largura);
+        updateData.largura = (!isNaN(larguraNum) && larguraNum > 0) ? larguraNum : null;
+      }
+      // Limpa comprimento ao mudar para m²
       updateData.comprimento = null;
     } else if (unidadeAtualizada === 'm/l' || unidadeAtualizada === 'ml') {
-      // Adiciona comprimento para m/l
-      if (comprimento !== undefined) updateData.comprimento = parseFloat(comprimento);
-      // Limpa altura/largura se mudar para m/l
+      // Salva comprimento se fornecido, senão mantém o valor anterior
+      if (comprimento !== undefined) {
+        const comprimentoNum = parseFloat(comprimento);
+        updateData.comprimento = (!isNaN(comprimentoNum) && comprimentoNum > 0) ? comprimentoNum : null;
+      }
+      // Limpa altura/largura ao mudar para m/l
       updateData.altura = null;
       updateData.largura = null;
     } else {
-      // Se mudou para outra unidade, limpa todos os campos dimensionais
+      // Outra unidade: limpa todos os campos dimensionais
       updateData.altura = null;
       updateData.largura = null;
       updateData.comprimento = null;

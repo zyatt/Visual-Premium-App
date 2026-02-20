@@ -223,6 +223,7 @@ model Material {
   altura                Float?                 // Para m²
   largura               Float?                 // Para m²
   comprimento           Float?                 // Para m/l (metro linear) em mm
+  sobras      Boolean  @default(false)  // ← adicione esta linha
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   almoxarifadoMaterials AlmoxarifadoMaterial[]
@@ -252,6 +253,9 @@ model OrcamentoMaterial {
   materialId  Int
   quantidade  Float
   custo       Float
+  altura      Float?    // Altura do material em mm (para m²) — preenchida no orçamento
+  largura     Float?    // Largura do material em mm (para m²) — preenchida no orçamento
+  comprimento Float?    // Comprimento do material em mm (para m/l) — preenchido no orçamento
   alturaSobra Float?    // Altura da sobra em mm (para m²)
   larguraSobra Float?   // Largura da sobra em mm (para m²)
   valorSobra  Float?    // Valor calculado da sobra
@@ -267,6 +271,9 @@ model PedidoMaterial {
   materialId Int
   quantidade Float
   custo      Float
+  altura      Float?    // Altura do material em mm (para m²)
+  largura     Float?    // Largura do material em mm (para m²)
+  comprimento Float?    // Comprimento do material em mm (para m/l)
   alturaSobra Float?    // Altura da sobra em mm (para m²)
   larguraSobra Float?   // Largura da sobra em mm (para m²)
   valorSobra  Float?    // Valor calculado da sobra

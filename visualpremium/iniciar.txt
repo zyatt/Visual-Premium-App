@@ -10,7 +10,8 @@ flutter run -t lib/main.dart        [frontend]
 
 $env:NODE_ENV="dev"; npm run dev    [backend]
 
-flutter run -t lib/main_dev.dart    [frontend]
+flutter run -d windows -t lib/main_dev.dart                    [windows]
+flutter run -d adb-RX8X705YEYZ-L1ZK1g._adb-tls-connect._tcp    [android]
 
 \\\\\\\\\\\ CRIAR PRIMEIRO ADMIN \\\\\\\\\\\\\\\
 

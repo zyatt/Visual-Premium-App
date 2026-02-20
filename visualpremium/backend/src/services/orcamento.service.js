@@ -440,7 +440,29 @@ class OrcamentoService {
             quantidade: quantidadeNum,
             custo: material.material.custo,
           };
+
+          // ✅ ADICIONAR ESTES TRÊS BLOCOS:
+          if (m.altura !== undefined && m.altura !== null) {
+            materialValidado.altura = parseFloat(m.altura);
+          }
+          if (m.largura !== undefined && m.largura !== null) {
+            materialValidado.largura = parseFloat(m.largura);
+          }
+          if (m.comprimento !== undefined && m.comprimento !== null) {
+            materialValidado.comprimento = parseFloat(m.comprimento);
+          }
           
+          // Dimensões do material preenchidas no orçamento
+          if (m.altura !== undefined && m.altura !== null) {
+            materialValidado.altura = parseFloat(m.altura);
+          }
+          if (m.largura !== undefined && m.largura !== null) {
+            materialValidado.largura = parseFloat(m.largura);
+          }
+          if (m.comprimento !== undefined && m.comprimento !== null) {
+            materialValidado.comprimento = parseFloat(m.comprimento);
+          }
+
           if (m.alturaSobra !== undefined && m.alturaSobra !== null) {
             materialValidado.alturaSobra = parseFloat(m.alturaSobra);
           }
@@ -757,6 +779,17 @@ class OrcamentoService {
             quantidade: quantidadeNum,
             custo: material.material.custo,
           };
+
+          // Dimensões do material preenchidas no orçamento
+          if (m.altura !== undefined && m.altura !== null) {
+            materialValidado.altura = parseFloat(m.altura);
+          }
+          if (m.largura !== undefined && m.largura !== null) {
+            materialValidado.largura = parseFloat(m.largura);
+          }
+          if (m.comprimento !== undefined && m.comprimento !== null) {
+            materialValidado.comprimento = parseFloat(m.comprimento);
+          }
           
           if (m.alturaSobra !== undefined && m.alturaSobra !== null) {
             materialValidado.alturaSobra = parseFloat(m.alturaSobra);

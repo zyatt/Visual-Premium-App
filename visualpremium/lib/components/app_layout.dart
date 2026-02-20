@@ -7,29 +7,358 @@ import '../config/settings_dialog.dart';
 import '../providers/auth_provider.dart';
 import 'package:visualpremium/widgets/chat_overlay.dart';
 
-class AppLayout extends StatelessWidget {
+class AppLayout extends StatefulWidget {
   final Widget child;
 
   const AppLayout({super.key, required this.child});
 
   @override
+  State<AppLayout> createState() => _AppLayoutState();
+}
+
+class _AppLayoutState extends State<AppLayout> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 900;
+
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: isMobile ? _buildDrawer(context) : null,
       body: Stack(
         children: [
           Row(
             children: [
-              const _Sidebar(),
+              if (!isMobile) const _Sidebar(),
               Expanded(
-                child: Container(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  child: child,
+                child: Column(
+                  children: [
+                    if (isMobile) _buildMobileAppBar(context),
+                    Expanded(
+                      child: Container(
+                        color: Theme.of(context).scaffoldBackgroundColor,
+                        child: widget.child,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
           const ChatOverlay(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMobileAppBar(BuildContext context) {
+    final theme = Theme.of(context);
+    final authProvider = Provider.of<AuthProvider>(context);
+
+    return Container(
+      height: 60,
+      decoration: BoxDecoration(
+        color: theme.brightness == Brightness.dark 
+            ? const Color(0xFF252323) 
+            : Colors.white,
+        border: Border(
+          bottom: BorderSide(
+            color: theme.dividerColor.withValues(alpha: 0.1),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          ),
+          const SizedBox(width: 8),
+          Image.asset(
+            'assets/images/logo.png',
+            width: 24,
+            height: 24,
+            fit: BoxFit.contain,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Visual Premium',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.onSurface,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: CircleAvatar(
+              radius: 16,
+              backgroundColor: theme.colorScheme.primary,
+              child: Text(
+                authProvider.currentUser?.username.substring(0, 1).toUpperCase() ?? 'U',
+                style: TextStyle(
+                  color: theme.colorScheme.onPrimary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDrawer(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final authProvider = Provider.of<AuthProvider>(context);
+
+    return Drawer(
+      backgroundColor: isDark ? const Color(0xFF252323) : Colors.white,
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Row(
+                children: [
+                  Image.asset(
+                    'assets/images/logo.png',
+                    width: 28,
+                    height: 28,
+                    fit: BoxFit.contain,
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      'Visual Premium',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 24),
+
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  _NavItem(
+                    icon: Icons.dashboard_outlined,
+                    label: 'Início',
+                    route: '/',
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  _NavItem(
+                    icon: Icons.attach_money_rounded,
+                    label: 'Orçamentos',
+                    route: '/orcamentos',
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  _NavItem(
+                    icon: Icons.shopping_cart_outlined,
+                    label: 'Relações de Compras',
+                    route: '/pedidos',
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  if (!authProvider.isOrcamentista) ...[
+                    _NavItem(
+                      icon: Icons.inventory_2_outlined,
+                      label: 'Produtos',
+                      route: '/produtos',
+                      onTap: () => Navigator.pop(context),
+                    ),
+                    _NavItem(
+                      icon: Icons.construction_outlined,
+                      label: 'Materiais',
+                      route: '/materiais',
+                      onTap: () => Navigator.pop(context),
+                    ),
+                  ],
+                  _NavItem(
+                    icon: Icons.chat,
+                    label: 'Chat',
+                    route: '/chat',
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  if (authProvider.hasAlmoxarifadoAccess || authProvider.isAdmin) ...[
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Text(
+                        'ADMINISTRAÇÃO',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    
+                    if (authProvider.hasAlmoxarifadoAccess)
+                      _NavItem(
+                        icon: Icons.inventory_2,
+                        label: 'Almoxarifado',
+                        route: '/almoxarifado',
+                        onTap: () => Navigator.pop(context),
+                      ),
+                    
+                    if (authProvider.isAdmin)
+                      _NavItem(
+                        icon: Icons.admin_panel_settings,
+                        label: 'Painel Admin',
+                        route: '/admin',
+                        onTap: () => Navigator.pop(context),
+                      ),
+                  ],
+                ],
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  ClickableInk(
+                    onTap: () {
+                      Navigator.pop(context);
+                      SettingsDialog.show(context);
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    hoverColor: theme.colorScheme.primary.withValues(alpha: 0.05),
+                    child: Ink(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor: theme.colorScheme.primary,
+                            child: Text(
+                              authProvider.currentUser?.username.substring(0, 1).toUpperCase() ?? 'U',
+                              style: TextStyle(
+                                color: theme.colorScheme.onPrimary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  authProvider.currentUser?.username ?? 'Usuário',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  authProvider.roleLabel,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.7),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.settings,
+                            size: 18,
+                            color: theme.iconTheme.color?.withValues(alpha: 0.7),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 8),
+
+                  ClickableInk(
+                    onTap: () async {
+                      Navigator.pop(context);
+                      final router = GoRouter.of(context);
+                      
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        barrierDismissible: true,
+                        builder: (dialogContext) => AlertDialog(
+                          title: const Text('Sair'),
+                          content: const Text('Deseja realmente sair do sistema?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(dialogContext).pop(false),
+                              child: const Text('Cancelar'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.of(dialogContext).pop(true),
+                              style: TextButton.styleFrom(
+                                foregroundColor: theme.colorScheme.error,
+                              ),
+                              child: const Text('Sair'),
+                            ),
+                          ],
+                        ),
+                      );
+                      
+                      if (confirm == true && context.mounted) {
+                        await authProvider.logout();
+                        router.go('/login');
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    hoverColor: theme.colorScheme.error.withValues(alpha: 0.05),
+                    child: Ink(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.logout,
+                            size: 18,
+                            color: theme.colorScheme.error,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Sair',
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: theme.colorScheme.error,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -119,10 +448,10 @@ class _Sidebar extends StatelessWidget {
                   ),
                 ],
                 _NavItem(
-                    icon: Icons.chat,
-                    label: 'Chat',
-                    route: '/chat',
-                  ),
+                  icon: Icons.chat,
+                  label: 'Chat',
+                  route: '/chat',
+                ),
                 if (authProvider.hasAlmoxarifadoAccess || authProvider.isAdmin) ...[
                   const SizedBox(height: 16),
                   Padding(
@@ -163,7 +492,7 @@ class _Sidebar extends StatelessWidget {
                 ClickableInk(
                   onTap: () => SettingsDialog.show(context),
                   borderRadius: BorderRadius.circular(12),
-                  hoverColor: colorScheme.primary.withValues(alpha: 0.05),  // <-- Adicione esta linha
+                  hoverColor: colorScheme.primary.withValues(alpha: 0.05),
                   child: Ink(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -247,7 +576,7 @@ class _Sidebar extends StatelessWidget {
                     }
                   },
                   borderRadius: BorderRadius.circular(12),
-                  hoverColor: colorScheme.error.withValues(alpha: 0.05),  // <-- Adicione esta linha
+                  hoverColor: colorScheme.error.withValues(alpha: 0.05),
                   child: Ink(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
@@ -288,11 +617,13 @@ class _NavItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final String route;
+  final VoidCallback? onTap;
 
   const _NavItem({
     required this.icon,
     required this.label,
     required this.route,
+    this.onTap,
   });
 
   @override
@@ -304,29 +635,33 @@ class _NavItem extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
-        child: ClickableInk(
-          onTap: () => context.go(route),
-          borderRadius: BorderRadius.circular(10),
-          hoverColor: colorScheme.primary.withValues(alpha: 0.05),
-          splashColor: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
+      child: ClickableInk(
+        onTap: () {
+          context.go(route);
+          onTap?.call();
+        },
+        borderRadius: BorderRadius.circular(10),
+        hoverColor: colorScheme.primary.withValues(alpha: 0.05),
+        splashColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isActive ? colorScheme.primary.withValues(alpha: 0.1) : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
               color: isActive ? colorScheme.primary.withValues(alpha: 0.1) : Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: isActive ? colorScheme.primary.withValues(alpha: 0.1) : Colors.transparent,
-              ),
             ),
-            child: Row(
-              children: [
-                Icon(
-                  icon,
-                  size: 20,
-                  color: isActive ? colorScheme.primary : colorScheme.onSurface.withValues(alpha: 0.7),
-                ),
-                const SizedBox(width: 12),
-                Text(
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: isActive ? colorScheme.primary : colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
                   label,
                   style: GoogleFonts.inter(
                     fontSize: 14,
@@ -334,21 +669,21 @@ class _NavItem extends StatelessWidget {
                     color: isActive ? colorScheme.primary : colorScheme.onSurface.withValues(alpha: 0.7),
                   ),
                 ),
-                if (isActive) ...[
-                  const Spacer(),
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: colorScheme.primary,
-                      shape: BoxShape.circle,
-                    ),
+              ),
+              if (isActive) ...[
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary,
+                    shape: BoxShape.circle,
                   ),
-                ],
+                ),
               ],
-            ),
+            ],
           ),
         ),
+      ),
     );
   }
 }

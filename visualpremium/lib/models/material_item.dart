@@ -9,6 +9,7 @@ class MaterialItem {
   final double? altura;        // Para m² (mm)
   final double? largura;       // Para m² (mm)
   final double? comprimento;   // Para m/l (mm)
+  final bool sobras;           // Indica se o material gera sobras
   final DateTime createdAt;
   final DateTime? updatedAt;
 
@@ -21,6 +22,7 @@ class MaterialItem {
     this.altura,
     this.largura,
     this.comprimento,
+    this.sobras = false,
     required this.createdAt,
     this.updatedAt,
   });
@@ -33,6 +35,7 @@ class MaterialItem {
     double? altura,
     double? largura,
     double? comprimento,
+    bool? sobras,
     DateTime? updatedAt,
   }) =>
       MaterialItem(
@@ -44,6 +47,7 @@ class MaterialItem {
         altura: altura ?? this.altura,
         largura: largura ?? this.largura,
         comprimento: comprimento ?? this.comprimento,
+        sobras: sobras ?? this.sobras,
         createdAt: createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
       );
@@ -54,6 +58,7 @@ class MaterialItem {
       'unidade': unit,
       'custo': costCents / 100.0,
       'quantidade': double.tryParse(quantity) ?? 0,
+      'sobras': sobras,
     };
     
     if (altura != null) map['altura'] = altura!;
@@ -73,6 +78,7 @@ class MaterialItem {
       final alturaRaw = map['altura'];
       final larguraRaw = map['largura'];
       final comprimentoRaw = map['comprimento'];
+      final sobrasRaw = map['sobras'];
       
       final createdAtRaw = map['created_at'] ?? 
                           map['createdAt'] ?? 
@@ -139,6 +145,14 @@ class MaterialItem {
         }
       }
 
+      // Parse sobras
+      bool sobras = false;
+      if (sobrasRaw is bool) {
+        sobras = sobrasRaw;
+      } else if (sobrasRaw is int) {
+        sobras = sobrasRaw != 0;
+      }
+
       DateTime? createdAt;
       DateTime? updatedAt;
 
@@ -171,6 +185,7 @@ class MaterialItem {
         altura: altura,
         largura: largura,
         comprimento: comprimento,
+        sobras: sobras,
         createdAt: createdAt ?? DateTime.now(),
         updatedAt: updatedAt,
       );
@@ -202,6 +217,6 @@ class MaterialItem {
 
   @override
   String toString() {
-    return 'MaterialItem(id: $id, name: $name, unit: $unit, altura: $altura, largura: $largura, comprimento: $comprimento, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'MaterialItem(id: $id, name: $name, unit: $unit, altura: $altura, largura: $largura, comprimento: $comprimento, sobras: $sobras, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 }

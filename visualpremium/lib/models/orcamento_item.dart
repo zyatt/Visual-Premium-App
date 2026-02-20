@@ -244,14 +244,29 @@ class OrcamentoMaterialItem {
   });
 
   double get total {
-    double baseTotal = materialCusto * quantidade;
-    // Adiciona valor da sobra ao total
-    if (valorSobra != null) {
+    // Calcula fator de dimensão conforme unidade do material
+    final unidade = materialUnidade.toLowerCase();
+    double dimensaoFator;
+    if (unidade == 'm/l' || unidade == 'ml') {
+      // comprimento em mm → converte para metros
+      dimensaoFator = (comprimento ?? 0.0) / 1000.0;
+    } else if (unidade == 'm²' || unidade == 'm2') {
+      // altura × largura em mm² → converte para m²
+      dimensaoFator = ((altura ?? 0.0) * (largura ?? 0.0)) / 1000000.0;
+    } else {
+      dimensaoFator = 1.0;
+    }
+    double baseTotal = materialCusto * dimensaoFator * quantidade;
+    // Adiciona valor da sobra ao total (ignora sentinela -1 = "Não selecionado")
+    if (valorSobra != null && valorSobra! > 0) {
       baseTotal += valorSobra!;
     }
     return baseTotal;
   }
   
+  // Indica se o usuário selecionou "Não" para sobras (sentinela -1)
+  bool get sobraRecusada => valorSobra == -1;
+
   // Indica se o material tem sobra configurada
   bool get temSobra {
     // m² usa altura e largura
@@ -300,6 +315,11 @@ class OrcamentoMaterialItem {
       'quantidade': quantidade,
     };
     
+    // Dimensões do material (preenchidas no orçamento)
+    if (altura != null) map['altura'] = altura!;
+    if (largura != null) map['largura'] = largura!;
+    if (comprimento != null) map['comprimento'] = comprimento!;
+    
     // Para m²: envia alturaSobra e larguraSobra
     // Para m/l e outras unidades: quantidadeSobra é mapeado para alturaSobra no banco
     final isM2 = materialUnidade.toLowerCase() == 'm²' || materialUnidade.toLowerCase() == 'm2';
@@ -345,9 +365,9 @@ class OrcamentoMaterialItem {
       double? largura;
       double? comprimento;
       
-      final alturaRaw = materialMap['altura'];
-      final larguraRaw = materialMap['largura'];
-      final comprimentoRaw = materialMap['comprimento'];
+      final alturaRaw = map['altura'] ?? materialMap['altura'];
+      final larguraRaw = map['largura'] ?? materialMap['largura'];
+      final comprimentoRaw = map['comprimento'] ?? materialMap['comprimento'];
       
       if (alturaRaw != null) {
         if (alturaRaw is num) {
@@ -558,20 +578,22 @@ class ProdutoMaterialItem {
   final String materialNome;
   final String materialUnidade;
   final double materialCusto;
-  final double? altura;      // NOVO CAMPO
-  final double? largura;     // NOVO CAMPO
+  final double? altura;
+  final double? largura;
   final double? comprimento; // Para m/l: comprimento em mm
   final double? materialEstoque; // Quantidade em estoque
+  final bool sobras; // Indica se o material gera sobras
 
   const ProdutoMaterialItem({
     required this.materialId,
     required this.materialNome,
     required this.materialUnidade,
     required this.materialCusto,
-    this.altura,               // NOVO CAMPO
-    this.largura,              // NOVO CAMPO
+    this.altura,
+    this.largura,
     this.comprimento,
     this.materialEstoque,
+    this.sobras = false,
   });
 
   static ProdutoMaterialItem? tryFromMap(Map<String, Object?> map) {
@@ -644,6 +666,7 @@ class ProdutoMaterialItem {
         largura: largura,
         comprimento: comprimento,
         materialEstoque: materialEstoque,
+        sobras: materialMap['sobras'] == true || materialMap['sobras'] == 1,
       );
     } catch (e) {
       return null;
@@ -783,9 +806,20 @@ class OrcamentoItem {
     return total;
   }
 
-  /// Materiais sem sobras (apenas custo × quantidade).
+  /// Materiais sem sobras (custo × dimensão × quantidade).
   double get totalMateriaisSemSobras {
-    return materiais.fold(0.0, (sum, item) => sum + item.materialCusto * item.quantidade);
+    return materiais.fold(0.0, (sum, item) {
+      final unidade = item.materialUnidade.toLowerCase();
+      double dimFator;
+      if (unidade == 'm/l' || unidade == 'ml') {
+        dimFator = (item.comprimento ?? 0.0) / 1000.0;
+      } else if (unidade == 'm²' || unidade == 'm2') {
+        dimFator = ((item.altura ?? 0.0) * (item.largura ?? 0.0)) / 1000000.0;
+      } else {
+        dimFator = 1.0;
+      }
+      return sum + item.materialCusto * dimFator * item.quantidade;
+    });
   }
 
   /// Base de cálculo para opções percentuais:

@@ -6,10 +6,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:visualpremium/data/orcamentos_repository.dart';
 import 'package:visualpremium/data/faixas_custo_repository.dart';
+import 'package:visualpremium/data/imposto_sobra_repository.dart';
 import 'package:visualpremium/models/orcamento_item.dart';
-import 'package:visualpremium/models/material_item.dart';
 import 'package:visualpremium/widgets/clickable_ink.dart';
-import 'package:visualpremium/widgets/sobra_material_dialog.dart';
 
 import '../theme.dart';
 
@@ -2523,13 +2522,33 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     // ✅ CORREÇÃO: Calcular total BASE (sem sobras)
     double custoTotalBase = 0;
     
-    // Materiais (sem sobras)
+    // Materiais (sem sobras), considerando dimensões
     if (_selectedProduto != null) {
       for (final mat in _selectedProduto!.materiais) {
         final controller = _quantityControllers[mat.materialId];
         if (controller != null) {
           final qty = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0.0;
-          custoTotalBase += mat.materialCusto * qty;
+          final isM2vs = mat.materialUnidade.toLowerCase() == 'm²' || mat.materialUnidade.toLowerCase() == 'm2';
+          final isMlVs = mat.materialUnidade.toLowerCase() == 'm/l' || mat.materialUnidade.toLowerCase() == 'ml';
+          double dimFatorVs = 1.0;
+          if (isMlVs) {
+            final compCtrl = _comprimentoControllers[mat.materialId];
+            final compVal = compCtrl != null && compCtrl.text.trim().isNotEmpty
+                ? (double.tryParse(compCtrl.text.trim().replaceAll(',', '.')) ?? 0.0)
+                : 0.0;
+            dimFatorVs = compVal / 1000.0;
+          } else if (isM2vs) {
+            final altCtrl = _alturaControllers[mat.materialId];
+            final largCtrl = _larguraControllers[mat.materialId];
+            final altVal = altCtrl != null && altCtrl.text.trim().isNotEmpty
+                ? (double.tryParse(altCtrl.text.trim().replaceAll(',', '.')) ?? 0.0)
+                : 0.0;
+            final largVal = largCtrl != null && largCtrl.text.trim().isNotEmpty
+                ? (double.tryParse(largCtrl.text.trim().replaceAll(',', '.')) ?? 0.0)
+                : 0.0;
+            dimFatorVs = (altVal * largVal) / 1000000.0;
+          }
+          custoTotalBase += mat.materialCusto * dimFatorVs * qty;
           // ❌ NÃO adiciona sobra aqui
         }
       }
@@ -2635,60 +2654,105 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
   }
   
   // Método para configurar sobra de material
-  Future<void> _configurarSobraMaterial(ProdutoMaterialItem produtoMaterial) async {
-    if (_isAprovado) return;
-    
-    // Criar MaterialItem a partir do ProdutoMaterialItem
-    final material = MaterialItem(
-      id: produtoMaterial.materialId.toString(),
-      name: produtoMaterial.materialNome,
-      unit: produtoMaterial.materialUnidade,
-      costCents: (produtoMaterial.materialCusto * 100).round(),
-      quantity: '1',
-      altura: produtoMaterial.altura,
-      largura: produtoMaterial.largura,
-      createdAt: DateTime.now(),
-    );
-    
-    final resultado = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => SobraMaterialDialog(
-        material: material,
-        alturaSobraInicial: _materialSobrasAltura[produtoMaterial.materialId],
-        larguraSobraInicial: _materialSobrasLargura[produtoMaterial.materialId],
-        quantidadeSobraInicial: _materialSobrasQuantidade[produtoMaterial.materialId],
-      ),
-    );
-    
-    if (resultado != null) {
-      setState(() {
-        // Limpar sobras antigas primeiro
-        _materialSobrasAltura.remove(produtoMaterial.materialId);
-        _materialSobrasLargura.remove(produtoMaterial.materialId);
-        _materialSobrasQuantidade.remove(produtoMaterial.materialId);
-        _materialSobrasValor.remove(produtoMaterial.materialId);
-        
-        // Adicionar sobras novas se existirem
-        if (resultado['alturaSobra'] != null && resultado['larguraSobra'] != null) {
-          // m² usa altura e largura
-          _materialSobrasAltura[produtoMaterial.materialId] = resultado['alturaSobra'];
-          _materialSobrasLargura[produtoMaterial.materialId] = resultado['larguraSobra'];
-          _materialSobrasValor[produtoMaterial.materialId] = resultado['valorSobra'];
-        } else if (resultado['quantidadeSobra'] != null) {
-          // Outras unidades usam quantidade
-          _materialSobrasQuantidade[produtoMaterial.materialId] = resultado['quantidadeSobra'];
-          _materialSobrasValor[produtoMaterial.materialId] = resultado['valorSobra'];
-        }
-        
-        _updateTotal();
-      });
+  double _percentualImposto = 18.0;
+
+  Future<void> _buscarPercentualImposto() async {
+    try {
+      final repo = ImpostoSobraRepository();
+      final config = await repo.obter();
+      if (mounted) {
+        setState(() {
+          final v = config['percentualImposto'];
+          if (v is int) {
+            _percentualImposto = v.toDouble();
+          } else if (v is double) {
+            _percentualImposto = v;
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  double? _calcularValorSobra(ProdutoMaterialItem mat, double? alturaOuQtd, double? largura) {
+    final isM2 = mat.materialUnidade.toLowerCase() == 'm²' || mat.materialUnidade.toLowerCase() == 'm2';
+    final isMetroLinear = mat.materialUnidade.toLowerCase() == 'm/l' || mat.materialUnidade.toLowerCase() == 'ml';
+    final divisor = _percentualImposto / 100;
+
+    // Pegar quantidade do controller
+    final qtyController = _quantityControllers[mat.materialId];
+    final qty = qtyController != null
+        ? (double.tryParse(qtyController.text.replaceAll(',', '.')) ?? 1.0)
+        : 1.0;
+
+    if (isM2) {
+      if (alturaOuQtd == null || largura == null || alturaOuQtd <= 0 || largura <= 0) return null;
+      final areaM2 = (alturaOuQtd * largura) / 1000000.0;
+      final custo = areaM2 * mat.materialCusto * qty;
+      return divisor > 0 ? custo / divisor : null;
+    } else {
+      if (alturaOuQtd == null || alturaOuQtd <= 0) return null;
+      final qCalc = isMetroLinear ? alturaOuQtd / 1000.0 : alturaOuQtd;
+      final custo = qCalc * mat.materialCusto * qty;
+      return divisor > 0 ? custo / divisor : null;
     }
+  }
+
+  void _recalcularSobraInline(ProdutoMaterialItem mat) {
+    if (_sobraEnabled[mat.materialId] != true) return;
+    final isM2 = mat.materialUnidade.toLowerCase() == 'm²' || mat.materialUnidade.toLowerCase() == 'm2';
+    final altCtrl = _sobraAlturaControllers[mat.materialId];
+    final largCtrl = _sobraLarguraControllers[mat.materialId];
+    final compCtrl = _sobraComprimentoControllers[mat.materialId];
+
+    if (isM2) {
+      final a = double.tryParse((altCtrl?.text ?? '').replaceAll(',', '.'));
+      final l = double.tryParse((largCtrl?.text ?? '').replaceAll(',', '.'));
+      final novoValor = _calcularValorSobra(mat, a, l);
+      if (novoValor != null && a != null && l != null) {
+        _materialSobrasAltura[mat.materialId] = a;
+        _materialSobrasLargura[mat.materialId] = l;
+        _materialSobrasValor[mat.materialId] = novoValor;
+      } else {
+        _materialSobrasAltura.remove(mat.materialId);
+        _materialSobrasLargura.remove(mat.materialId);
+        _materialSobrasValor.remove(mat.materialId);
+      }
+    } else {
+      final q = double.tryParse((compCtrl?.text ?? '').replaceAll(',', '.'));
+      final novoValor = _calcularValorSobra(mat, q, null);
+      if (novoValor != null && q != null) {
+        _materialSobrasQuantidade[mat.materialId] = q;
+        _materialSobrasValor[mat.materialId] = novoValor;
+      } else {
+        _materialSobrasQuantidade.remove(mat.materialId);
+        _materialSobrasValor.remove(mat.materialId);
+      }
+    }
+
+    // ✅ setState e _updateTotal separados, fora de qualquer outro setState
+    setState(() {
+      _recalcularValorSugerido();
+    });
   }
   
   List<ProdutoItem> _produtos = [];
   ProdutoItem? _selectedProduto;
   final Map<int, TextEditingController> _quantityControllers = {};
   final Map<int, FocusNode> _quantityFocusNodes = {};
+  
+  // Maps para dimensões do material (preenchidas no orçamento)
+  final Map<int, TextEditingController> _alturaControllers = {};
+  final Map<int, TextEditingController> _larguraControllers = {};
+  final Map<int, TextEditingController> _comprimentoControllers = {};
+  final Map<int, FocusNode> _alturaFocusNodes = {};
+  final Map<int, FocusNode> _larguraFocusNodes = {};
+  final Map<int, FocusNode> _comprimentoFocusNodes = {};
+
+  // Maps para sobra inline (campos de dimensão da sobra por materialId)
+  final Map<int, bool?> _sobraEnabled = {};
+  final Map<int, TextEditingController> _sobraAlturaControllers = {};
+  final Map<int, TextEditingController> _sobraLarguraControllers = {};
+  final Map<int, TextEditingController> _sobraComprimentoControllers = {};
   
   // Maps para armazenar dados de sobra por materialId
   final Map<int, double> _materialSobrasAltura = {};      // Para m²: altura em mm
@@ -2823,7 +2887,9 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         _initialQuantityStrings[mat.materialId] = mat.quantidade > 0 ? _formatQuantity(mat.quantidade) : '';
         
         // Inicializar sobras se existirem
-        if (mat.alturaSobra != null && mat.larguraSobra != null && mat.valorSobra != null) {
+        if (mat.valorSobra == -1) {
+          // Usuário tinha selecionado "Não" — não popula maps de dimensão
+        } else if (mat.alturaSobra != null && mat.larguraSobra != null && mat.valorSobra != null) {
           // m² usa altura e largura
           _materialSobrasAltura[mat.materialId] = mat.alturaSobra!;
           _materialSobrasLargura[mat.materialId] = mat.larguraSobra!;
@@ -2925,6 +2991,7 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     
     _loadProdutos();
     _loadFaixas();
+    _buscarPercentualImposto();
   }
 
   void _onFieldFocusChange() {
@@ -2938,6 +3005,9 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         !_despesaDescFocusNodes.any((node) => node.hasFocus) &&
         !_despesaValorFocusNodes.any((node) => node.hasFocus) &&
         !_quantityFocusNodes.values.any((node) => node.hasFocus) &&
+        !_alturaFocusNodes.values.any((node) => node.hasFocus) &&
+        !_larguraFocusNodes.values.any((node) => node.hasFocus) &&
+        !_comprimentoFocusNodes.values.any((node) => node.hasFocus) &&
         !_opcaoExtraStringFocusNodes.values.any((node) => node.hasFocus) &&
         !_opcaoExtraFloat1FocusNodes.values.any((node) => node.hasFocus) &&
         !_opcaoExtraFloat2FocusNodes.values.any((node) => node.hasFocus)) {
@@ -3112,11 +3182,94 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       );
       final focusNode = FocusNode();
       
-      controller.addListener(_updateTotal);
+      controller.addListener(() {
+        _updateTotal();
+        if (_sobraEnabled[mat.materialId] == true) {
+          _recalcularSobraInline(mat);
+        }
+      });
       focusNode.addListener(_onFieldFocusChange);
       
       _quantityControllers[mat.materialId] = controller;
       _quantityFocusNodes[mat.materialId] = focusNode;
+
+      // Dimensões preenchidas no orçamento — usar valor do OrcamentoMaterial se existir,
+      // senão usar o valor cadastrado no material como sugestão inicial
+      final existingMat = widget.initial?.materiais
+          .where((m) => m.materialId == mat.materialId)
+          .firstOrNull;
+      
+      final alturaInicial = existingMat?.altura ?? mat.altura;
+      final larguraInicial = existingMat?.largura ?? mat.largura;
+      final comprimentoInicial = existingMat?.comprimento ?? mat.comprimento;
+      
+      final altCtrl = TextEditingController(
+        text: alturaInicial != null ? alturaInicial.toStringAsFixed(0) : ''
+      );
+      final largCtrl = TextEditingController(
+        text: larguraInicial != null ? larguraInicial.toStringAsFixed(0) : ''
+      );
+      final compCtrl = TextEditingController(
+        text: comprimentoInicial != null ? comprimentoInicial.toStringAsFixed(0) : ''
+      );
+      final altFocus = FocusNode();
+      final largFocus = FocusNode();
+      final compFocus = FocusNode();
+      
+      altCtrl.addListener(_updateTotal);
+      largCtrl.addListener(_updateTotal);
+      compCtrl.addListener(_updateTotal);
+      altFocus.addListener(_onFieldFocusChange);
+      largFocus.addListener(_onFieldFocusChange);
+      compFocus.addListener(_onFieldFocusChange);
+      
+      _alturaControllers[mat.materialId] = altCtrl;
+      _larguraControllers[mat.materialId] = largCtrl;
+      _comprimentoControllers[mat.materialId] = compCtrl;
+      _alturaFocusNodes[mat.materialId] = altFocus;
+      _larguraFocusNodes[mat.materialId] = largFocus;
+      _comprimentoFocusNodes[mat.materialId] = compFocus;
+
+      // Sobra inline — inicializar apenas se o material suporta sobras
+      if (mat.sobras) {
+        final isM2sobra = mat.materialUnidade.toLowerCase() == 'm²' || mat.materialUnidade.toLowerCase() == 'm2';
+
+        bool? sobraState;
+        final existingMatSobra = widget.initial?.materiais
+            .where((m) => m.materialId == mat.materialId)
+            .firstOrNull;
+
+        if (existingMatSobra != null) {
+          if (existingMatSobra.valorSobra == -1) {
+            sobraState = false; // "Não" salvo anteriormente
+          } else {
+            final jaTemSobra = isM2sobra
+                ? _materialSobrasAltura.containsKey(mat.materialId)
+                : _materialSobrasQuantidade.containsKey(mat.materialId);
+            sobraState = jaTemSobra ? true : null;
+          }
+        }
+        // Novo orçamento → permanece null (nenhum selecionado)
+        _sobraEnabled[mat.materialId] = sobraState;
+
+        final sobraAltCtrl = TextEditingController(
+          text: _materialSobrasAltura[mat.materialId]?.toStringAsFixed(0) ?? '',
+        );
+        final sobraLargCtrl = TextEditingController(
+          text: _materialSobrasLargura[mat.materialId]?.toStringAsFixed(0) ?? '',
+        );
+        final sobraCompCtrl = TextEditingController(
+          text: _materialSobrasQuantidade[mat.materialId]?.toStringAsFixed(0) ?? '',
+        );
+
+        sobraAltCtrl.addListener(() => _recalcularSobraInline(mat));
+        sobraLargCtrl.addListener(() => _recalcularSobraInline(mat));
+        sobraCompCtrl.addListener(() => _recalcularSobraInline(mat));
+
+        _sobraAlturaControllers[mat.materialId] = sobraAltCtrl;
+        _sobraLarguraControllers[mat.materialId] = sobraLargCtrl;
+        _sobraComprimentoControllers[mat.materialId] = sobraCompCtrl;
+      }
     }
     
     for (final opcao in _selectedProduto!.opcoesExtras) {
@@ -3206,6 +3359,15 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     for (final focusNode in _quantityFocusNodes.values) {
       focusNode.dispose();
     }
+    for (final controller in _alturaControllers.values) { controller.dispose(); }
+    for (final controller in _larguraControllers.values) { controller.dispose(); }
+    for (final controller in _comprimentoControllers.values) { controller.dispose(); }
+    for (final focusNode in _alturaFocusNodes.values) { focusNode.dispose(); }
+    for (final focusNode in _larguraFocusNodes.values) { focusNode.dispose(); }
+    for (final focusNode in _comprimentoFocusNodes.values) { focusNode.dispose(); }
+    for (final c in _sobraAlturaControllers.values) { c.dispose(); }
+    for (final c in _sobraLarguraControllers.values) { c.dispose(); }
+    for (final c in _sobraComprimentoControllers.values) { c.dispose(); }
     
     for (final controller in _despesaDescControllers) {
       controller.dispose();
@@ -3255,12 +3417,32 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
 
     double base = 0.0;
 
-    // Materiais sem sobras (apenas custo × quantidade)
+    // Materiais sem sobras (custo × dimensão × quantidade)
     for (final mat in _selectedProduto!.materiais) {
       final controller = _quantityControllers[mat.materialId];
       if (controller != null) {
         final qty = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0.0;
-        base += mat.materialCusto * qty;
+        final isM2b = mat.materialUnidade.toLowerCase() == 'm²' || mat.materialUnidade.toLowerCase() == 'm2';
+        final isMlb = mat.materialUnidade.toLowerCase() == 'm/l' || mat.materialUnidade.toLowerCase() == 'ml';
+        double dimFator = 1.0;
+        if (isMlb) {
+          final compCtrl = _comprimentoControllers[mat.materialId];
+          final compVal = compCtrl != null && compCtrl.text.trim().isNotEmpty
+              ? (double.tryParse(compCtrl.text.trim().replaceAll(',', '.')) ?? 0.0)
+              : 0.0;
+          dimFator = compVal / 1000.0;
+        } else if (isM2b) {
+          final altCtrl = _alturaControllers[mat.materialId];
+          final largCtrl = _larguraControllers[mat.materialId];
+          final altVal = altCtrl != null && altCtrl.text.trim().isNotEmpty
+              ? (double.tryParse(altCtrl.text.trim().replaceAll(',', '.')) ?? 0.0)
+              : 0.0;
+          final largVal = largCtrl != null && largCtrl.text.trim().isNotEmpty
+              ? (double.tryParse(largCtrl.text.trim().replaceAll(',', '.')) ?? 0.0)
+              : 0.0;
+          dimFator = (altVal * largVal) / 1000000.0;
+        }
+        base += mat.materialCusto * dimFator * qty;
       }
     }
 
@@ -3858,7 +4040,25 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         }
       }
     }
-    
+
+    // Validar sobras: null = não selecionado → incompleto (rascunho)
+    for (final mat in _selectedProduto!.materiais) {
+      if (!mat.sobras) continue;
+      final sobraState = _sobraEnabled[mat.materialId];
+      if (sobraState == null) return false;
+      if (sobraState == true) {
+        final isM2 = mat.materialUnidade.toLowerCase() == 'm²' || mat.materialUnidade.toLowerCase() == 'm2';
+        if (isM2) {
+          final alt = _sobraAlturaControllers[mat.materialId]?.text.trim() ?? '';
+          final larg = _sobraLarguraControllers[mat.materialId]?.text.trim() ?? '';
+          if (alt.isEmpty || larg.isEmpty) return false;
+        } else {
+          final comp = _sobraComprimentoControllers[mat.materialId]?.text.trim() ?? '';
+          if (comp.isEmpty) return false;
+        }
+      }
+    }
+
     return true;
   }
 
@@ -3904,6 +4104,27 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       for (int i = 0; i < _despesaDescControllers.length; i++) {
         if (_despesaDescControllers[i].text.trim().isEmpty || 
             _despesaValorControllers[i].text.trim().isEmpty) {
+          _formKey.currentState!.validate();
+          return;
+        }
+      }
+    }
+
+    // Validar campos de sobra quando Sim estiver selecionado
+    if (_selectedProduto != null) {
+      for (final mat in _selectedProduto!.materiais) {
+        if (!mat.sobras || _sobraEnabled[mat.materialId] != true) continue;
+        final isM2 = mat.materialUnidade.toLowerCase() == 'm²' || mat.materialUnidade.toLowerCase() == 'm2';
+        bool hasError = false;
+        if (isM2) {
+          final alt = _sobraAlturaControllers[mat.materialId]?.text.trim() ?? '';
+          final larg = _sobraLarguraControllers[mat.materialId]?.text.trim() ?? '';
+          if (alt.isEmpty || larg.isEmpty) hasError = true;
+        } else {
+          final comp = _sobraComprimentoControllers[mat.materialId]?.text.trim() ?? '';
+          if (comp.isEmpty) hasError = true;
+        }
+        if (hasError) {
           _formKey.currentState!.validate();
           return;
         }
@@ -3960,11 +4181,33 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
       if (qtyValue == null || qtyValue < 0) continue;
       
       // Pegar dados de sobra se existirem
-      final alturaSobra = _materialSobrasAltura[mat.materialId];
-      final larguraSobra = _materialSobrasLargura[mat.materialId];
-      final quantidadeSobra = _materialSobrasQuantidade[mat.materialId];
-      final valorSobra = _materialSobrasValor[mat.materialId];
+      double? alturaSobra = _materialSobrasAltura[mat.materialId];
+      double? larguraSobra = _materialSobrasLargura[mat.materialId];
+      double? quantidadeSobra = _materialSobrasQuantidade[mat.materialId];
+      double? valorSobra = _materialSobrasValor[mat.materialId];
+
+      // Se usuário selecionou "Não", gravar sentinela -1 para persistir o estado
+      if (mat.sobras && _sobraEnabled[mat.materialId] == false) {
+        valorSobra = -1;
+        alturaSobra = null;
+        larguraSobra = null;
+        quantidadeSobra = null;
+      }
       
+      // Ler dimensões preenchidas no orçamento
+      final alturaCtrl = _alturaControllers[mat.materialId];
+      final larguraCtrl = _larguraControllers[mat.materialId];
+      final comprimentoCtrl = _comprimentoControllers[mat.materialId];
+      final alturaValue = alturaCtrl != null && alturaCtrl.text.trim().isNotEmpty
+          ? double.tryParse(alturaCtrl.text.trim().replaceAll(',', '.'))
+          : null;
+      final larguraValue = larguraCtrl != null && larguraCtrl.text.trim().isNotEmpty
+          ? double.tryParse(larguraCtrl.text.trim().replaceAll(',', '.'))
+          : null;
+      final comprimentoValue = comprimentoCtrl != null && comprimentoCtrl.text.trim().isNotEmpty
+          ? double.tryParse(comprimentoCtrl.text.trim().replaceAll(',', '.'))
+          : null;
+
       materiais.add(OrcamentoMaterialItem(
         id: widget.initial?.materiais
                 .firstWhere((m) => m.materialId == mat.materialId,
@@ -3982,9 +4225,9 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
         materialUnidade: mat.materialUnidade,
         materialCusto: mat.materialCusto,
         quantidade: qtyValue,
-        altura: mat.altura,
-        largura: mat.largura,
-        comprimento: mat.comprimento,
+        altura: alturaValue,
+        largura: larguraValue,
+        comprimento: comprimentoValue,
         alturaSobra: alturaSobra,
         larguraSobra: larguraSobra,
         quantidadeSobra: quantidadeSobra,
@@ -4615,131 +4858,192 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
     );
   }
 
-  Widget _buildSobrasMaterialSection() {
-    if (_selectedProduto == null) return const SizedBox();
-    
-    final theme = Theme.of(context);
-    final currency = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
-    
-    // Filtrar materiais que possuem sobra
-    final materiaisComSobra = _selectedProduto!.materiais.where((mat) {
-      final valorSobra = _materialSobrasValor[mat.materialId];
-      return valorSobra != null && valorSobra > 0;
-    }).toList();
-    
-    if (materiaisComSobra.isEmpty) {
-      return const SizedBox();
-    }
-    
-    return Opacity(
-      opacity: _isAprovado ? 0.4 : 1.0,
-      child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primary.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.3)),
+  Widget _buildSobraInline(ProdutoMaterialItem mat, ThemeData theme, NumberFormat currency) {
+    final isM2 = mat.materialUnidade.toLowerCase() == 'm²' || mat.materialUnidade.toLowerCase() == 'm2';
+    final sobraState = _sobraEnabled[mat.materialId];
+    final enabled = sobraState == true;
+    final valorSobra = _materialSobrasValor[mat.materialId];
+    final sobraAltCtrl = _sobraAlturaControllers[mat.materialId];
+    final sobraLargCtrl = _sobraLarguraControllers[mat.materialId];
+    final sobraCompCtrl = _sobraComprimentoControllers[mat.materialId];
+
+    // Linha de sobra alinhada pixel-perfect com os campos acima:
+    // m²  → [label] [spacer] [120 larg] [8] [120 alt] [8] [botões ~70px]
+    // m/l → [label] [spacer] [140 comp] [8] [botões ~70px]
+    // uni → [label] [spacer] [botões ~70px]
+    //
+    // Os botões Sim/Não ocupam ~70 px (mesmo que o campo Qtd acima),
+    // e os campos de dimensão têm as mesmas larguras dos campos principais.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      child: Row(
+        children: [
+          Icon(
+            Icons.content_cut,
+            size: 12,
+            color: enabled
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurface.withValues(alpha: 0.35),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.content_cut,
-                    size: 20,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Sobras de Materiais',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                ],
+          const SizedBox(width: 4),
+          Text(
+            'Sobras',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
+              color: _isAprovado
+                  ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
+                  : enabled
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+          if (enabled && valorSobra != null && valorSobra > 0) ...[
+            const SizedBox(width: 6),
+            Text(
+              currency.format(valorSobra),
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: _isAprovado
+                    ? theme.colorScheme.primary.withValues(alpha: 0.4)
+                    : theme.colorScheme.primary,
               ),
-              const SizedBox(height: 12),
-              ...materiaisComSobra.map((mat) {
-                final valorSobra = _materialSobrasValor[mat.materialId] ?? 0.0;
-                final isM2 = mat.materialUnidade.toLowerCase() == 'm²' || 
-                             mat.materialUnidade.toLowerCase() == 'm2';
-                
-                final isMetroLinear = mat.materialUnidade.toLowerCase() == 'm/l' || 
-                                      mat.materialUnidade.toLowerCase() == 'ml' ||
-                                      mat.materialUnidade.toLowerCase() == 'metro linear';
-                
-                String sobraInfo;
-                if (isM2) {
-                  final altura = _materialSobrasAltura[mat.materialId] ?? 0.0;
-                  final largura = _materialSobrasLargura[mat.materialId] ?? 0.0;
-                  sobraInfo = '${altura.toStringAsFixed(0)}mm × ${largura.toStringAsFixed(0)}mm';
-                } else if (isMetroLinear) {
-                  final quantidade = _materialSobrasQuantidade[mat.materialId] ?? 0.0;
-                  sobraInfo = '${quantidade.toStringAsFixed(0)} mm';
-                } else {
-                  final quantidade = _materialSobrasQuantidade[mat.materialId] ?? 0.0;
-                  sobraInfo = '${quantidade.toStringAsFixed(2)} ${mat.materialUnidade}';
-                }
-                
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                    border: Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.25)),
-                  ),
-                  child: Row(
+            ),
+          ],
+          const Spacer(),
+          if (enabled && isM2) ...[
+            Transform.translate(
+              offset: const Offset(-27, 0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        flex: 3,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              mat.materialNome,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                color: theme.colorScheme.onSurface,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Quantidade de sobra: $sobraInfo',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.primary,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Expanded(
-                        flex: 1,
-                        child: Text(
-                          currency.format(valorSobra),
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.primary,
+                      const Text('L', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 4),
+                      SizedBox(
+                        width: 100,
+                        child: TextFormField(
+                          controller: sobraLargCtrl,
+                          enabled: !_isAprovado,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))],
+                          style: const TextStyle(fontSize: 12),
+                          textAlign: TextAlign.center,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                           ),
-                          textAlign: TextAlign.right,
+                          validator: (v) {
+                            if (_triedToSave && sobraState == true && (v == null || v.trim().isEmpty)) return 'Informe';
+                            return null;
+                          },
                         ),
                       ),
+                      const SizedBox(width: 2),
+                      const Text('mm', style: TextStyle(fontSize: 11, color: Colors.grey)),
                     ],
                   ),
-                );
-              }),
+                  const SizedBox(width: 6),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('A', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 4),
+                      SizedBox(
+                        width: 100,
+                        child: TextFormField(
+                          controller: sobraAltCtrl,
+                          enabled: !_isAprovado,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))],
+                          style: const TextStyle(fontSize: 12),
+                          textAlign: TextAlign.center,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          ),
+                          validator: (v) {
+                            if (_triedToSave && sobraState == true && (v == null || v.trim().isEmpty)) return 'Informe';
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      const Text('mm', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    ],
+                  ),
+                  const SizedBox(width: 6),
+                ],
+              ),
+            ),
+          ] else if (enabled && !isM2) ...[
+              Transform.translate(
+                offset: const Offset(-27, 0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('C', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    const SizedBox(width: 4),
+                    SizedBox(
+                      width: 100,
+                      child: TextFormField(
+                        controller: sobraCompCtrl,
+                        enabled: !_isAprovado,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))],
+                        style: const TextStyle(fontSize: 12),
+                        textAlign: TextAlign.center,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        ),
+                        validator: (v) {
+                          if (_triedToSave && sobraState == true && (v == null || v.trim().isEmpty)) return 'Informe';
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    const Text('mm', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
             ],
+          // Botões Sim/Não
+          ExcludeFocus(
+            child: _buildToggleButton('Sim', sobraState == true, () {
+              if (_isAprovado) return;
+              setState(() {
+                _sobraEnabled[mat.materialId] = true;
+              });
+            }),
           ),
-        ),
-      ],
-    ),
+          const SizedBox(width: 6),
+          ExcludeFocus(
+            child: _buildToggleButton('Não', sobraState == false, () {
+              if (_isAprovado) return;
+              setState(() {
+                _sobraEnabled[mat.materialId] = false;
+                sobraAltCtrl?.clear();
+                sobraLargCtrl?.clear();
+                sobraCompCtrl?.clear();
+                _materialSobrasAltura.remove(mat.materialId);
+                _materialSobrasLargura.remove(mat.materialId);
+                _materialSobrasQuantidade.remove(mat.materialId);
+                _materialSobrasValor.remove(mat.materialId);
+                _updateTotal();
+              });
+            }),
+          ),
+        ],
+      ),
     );
   }
 
@@ -5120,6 +5424,25 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                         focusNode.dispose();
                                                       }
                                                       _quantityControllers.clear();
+    for (final c in _alturaControllers.values) { c.dispose(); }
+    for (final c in _larguraControllers.values) { c.dispose(); }
+    for (final c in _comprimentoControllers.values) { c.dispose(); }
+    for (final f in _alturaFocusNodes.values) { f.dispose(); }
+    for (final f in _larguraFocusNodes.values) { f.dispose(); }
+    for (final f in _comprimentoFocusNodes.values) { f.dispose(); }
+    _alturaControllers.clear();
+    _larguraControllers.clear();
+    _comprimentoControllers.clear();
+    _alturaFocusNodes.clear();
+    _larguraFocusNodes.clear();
+    _comprimentoFocusNodes.clear();
+    for (final c in _sobraAlturaControllers.values) { c.dispose(); }
+    for (final c in _sobraLarguraControllers.values) { c.dispose(); }
+    for (final c in _sobraComprimentoControllers.values) { c.dispose(); }
+    _sobraAlturaControllers.clear();
+    _sobraLarguraControllers.clear();
+    _sobraComprimentoControllers.clear();
+    _sobraEnabled.clear();
                                                       _quantityFocusNodes.clear();
                                                       _initializeQuantityControllers();
                                                       _recalcularValorSugerido();
@@ -5390,54 +5713,14 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                             Row(
                                               children: [
                                                 Expanded(
-                                                  flex: 2,
-                                                  child: Padding(
-                                                    padding: const EdgeInsets.only(left: 0),
-                                                    child: Text(
-                                                      'Materiais',
-                                                      style: theme.textTheme.titleSmall?.copyWith(
-                                                        fontWeight: FontWeight.w600,
-                                                        fontSize: 12,
-                                                        color: _isAprovado 
-                                                            ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
-                                                            : theme.colorScheme.onSurface,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-
-                                                SizedBox(
-                                                  width: 90,
-                                                  child: Padding(
-                                                    padding: const EdgeInsets.only(right: 15),
-                                                    child: Text(
-                                                      'Quantidade',
-                                                      textAlign: TextAlign.center,
-                                                      style: theme.textTheme.titleSmall?.copyWith(
-                                                        fontWeight: FontWeight.w600,
-                                                        fontSize: 12,
-                                                        color: _isAprovado 
-                                                            ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
-                                                            : theme.colorScheme.onSurface,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-
-                                                SizedBox(
-                                                  width: 75,
-                                                  child: Padding(
-                                                    padding: const EdgeInsets.only(right: 15),
-                                                    child: Text(
-                                                      'Total',
-                                                      textAlign: TextAlign.right,
-                                                      style: theme.textTheme.titleSmall?.copyWith(
-                                                        fontWeight: FontWeight.w600,
-                                                        fontSize: 12,
-                                                        color: _isAprovado 
-                                                            ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
-                                                            : theme.colorScheme.onSurface,
-                                                      ),
+                                                  child: Text(
+                                                    'Materiais',
+                                                    style: theme.textTheme.titleSmall?.copyWith(
+                                                      fontWeight: FontWeight.w600,
+                                                      fontSize: 12,
+                                                      color: _isAprovado
+                                                          ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
+                                                          : theme.colorScheme.onSurface,
                                                     ),
                                                   ),
                                                 ),
@@ -5451,7 +5734,29 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                               if (controller == null || focusNode == null) return const SizedBox();
                                               
                                               final qty = double.tryParse(controller.text.replaceAll(',', '.')) ?? 0.0;
-                                              final baseTotal = mat.materialCusto * qty;
+                                              
+                                              // Calcular total considerando dimensões
+                                              final isM2calc = mat.materialUnidade.toLowerCase() == 'm²' || mat.materialUnidade.toLowerCase() == 'm2';
+                                              final isMlCalc = mat.materialUnidade.toLowerCase() == 'm/l' || mat.materialUnidade.toLowerCase() == 'ml';
+                                              double dimensaoFator = 1.0;
+                                              if (isMlCalc) {
+                                                final compCtrlCalc = _comprimentoControllers[mat.materialId];
+                                                final compVal = compCtrlCalc != null && compCtrlCalc.text.trim().isNotEmpty
+                                                    ? (double.tryParse(compCtrlCalc.text.trim().replaceAll(',', '.')) ?? 0.0)
+                                                    : 0.0;
+                                                dimensaoFator = compVal / 1000.0; // mm → m
+                                              } else if (isM2calc) {
+                                                final altCtrlCalc = _alturaControllers[mat.materialId];
+                                                final largCtrlCalc = _larguraControllers[mat.materialId];
+                                                final altVal = altCtrlCalc != null && altCtrlCalc.text.trim().isNotEmpty
+                                                    ? (double.tryParse(altCtrlCalc.text.trim().replaceAll(',', '.')) ?? 0.0)
+                                                    : 0.0;
+                                                final largVal = largCtrlCalc != null && largCtrlCalc.text.trim().isNotEmpty
+                                                    ? (double.tryParse(largCtrlCalc.text.trim().replaceAll(',', '.')) ?? 0.0)
+                                                    : 0.0;
+                                                dimensaoFator = (altVal * largVal) / 1000000.0; // mm² → m²
+                                              }
+                                              final baseTotal = mat.materialCusto * dimensaoFator * qty;
                                               
                                               // O valor da sobra não é mais somado aqui, apenas o custo do material
                                               final total = baseTotal;
@@ -5462,27 +5767,39 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                   ? _materialSobrasAltura.containsKey(mat.materialId)
                                                   : _materialSobrasQuantidade.containsKey(mat.materialId);
                                               
-                                              return Container(
-                                                margin: const EdgeInsets.only(bottom: 6),
-                                                padding: const EdgeInsets.all(8),
-                                                decoration: BoxDecoration(
-                                                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-                                                  borderRadius: BorderRadius.circular(8),
-                                                  border: Border.all(color: theme.dividerColor.withValues(alpha: 0.1)),
-                                                ),
-                                                child: Row(
-                                                  children: [
-                                                    Expanded(
-                                                      flex: 2,
-                                                      child: Builder(
-                                                        builder: (context) {
-                                                          final avisosDoMaterial = _selectedProduto!.avisos
-                                                              .where((aviso) => aviso.materialId == mat.materialId)
-                                                              .toList();
-                                                          
-                                                          final temAviso = avisosDoMaterial.isNotEmpty;
-                                                          
-                                                          return Row(
+                                              return Builder(
+                                                builder: (context) {
+                                                  final avisosDoMaterial = _selectedProduto!.avisos
+                                                      .where((aviso) => aviso.materialId == mat.materialId)
+                                                      .toList();
+                                                  final temAviso = avisosDoMaterial.isNotEmpty;
+                                                  final isM2 = mat.materialUnidade.toLowerCase() == 'm²' || mat.materialUnidade.toLowerCase() == 'm2';
+                                                  final isMl = mat.materialUnidade.toLowerCase() == 'm/l' || mat.materialUnidade.toLowerCase() == 'ml';
+                                                  final altCtrl = _alturaControllers[mat.materialId];
+                                                  final largCtrl = _larguraControllers[mat.materialId];
+                                                  final compCtrl = _comprimentoControllers[mat.materialId];
+                                                  final altFocus = _alturaFocusNodes[mat.materialId];
+                                                  final largFocus = _larguraFocusNodes[mat.materialId];
+                                                  final compFocus = _comprimentoFocusNodes[mat.materialId];
+
+                                                  return Container(
+                                                    margin: const EdgeInsets.only(bottom: 8),
+                                                    decoration: BoxDecoration(
+                                                      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
+                                                      borderRadius: BorderRadius.circular(10),
+                                                      border: Border.all(
+                                                        color: theme.colorScheme.primary.withValues(alpha: 0.35),
+                                                        width: 1.2,
+                                                      ),
+                                                    ),
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        // ── Header: nome + badges + total ──────────────────
+                                                        Padding(
+                                                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                                                          child: Row(
+                                                            crossAxisAlignment: CrossAxisAlignment.start,
                                                             children: [
                                                               Expanded(
                                                                 child: Column(
@@ -5493,31 +5810,25 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                                         Expanded(
                                                                           child: Text(
                                                                             mat.materialNome,
-                                                                            style: theme.textTheme.bodySmall?.copyWith(
+                                                                            style: theme.textTheme.bodyMedium?.copyWith(
                                                                               fontWeight: FontWeight.w600,
-                                                                              fontSize: 11,
-                                                                              color: _isAprovado 
+                                                                              fontSize: 12,
+                                                                              color: _isAprovado
                                                                                   ? theme.colorScheme.onSurface.withValues(alpha: 0.4)
                                                                                   : theme.colorScheme.onSurface,
                                                                             ),
                                                                           ),
                                                                         ),
-                                                                        // Indicador de sobra
                                                                         if (temSobra) ...[
-                                                                          const SizedBox(width: 4),
+                                                                          const SizedBox(width: 6),
                                                                           Tooltip(
-                                                                            message: () {
-                                                                              final isM2 = mat.materialUnidade.toLowerCase() == 'm²' || mat.materialUnidade.toLowerCase() == 'm2';
-                                                                              if (isM2) {
-                                                                                return 'Sobra: ${_materialSobrasAltura[mat.materialId]}mm × ${_materialSobrasLargura[mat.materialId]}mm\nValor: ${currency.format(valorSobra ?? 0.0)}';
-                                                                              } else {
-                                                                                return 'Sobra: ${_materialSobrasQuantidade[mat.materialId]} ${mat.materialUnidade}\nValor: ${currency.format(valorSobra ?? 0.0)}';
-                                                                              }
-                                                                            }(),
+                                                                            message: isM2
+                                                                                ? 'Sobra: ${_materialSobrasAltura[mat.materialId]}mm × ${_materialSobrasLargura[mat.materialId]}mm\nValor: ${currency.format(valorSobra ?? 0.0)}'
+                                                                                : 'Sobra: ${_materialSobrasQuantidade[mat.materialId]} ${mat.materialUnidade}\nValor: ${currency.format(valorSobra ?? 0.0)}',
                                                                             child: Opacity(
                                                                               opacity: _isAprovado ? 0.4 : 1.0,
                                                                               child: Container(
-                                                                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                                                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                                                                                 decoration: BoxDecoration(
                                                                                   color: theme.colorScheme.primary.withValues(alpha: 0.12),
                                                                                   borderRadius: BorderRadius.circular(4),
@@ -5526,213 +5837,240 @@ class _OrcamentoEditorSheetState extends State<OrcamentoEditorSheet> {
                                                                                 child: Row(
                                                                                   mainAxisSize: MainAxisSize.min,
                                                                                   children: [
-                                                                                    Icon(
-                                                                                      Icons.content_cut,
-                                                                                      size: 10,
-                                                                                      color: theme.colorScheme.primary,
-                                                                                    ),
+                                                                                    Icon(Icons.content_cut, size: 10, color: theme.colorScheme.primary),
                                                                                     const SizedBox(width: 2),
-                                                                                    Text(
-                                                                                      'Sobra',
-                                                                                      style: TextStyle(
-                                                                                        fontSize: 9,
-                                                                                        fontWeight: FontWeight.w600,
-                                                                                        color: theme.colorScheme.primary,
-                                                                                      ),
-                                                                                    ),
+                                                                                    Text('Sobra', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: theme.colorScheme.primary)),
                                                                                   ],
                                                                                 ),
                                                                               ),
                                                                             ),
                                                                           ),
                                                                         ],
+                                                                        if (temAviso) ...[
+                                                                          const SizedBox(width: 6),
+                                                                          Tooltip(
+                                                                            message: avisosDoMaterial.map((a) => a.mensagem).join('\n'),
+                                                                            decoration: BoxDecoration(color: theme.colorScheme.secondary, borderRadius: BorderRadius.circular(8)),
+                                                                            textStyle: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.surface, fontSize: 11),
+                                                                            preferBelow: false,
+                                                                            verticalOffset: 20,
+                                                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                                                            child: Icon(
+                                                                              Icons.info_outline,
+                                                                              size: 15,
+                                                                              color: _isAprovado
+                                                                                  ? theme.colorScheme.secondary.withValues(alpha: 0.4)
+                                                                                  : theme.colorScheme.secondary,
+                                                                            ),
+                                                                          ),
+                                                                        ],
                                                                       ],
                                                                     ),
-                                                                    // Se for m² e tiver altura e largura, mostra dimensões
-                                                                    if (mat.materialUnidade == 'm²' && mat.altura != null && mat.largura != null)
-                                                                      Text(
-                                                                        '${currency.format(mat.materialCusto)} / ${mat.materialUnidade} • ${mat.altura}m × ${mat.largura}mm',
-                                                                        style: theme.textTheme.bodySmall?.copyWith(
-                                                                          fontSize: 10,
-                                                                          color: _isAprovado 
-                                                                              ? theme.colorScheme.onSurface.withValues(alpha: 0.3)
-                                                                              : theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                                                                        ),
-                                                                      )
-                                                                    // Se for m/l e tiver comprimento, mostra o comprimento
-                                                                    else if (mat.materialUnidade == 'm/l' && mat.comprimento != null)
-                                                                      Text(
-                                                                        '${currency.format(mat.materialCusto)} / ${mat.materialUnidade} • ${mat.comprimento!.toStringAsFixed(0)}mm',
-                                                                        style: theme.textTheme.bodySmall?.copyWith(
-                                                                          fontSize: 10,
-                                                                          color: _isAprovado 
-                                                                              ? theme.colorScheme.onSurface.withValues(alpha: 0.3)
-                                                                              : theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                                                                        ),
-                                                                      )
-                                                                    else
-                                                                      Text(
-                                                                        '${currency.format(mat.materialCusto)} / ${mat.materialUnidade}',
-                                                                        style: theme.textTheme.bodySmall?.copyWith(
-                                                                          fontSize: 10,
-                                                                          color: _isAprovado 
-                                                                              ? theme.colorScheme.onSurface.withValues(alpha: 0.3)
-                                                                              : theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                                                                        ),
-                                                                      ),
-                                                                    if (mat.materialEstoque != null && qty > 0 && qty > mat.materialEstoque!)
-                                                                    Padding(
-                                                                      padding: const EdgeInsets.only(top: 4),
-                                                                      child: Opacity(
-                                                                        opacity: _isAprovado ? 0.4 : 1.0,
-                                                                        child: Row(
-                                                                          mainAxisSize: MainAxisSize.min,
-                                                                          children: [
-                                                                            Icon(Icons.warning_amber_rounded, size: 11, color: Colors.orange),
-                                                                            const SizedBox(width: 3),
-                                                                            Text(
-                                                                              'Quantidade insuficiente no estoque',
-                                                                              style: TextStyle(
-                                                                                fontSize: 10,
-                                                                                color: Colors.orange,
-                                                                                fontWeight: FontWeight.w500,
-                                                                              ),
-                                                                            ),
-                                                                          ],
-                                                                        ),
+                                                                    const SizedBox(height: 2),
+                                                                    Text(
+                                                                      '${currency.format(mat.materialCusto)} / ${mat.materialUnidade}',
+                                                                      style: theme.textTheme.bodySmall?.copyWith(
+                                                                        fontSize: 10,
+                                                                        color: _isAprovado
+                                                                            ? theme.colorScheme.onSurface.withValues(alpha: 0.3)
+                                                                            : theme.colorScheme.onSurface.withValues(alpha: 0.5),
                                                                       ),
                                                                     ),
                                                                   ],
                                                                 ),
                                                               ),
-                                                              // Botão de sobra sempre à esquerda do aviso
-                                                              if (temAviso) ...[
-                                                                Tooltip(
-                                                                  message: avisosDoMaterial.map((a) => a.mensagem).join('\n'),
-                                                                  decoration: BoxDecoration(
-                                                                    color: theme.colorScheme.secondary,
-                                                                    borderRadius: BorderRadius.circular(8),
+                                                              // Total destacado no topo direito
+                                                              const SizedBox(width: 12),
+                                                              Text(
+                                                                currency.format(total),
+                                                                style: theme.textTheme.bodyMedium?.copyWith(
+                                                                  fontWeight: FontWeight.bold,
+                                                                  color: _isAprovado
+                                                                      ? theme.colorScheme.primary.withValues(alpha: 0.4)
+                                                                      : theme.colorScheme.primary,
+                                                                  fontSize: 13,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+
+                                                        // ── Alerta de estoque ───────────────────────────────
+                                                        if (mat.materialEstoque != null && qty > 0 && qty > mat.materialEstoque!)
+                                                          Padding(
+                                                            padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                                                            child: Opacity(
+                                                              opacity: _isAprovado ? 0.4 : 1.0,
+                                                              child: Row(
+                                                                mainAxisSize: MainAxisSize.min,
+                                                                children: [
+                                                                  Icon(Icons.warning_amber_rounded, size: 11, color: Colors.orange),
+                                                                  const SizedBox(width: 3),
+                                                                  Text(
+                                                                    'Quantidade insuficiente no estoque',
+                                                                    style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.w500),
                                                                   ),
-                                                                  textStyle: theme.textTheme.bodySmall?.copyWith(
-                                                                    color: theme.colorScheme.surface,
-                                                                    fontSize: 11,
-                                                                  ),
-                                                                  preferBelow: false,
-                                                                  verticalOffset: 20,
-                                                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                                                  child: Icon(
-                                                                    Icons.info_outline,
-                                                                    size: 16,
-                                                                    color: _isAprovado 
-                                                                        ? theme.colorScheme.secondary.withValues(alpha: 0.4)
-                                                                        : theme.colorScheme.secondary,
+                                                                ],
+                                                              ),
+                                                            ),
+                                                          ),
+
+                                                        // ── Campos: dimensões + Qtd ─────────────────────────
+                                                        Padding(
+                                                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                                                          child: Row(
+                                                            mainAxisAlignment: MainAxisAlignment.end,
+                                                            crossAxisAlignment: CrossAxisAlignment.center,
+                                                            children: [
+                                                             if (isM2) ...[
+                                                              Transform.translate(
+                                                                offset: const Offset(-47, 0),
+                                                                child: Row(
+                                                                  mainAxisSize: MainAxisSize.min,
+                                                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                                                  children: [
+                                                                    Row(
+                                                                      mainAxisSize: MainAxisSize.min,
+                                                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                                                      children: [
+                                                                        const Text('L', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                                                        const SizedBox(width: 4),
+                                                                        SizedBox(
+                                                                          width: 100,
+                                                                          child: TextFormField(
+                                                                            controller: largCtrl,
+                                                                            focusNode: largFocus,
+                                                                            enabled: !_isAprovado,
+                                                                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                                                            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))],
+                                                                            style: const TextStyle(fontSize: 12),
+                                                                            textAlign: TextAlign.center,
+                                                                            decoration: const InputDecoration(
+                                                                              isDense: true,
+                                                                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                                                            ),
+                                                                            onChanged: (_) => setState(() {}),
+                                                                          ),
+                                                                        ),
+                                                                        const SizedBox(width: 2),
+                                                                        const Text('mm', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                                                      ],
+                                                                    ),
+                                                                    const SizedBox(width: 6),
+                                                                    Row(
+                                                                      mainAxisSize: MainAxisSize.min,
+                                                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                                                      children: [
+                                                                        const Text('A', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                                                        const SizedBox(width: 4),
+                                                                        SizedBox(
+                                                                          width: 100,
+                                                                          child: TextFormField(
+                                                                            controller: altCtrl,
+                                                                            focusNode: altFocus,
+                                                                            enabled: !_isAprovado,
+                                                                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                                                            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))],
+                                                                            style: const TextStyle(fontSize: 12),
+                                                                            textAlign: TextAlign.center,
+                                                                            decoration: const InputDecoration(
+                                                                              isDense: true,
+                                                                              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                                                            ),
+                                                                            onChanged: (_) => setState(() {}),
+                                                                          ),
+                                                                        ),
+                                                                        const SizedBox(width: 2),
+                                                                        const Text('mm', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                                                      ],
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                              ),
+                                                              const SizedBox(width: 6),
+                                                            ] else if (isMl) ...[
+                                                                Transform.translate(
+                                                                  offset: const Offset(-47, 0),
+                                                                  child: Row(
+                                                                    mainAxisSize: MainAxisSize.min,
+                                                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                                                    children: [
+                                                                      const Text('C', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                                                      const SizedBox(width: 4),
+                                                                      SizedBox(
+                                                                        width: 100,
+                                                                        child: TextFormField(
+                                                                          controller: compCtrl,
+                                                                          focusNode: compFocus,
+                                                                          enabled: !_isAprovado,
+                                                                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                                                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))],
+                                                                          style: const TextStyle(fontSize: 12),
+                                                                          textAlign: TextAlign.center,
+                                                                          decoration: const InputDecoration(
+                                                                            isDense: true,
+                                                                            contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                                                          ),
+                                                                          onChanged: (_) => setState(() {}),
+                                                                        ),
+                                                                      ),
+                                                                      const SizedBox(width: 2),
+                                                                      const Text('mm', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                                                    ],
                                                                   ),
                                                                 ),
                                                                 const SizedBox(width: 6),
                                                               ],
-                                                              if (!_isAprovado) ...[
-                                                                IconButton(
-                                                                  icon: Icon(
-                                                                    Icons.content_cut,
-                                                                    size: 18,
-                                                                    color: temSobra 
-                                                                        ? theme.colorScheme.primary 
-                                                                        : theme.colorScheme.onSurface.withValues(alpha: 0.4),
+                                                              Row(
+                                                                mainAxisSize: MainAxisSize.min,
+                                                                crossAxisAlignment: CrossAxisAlignment.center,
+                                                                children: [
+                                                                  const Text('Qtd', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                                                  const SizedBox(width: 4),
+                                                                  SizedBox(
+                                                                    width: 55,
+                                                                    child: TextFormField(
+                                                                  controller: controller,
+                                                                  focusNode: focusNode,
+                                                                  enabled: !_isAprovado,
+                                                                  keyboardType: TextInputType.numberWithOptions(decimal: mat.materialUnidade == 'Kg'),
+                                                                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))],
+                                                                  textAlign: TextAlign.center,
+                                                                  style: const TextStyle(fontSize: 12),
+                                                                  decoration: const InputDecoration(
+                                                                    isDense: true,
+                                                                    contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
                                                                   ),
-                                                                  onPressed: () => _configurarSobraMaterial(mat),
-                                                                  tooltip: 'Configurar sobra',
-                                                                  padding: EdgeInsets.zero,
-                                                                  constraints: const BoxConstraints(),
-                                                                  visualDensity: VisualDensity.compact,
-                                                                ),
-                                                                const SizedBox(width: 8),
-                                                              ] else ...[
-                                                                IconButton(
-                                                                  icon: Icon(
-                                                                    Icons.content_cut,
-                                                                    size: 18,
-                                                                    color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
+                                                                  onChanged: (_) => setState(() {}),
+                                                                  validator: (v) {
+                                                                    if (!_isOrcamentoCompleto()) return null;
+                                                                    if (v == null || v.trim().isEmpty) return 'Informe';
+                                                                    final value = double.tryParse(v.replaceAll(',', '.'));
+                                                                    if (value == null || value < 0) return 'Inválido';
+                                                                    return null;
+                                                                  },
+                                                                    ),
                                                                   ),
-                                                                  onPressed: null,
-                                                                  padding: EdgeInsets.zero,
-                                                                  constraints: const BoxConstraints(),
-                                                                  visualDensity: VisualDensity.compact,
-                                                                ),
-                                                                const SizedBox(width: 8),
-                                                              ],
+                                                                ],
+                                                              ),
                                                             ],
-                                                          );
-                                                        },
-                                                      ),
-                                                    ),
-                                                    SizedBox(
-                                                      width: 70,
-                                                      child: TextFormField(
-                                                        controller: controller,
-                                                        focusNode: focusNode,
-                                                        enabled: !_isAprovado,
-                                                        keyboardType: TextInputType.numberWithOptions(
-                                                          decimal: mat.materialUnidade == 'Kg',
+                                                          ),
                                                         ),
-                                                        inputFormatters: [
-                                                          FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
+
+                                                        // ── Sobra ───────────────────────────────────────────
+                                                        if (mat.sobras) ...[
+                                                          Divider(height: 1, color: theme.dividerColor.withValues(alpha: 0.2)),
+                                                          _buildSobraInline(mat, theme, currency),
                                                         ],
-                                                        textAlign: TextAlign.center,
-                                                        style: const TextStyle(fontSize: 12),
-                                                        decoration: InputDecoration(
-                                                          labelText: 'Qtd',
-                                                          isDense: true,
-                                                          contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                                                          enabledBorder: (mat.materialEstoque != null && qty > 0 && qty > mat.materialEstoque!)
-                                                              ? OutlineInputBorder(
-                                                                  borderRadius: BorderRadius.circular(6),
-                                                                  borderSide: BorderSide(color: Colors.orange, width: 1.5),
-                                                                )
-                                                              : null,
-                                                          focusedBorder: (mat.materialEstoque != null && qty > 0 && qty > mat.materialEstoque!)
-                                                              ? OutlineInputBorder(
-                                                                  borderRadius: BorderRadius.circular(6),
-                                                                  borderSide: BorderSide(color: Colors.orange, width: 2),
-                                                                )
-                                                              : null,
-                                                        ),
-                                                        onChanged: (_) => setState(() {}),
-                                                        validator: (v) {
-                                                          if (!_isOrcamentoCompleto()) return null;
-                                                          if (v == null || v.trim().isEmpty) {
-                                                            return 'Informe';
-                                                          }
-                                                          final value = double.tryParse(v.replaceAll(',', '.'));
-                                                          if (value == null || value < 0) {
-                                                            return 'Inválido';
-                                                          }
-                                                          return null;
-                                                        },
-                                                      ),
+                                                      ],
                                                     ),
-                                                    const SizedBox(width: 8),
-                                                    SizedBox(
-                                                      width: 75,
-                                                      child: Text(
-                                                        currency.format(total),
-                                                        style: theme.textTheme.bodySmall?.copyWith(
-                                                          fontWeight: FontWeight.bold,
-                                                          color: _isAprovado 
-                                                              ? theme.colorScheme.primary.withValues(alpha: 0.4)
-                                                              : theme.colorScheme.primary,
-                                                          fontSize: 10,
-                                                        ),
-                                                        textAlign: TextAlign.right,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
+                                                  );
+                                                },
                                               );
                                             }),
                                         
                                             const SizedBox(height: 16),
 
-                                            _buildSobrasMaterialSection(),
                                             _buildDespesasSection(),
                                             _buildOpcoesExtrasSection(),
  

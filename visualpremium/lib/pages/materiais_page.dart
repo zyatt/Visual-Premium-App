@@ -1545,6 +1545,7 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
 
   static const List<String> _unitOptions = ['m²', 'm/l', 'Unidade', 'L'];
   String? _selectedUnit;
+  bool _sobras = false;
   bool _isShowingDiscardDialog = false;
   
   late final String _initialName;
@@ -1555,6 +1556,7 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
   late final String _initialAltura;
   late final String _initialLargura;
   late final String _initialComprimento;  // NOVO
+  late bool _initialSobras;
 
   @override
   void initState() {
@@ -1568,6 +1570,9 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
     _initialAltura = widget.initial?.altura?.toString() ?? '';
     _initialLargura = widget.initial?.largura?.toString() ?? '';
     _initialComprimento = widget.initial?.comprimento?.toString() ?? '';  // NOVO
+    _initialSobras = widget.initial?.sobras ?? false;
+    
+    _sobras = _initialSobras;
     
     _nameCtrl = TextEditingController(text: _initialName);
     _selectedUnit = _initialUnit;
@@ -1622,7 +1627,8 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
            _costCtrl.text != _initialCost ||
            _alturaCtrl.text != _initialAltura ||
            _larguraCtrl.text != _initialLargura ||
-           _comprimentoCtrl.text != _initialComprimento;  // NOVO
+           _comprimentoCtrl.text != _initialComprimento ||
+           _sobras != _initialSobras;
   }
 
   @override
@@ -1730,7 +1736,8 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
           costCents: cents,
           altura: altura,
           largura: largura,
-          comprimento: comprimento,  // NOVO
+          comprimento: comprimento,
+          sobras: _sobras,
         );
     context.pop(item);
   }
@@ -1877,107 +1884,39 @@ class _MaterialEditorSheetState extends State<MaterialEditorSheet> {
                               ],
                             ),
                             
-                            // ====== CAMPOS CONDICIONAIS PARA m² ======
-                            if (_selectedUnit == 'm²') ...[
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _alturaCtrl,
-                                      focusNode: _alturaFocusNode,
-                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                      ],
-                                      textInputAction: TextInputAction.next,
-                                      decoration: InputDecoration(
-                                        labelText: 'Altura (mm)',
-                                        hintText: 'Ex: 2500',
-                                        prefixIcon: Icon(
-                                          Icons.height,
-                                          color: theme.colorScheme.primary.withValues(alpha: 0.7),
-                                        ),
-                                      ),
-                                      validator: (v) {
-                                        if (_selectedUnit == 'm²') {
-                                          final value = _parseDimension(v ?? '');
-                                          if (value == null) {
-                                            return 'Altura obrigatória para m²';
-                                          }
-                                        }
-                                        return null;
-                                      },
-                                      onFieldSubmitted: (_) => _larguraFocusNode.requestFocus(),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _larguraCtrl,
-                                      focusNode: _larguraFocusNode,
-                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                      ],
-                                      textInputAction: TextInputAction.next,
-                                      decoration: InputDecoration(
-                                        labelText: 'Largura (mm)',
-                                        hintText: 'Ex: 1200',
-                                        prefixIcon: Icon(
-                                          Icons.straighten,
-                                          color: theme.colorScheme.primary.withValues(alpha: 0.7),
-                                        ),
-                                      ),
-                                      validator: (v) {
-                                        if (_selectedUnit == 'm²') {
-                                          final value = _parseDimension(v ?? '');
-                                          if (value == null) {
-                                            return 'Largura obrigatória para m²';
-                                          }
-                                        }
-                                        return null;
-                                      },
-                                      onFieldSubmitted: (_) => _costFocusNode.requestFocus(),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                            // ====== FIM DOS CAMPOS CONDICIONAIS m² ======
+                            // ====== (altura e largura serão preenchidas posteriormente) ======
                             
-                            // ====== CAMPOS CONDICIONAIS PARA m/l ======
-                            if (_selectedUnit == 'm/l') ...[
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                controller: _comprimentoCtrl,
-                                focusNode: _comprimentoFocusNode,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))
-                                ],
-                                textInputAction: TextInputAction.next,
-                                decoration: InputDecoration(
-                                  labelText: 'Comprimento (mm)',
-                                  hintText: 'Ex: 3000',
-                                  prefixIcon: Icon(
-                                    Icons.straighten,
-                                    color: theme.colorScheme.primary.withValues(alpha: 0.7),
-                                  ),
-                                ),
-                                validator: (v) {
-                                  if (_selectedUnit == 'm/l') {
-                                    final value = _parseDimension(v ?? '');
-                                    if (value == null) {
-                                      return 'Comprimento obrigatório para m/l';
-                                    }
-                                  }
-                                  return null;
-                                },
-                                onFieldSubmitted: (_) => _costFocusNode.requestFocus(),
-                              ),
-                            ],
+                            // ====== (comprimento será preenchido posteriormente) ======
                             // ====== FIM DOS CAMPOS CONDICIONAIS ======
+                            // ====== CAMPO SOBRAS ======
+                            const SizedBox(height: 12),
+                            ExcludeFocus(
+                              child: InputDecorator(
+                                decoration: const InputDecoration(
+                                  labelText: 'Sobras',
+                                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          _sobras ? 'Sim' : 'Não',
+                                          style: theme.textTheme.bodyMedium,
+                                        ),
+                                      ],
+                                    ),
+                                    Switch(
+                                      value: _sobras,
+                                      onChanged: (v) => setState(() => _sobras = v),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            // ====== FIM CAMPO SOBRAS ======
                             
                             const SizedBox(height: 12),
                             TextFormField(
